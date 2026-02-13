@@ -6,61 +6,66 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
+    @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @State private var selectedTab: Tab = .dashboard
+    
+    // 定义 Tab 枚举，便于管理
+    enum Tab {
+        case dashboard
+        case transfers
+        case rss
+        case settings
+    }
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        TabView(selection: $selectedTab) {
+            // 仪表盘
+            DashboardView()
+                .tabItem {
+                    Label("仪表盘", systemImage: "chart.bar")
                 }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                .tag(Tab.dashboard)
+            
+            // 任务
+            TransfersView()
+                .tabItem {
+                    Label("任务", systemImage: "list.bullet")
                 }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
+                .tag(Tab.transfers)
+                .badge(appStateManager.allTasks.filter { $0.status == .downloading }.count)
+            
+            // 自动化
+            RSSView()
+                .tabItem {
+                    Label("自动化", systemImage: "dot.radiowaves.up.forward")
                 }
-            }
-        } detail: {
-            Text("Select an item")
+                .tag(Tab.rss)
+            
+            // 管理 (设置)
+            SettingsView()
+                .tabItem {
+                    Label("设置", systemImage: "gearshape")
+                }
+                .tag(Tab.settings)
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+        // iOS 17 默认 TabView 已具有磨砂玻璃效果，
+        // 使用 .toolbarBackground 显式指定可以确保在所有视图下的一致性
+        .onAppear {
+            let appearance = UITabBarAppearance()
+            appearance.configureWithDefaultBackground()
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial) // 磨砂玻璃效果
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+            
+            // 加载数据
+            appStateManager.loadServers(context: modelContext)
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }

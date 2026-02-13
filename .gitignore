@@ -1,0 +1,28 @@
+# Xcode
+#
+# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+
+## User settings
+xcuserdata/
+
+## compatibility with Xcode 8 and earlier (ignoring these is recommended)
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.pbxuser
+
+## Xcode 9 and later (supported since git 1.7.9)
+# .xcworkspace is often managed by CocoaPods or Carthage, so we typically do not ignore it.
+# However, for a simple project without deps, it's fine.
+# But usually we keep .xcodeproj and .xcworkspace
+# We ignore user data inside them.
+
+## Build generated
+build/
+DerivedData/
+
+## Misc
+.DS_Store
+.llb/
+.gemini/
+.agent/
