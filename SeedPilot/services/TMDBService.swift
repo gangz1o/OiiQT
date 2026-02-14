@@ -90,6 +90,42 @@ class TMDBService {
         return URL(string: imageBaseURL + posterPath)
     }
 
+    /// 获取背景大图 (Backdrop 16:9)
+    @MainActor
+    func fetchBackdrop(hash: String, name: String, context: ModelContext) async -> URL? {
+        // 1. Check persistence (SwiftData)
+        // We generally use persisted path if available
+        if let match = fetchMatch(hash: hash, context: context) {
+            if let path = match.backdropPath {
+                return URL(string: "https://image.tmdb.org/t/p/w780" + path)
+            }
+            // If match exists but no backdrop, maybe we haven't fetched it yet?
+            // Or maybe it has none?
+            // If match.isManualOverride, we trust it?
+            // For now, if no backdropPath, we try to search again and update.
+        }
+
+        // 2. Network Search
+        let cleanedName = cleanTorrentName(name)
+        guard !cleanedName.isEmpty else { return nil }
+
+        let items = await search(query: cleanedName)
+        guard let backdropPath = items.first?.backdropPath else { return nil }
+
+        // 3. Save/Update Match
+        if let match = fetchMatch(hash: hash, context: context) {
+            match.backdropPath = backdropPath
+        } else {
+             // If no match existed, create one?
+             // Usually fetchPoster is called first, so match likely exists.
+             // But if not, we create one.
+             let match = TMDBMatch(hashString: hash, posterPath: items.first?.posterPath, backdropPath: backdropPath, isManualOverride: false)
+             context.insert(match)
+        }
+
+        return URL(string: "https://image.tmdb.org/t/p/w780" + backdropPath)
+    }
+
     /// 搜索 API (支持分页)
     func search(query: String, page: Int = 1) async -> [TMDBItem] {
         guard apiKey != "YOUR_API_KEY_HERE",
@@ -156,12 +192,18 @@ struct TMDBItem: Identifiable, Hashable {
     let id: Int
     let title: String
     let posterPath: String?
+    let backdropPath: String?
     let releaseDate: String?
     let mediaType: String // "movie" or "tv"
 
     var fullPosterURL: URL? {
         guard let path = posterPath else { return nil }
         return URL(string: "https://image.tmdb.org/t/p/w300" + path)
+    }
+
+    var fullBackdropURL: URL? {
+        guard let path = backdropPath else { return nil }
+        return URL(string: "https://image.tmdb.org/t/p/w780" + path)
     }
 
     var year: String {
@@ -183,6 +225,7 @@ private struct TMDBResponse: Decodable {
 private struct TMDBResult: Decodable {
     let id: Int
     let poster_path: String?
+    let backdrop_path: String?
     let media_type: String?
     let title: String?
     let name: String?
@@ -190,13 +233,19 @@ private struct TMDBResult: Decodable {
     let first_air_date: String?
 
     func toDomainModel() -> TMDBItem? {
+        // Only movies and tv shows
         guard ["movie", "tv"].contains(media_type) else { return nil }
+
+        // Return item
         return TMDBItem(
             id: id,
             title: title ?? name ?? "Unknown",
             posterPath: poster_path,
+            backdropPath: backdrop_path,
             releaseDate: release_date ?? first_air_date,
             mediaType: media_type ?? "unknown"
         )
     }
 }
+
+

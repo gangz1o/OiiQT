@@ -20,6 +20,7 @@ struct SettingsView: View {
 
     // Pro 功能
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
+    @AppStorage("enableProDashboardBackground") private var enableProDashboardBackground: Bool = false
 
     // UI 状态
     @State private var showingClearCacheAlert = false
@@ -85,6 +86,9 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: $showTMDBData) {
                         Label("TMDB 海报数据", systemImage: "film")
+                    }
+                    Toggle(isOn: $enableProDashboardBackground) {
+                        Label("Pro 仪表盘背景", systemImage: "photo.artframe")
                     }
                 } header: {
                     Text("Pro 功能")

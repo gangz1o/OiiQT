@@ -120,7 +120,8 @@ class QBittorrentClient: NSObject, TorrentClient {
                     downloaded: task.downloaded ?? 0,
                     uploaded: task.uploaded ?? 0,
                     isSequential: task.seq_dl,
-                    isFirstLastPiecePriority: task.f_l_piece_prio
+                    isFirstLastPiecePriority: task.f_l_piece_prio,
+                    completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil
                 )
             }
         } catch {
@@ -383,6 +384,7 @@ struct QBTask: Decodable {
     let uploaded: Int64?
     let seq_dl: Bool?
     let f_l_piece_prio: Bool?
+    let completion_on: Int? // Timestamp
 }
 
 enum TorrentClientError: Error {

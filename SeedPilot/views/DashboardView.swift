@@ -2,277 +2,383 @@
 //  DashboardView.swift
 //  SeedPilot
 //
-//  Created by gangz1o on 2026/2/13.
+//  Created by gangz1o on 2026/2/15.
 //
 
 import SwiftUI
 import Charts
-import Combine
-
-// MARK: - Models for Chart
-struct NetworkSpeed: Identifiable {
-    let id = UUID()
-    let time: Date
-    let downloadSpeed: Double // MB/s
-    let uploadSpeed: Double   // MB/s
-}
+import SwiftData
 
 struct DashboardView: View {
-    // 模拟数据
-    @State private var speedData: [NetworkSpeed] = []
-    @State private var downloadCount = 12
-    @State private var seedingCount = 45
-    @State private var diskUsed: Double = 3.2 // TB
-    @State private var diskTotal: Double = 8.0 // TB
-    
-    // 定时器模拟实时数据
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    
+    @Environment(AppStateManager.self) private var appStateManager
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("enableProDashboardBackground") private var enableProDashboardBackground: Bool = false
+
+    // UI State
+    @State private var bannerIndex = 0
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // 1. 速度图表卡片
-                    speedChartCard
-                    
-                    // 2. 状态统计卡片 (并排)
-                    HStack(spacing: 16) {
-                        statusCard(
-                            title: "正在下载",
-                            count: downloadCount,
-                            icon: "arrow.down.circle.fill",
-                            color: .blue
-                        )
-                        
-                        statusCard(
-                            title: "正在做种",
-                            count: seedingCount,
-                            icon: "arrow.up.circle.fill",
-                            color: .green
-                        )
+            ZStack {
+                // Background Layer (Subtle Gradient)
+                LinearGradient(
+                    colors: [Color(uiColor: .systemGroupedBackground), Color(uiColor: .systemBackground)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                // Main Content
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // 1. Pro Banner (Sliding Header)
+                        if enableProDashboardBackground {
+                            proBannerSection
+                        } else {
+                            // Fallback welcome or static banner
+                            staticWelcomeBanner
+                        }
+
+                        // 2. Speed Indicators (Compact Header)
+                        speedHeaderSection
+
+                        // 3. Server Grid
+                        serverTilesSection
+
+                        // 4. Recent Gallery (Smaller)
+                        recentItemsSection
                     }
-                    
-                    // 3. 磁盘空间卡片
-                    diskSpaceCard
+                    .padding(.top, 10)
+                    .padding(.bottom, 100)
                 }
-                .padding()
             }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("仪表盘")
-            .onAppear {
-                generateInitialData()
+            .navigationTitle(appStateManager.activeServerName ?? "仪表盘")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 4) {
+                        Text(appStateManager.activeServerName ?? "全部服务器")
+                            .font(.headline)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
-            .onReceive(timer) { _ in
-                updateData()
+            .toolbarTitleMenu {
+                Button {
+                    appStateManager.activeServerId = nil
+                } label: {
+                    Label("全部服务器", systemImage: "server.rack")
+                }
+
+                ForEach(appStateManager.servers) { server in
+                    Button {
+                        appStateManager.activeServerId = server.id
+                    } label: {
+                        Label(server.name, systemImage: server.type == .qBittorrent ? "network" : "antenna.radiowaves.left.and.right")
+                    }
+                }
             }
         }
     }
-    
-    // MARK: - Components
-    
-    // 1. 速度图表卡片
-    private var speedChartCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Label("网络速度", systemImage: "network")
+
+    // MARK: - Sections
+
+    private var proBannerSection: some View {
+        TabView(selection: $bannerIndex) {
+            let tasks = getRecentTasks().prefix(5)
+            if tasks.isEmpty {
+                // Default Pro Banner
+                defaultBannerView(title: "SeedPilot Pro", subtitle: "Your Home Command Center")
+                    .tag(0)
+            } else {
+                ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
+                    ProBannerItem(task: task)
+                        .tag(index)
+                }
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .automatic))
+        .frame(height: 200)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
+        .padding(.horizontal, 16)
+    }
+
+    private var staticWelcomeBanner: some View {
+        defaultBannerView(title: "SeedPilot", subtitle: "Dashboard")
+            .frame(height: 150)
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .padding(.horizontal, 16)
+    }
+
+    private func defaultBannerView(title: String, subtitle: String) -> some View {
+        ZStack {
+            LinearGradient(
+                colors: [.blue.opacity(0.8), .purple.opacity(0.8)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            VStack {
+                Text(title)
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(.white)
+                Text(subtitle)
                     .font(.headline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            
-            Chart {
-                ForEach(speedData) { item in
-                    // 下载速度曲线
-                    LineMark(
-                        x: .value("时间", item.time),
-                        y: .value("下载", item.downloadSpeed),
-                        series: .value("类型", "下载")
-                    )
-                    .foregroundStyle(.blue.gradient)
-                    .interpolationMethod(.catmullRom)
-                    
-                    AreaMark(
-                        x: .value("时间", item.time),
-                        y: .value("下载", item.downloadSpeed),
-                        series: .value("类型", "下载")
-                    )
-                    .foregroundStyle(
-                        .linearGradient(
-                            colors: [.blue.opacity(0.3), .blue.opacity(0.0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
-                    
-                    // 上传速度曲线
-                    LineMark(
-                        x: .value("时间", item.time),
-                        y: .value("上传", item.uploadSpeed),
-                        series: .value("类型", "上传")
-                    )
-                    .foregroundStyle(.green.gradient)
-                    .interpolationMethod(.catmullRom)
-                    
-                    AreaMark(
-                        x: .value("时间", item.time),
-                        y: .value("上传", item.uploadSpeed),
-                        series: .value("类型", "上传")
-                    )
-                    .foregroundStyle(
-                        .linearGradient(
-                            colors: [.green.opacity(0.3), .green.opacity(0.0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .chartXAxis(.hidden)
-            .frame(height: 180)
-            .animation(.spring(response: 0.6, dampingFraction: 0.7), value: speedData.map { $0.downloadSpeed })
-            
-            // 图例和当前速度
-            HStack(spacing: 20) {
-                if let last = speedData.last {
-                    HStack(spacing: 4) {
-                        Circle().fill(.blue).frame(width: 8, height: 8)
-                        Text("↓ \(String(format: "%.1f", last.downloadSpeed)) MB/s")
-                            .font(.caption).bold()
-                            .foregroundStyle(.blue)
-                            .contentTransition(.numericText(value: last.downloadSpeed))
-                    }
-                    
-                    HStack(spacing: 4) {
-                        Circle().fill(.green).frame(width: 8, height: 8)
-                        Text("↑ \(String(format: "%.1f", last.uploadSpeed)) MB/s")
-                            .font(.caption).bold()
-                            .foregroundStyle(.green)
-                            .contentTransition(.numericText(value: last.uploadSpeed))
-                    }
-                }
+                    .foregroundStyle(.white.opacity(0.8))
             }
         }
-        .padding()
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
-    
-    // 2. 状态统计卡片
-    private func statusCard(title: String, count: Int, icon: String, color: Color) -> some View {
+
+    private var speedHeaderSection: some View {
+        HStack(spacing: 30) {
+            Spacer()
+
+            // Download
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(.blue)
+                    .symbolEffect(.bounce, value: appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed })
+
+                Text(torrentByteFormatter.string(fromByteCount: appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed }) + "/s")
+                    .font(.system(.title2, design: .rounded).monospacedDigit().bold())
+            }
+
+            // Upload
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed })
+
+                Text(torrentByteFormatter.string(fromByteCount: appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed }) + "/s")
+                    .font(.system(.title2, design: .rounded).monospacedDigit().bold())
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var serverTilesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(color)
-                Spacer()
-                Text("\(count)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .contentTransition(.numericText(value: Double(count)))
-                    .animation(.spring(response: 0.6, dampingFraction: 0.7), value: count)
-            }
-            
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-    }
-    
-    // 3. 磁盘空间卡片
-    private var diskSpaceCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Label("存储空间", systemImage: "externaldrive")
+            Label("服务器", systemImage: "server.rack")
                 .font(.headline)
                 .foregroundStyle(.secondary)
-            
-            HStack(spacing: 24) {
-                // 进度环
-                Gauge(value: diskUsed, in: 0...diskTotal) {
-                    Text("使用率")
-                } currentValueLabel: {
-                    Text("\(Int((diskUsed / diskTotal) * 100))%")
-                        .font(.caption)
-                        .contentTransition(.numericText(value: diskUsed))
-                }
-                .gaugeStyle(.accessoryCircularCapacity)
-                .tint(.orange)
-                .scaleEffect(1.2)
-                .frame(width: 60, height: 60)
-                .animation(.spring(response: 0.6, dampingFraction: 0.7), value: diskUsed)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("已用: \(String(format: "%.1f", diskUsed)) TB")
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                            .contentTransition(.numericText(value: diskUsed))
-                        Spacer()
+                .padding(.horizontal, 16)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(appStateManager.servers) { server in
+                    Button {
+                        selectServer(server)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            HStack {
+                                Image(systemName: server.type == .qBittorrent ? "network" : "antenna.radiowaves.left.and.right")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                                Circle()
+                                    .fill(server.isOnline == true ? Color.green : (server.isOnline == false ? Color.red : Color.gray))
+                                    .frame(width: 6, height: 6)
+                            }
+
+                            Spacer()
+
+                            Text(server.name)
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.9)
+
+                            Spacer()
+
+                            // Mock Progress
+                            Capsule()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(height: 3)
+                                .overlay(
+                                    GeometryReader { geo in
+                                        Capsule()
+                                            .fill(Color.blue)
+                                            .frame(width: geo.size.width * 0.45)
+                                    },
+                                    alignment: .leading
+                                )
+                        }
+                        .padding(12)
+                        .aspectRatio(1.0, contentMode: .fit)
+                        .background(Material.thin)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
                     }
-                    
-                    HStack {
-                        Text("总计: \(String(format: "%.1f", diskTotal)) TB")
+                    .buttonStyle(ScaleButtonStyle())
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var recentItemsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("最近完成", systemImage: "clock.arrow.circlepath")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    let recents = getRecentTasks()
+                    if recents.isEmpty {
+                        Text("暂无最近完成的任务")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                        Spacer()
+                            .padding(.horizontal, 16)
+                    } else {
+                        ForEach(recents) { task in
+                            Button {
+                                // Detail action
+                            } label: {
+                                PosterThumbnail(task: task)
+                                    .frame(width: 80, height: 120) // Smaller posters
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                            }
+                            .buttonStyle(ScaleButtonStyle())
+                        }
                     }
-                    
-                    ProgressView(value: diskUsed, total: diskTotal)
-                        .tint(.orange)
-                        .animation(.spring(response: 0.6, dampingFraction: 0.7), value: diskUsed)
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
             }
         }
-        .padding()
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
-    
-    // MARK: - Helpers
-    
-    private func generateInitialData() {
-        let now = Date()
-        speedData = (0..<20).map { i in
-            NetworkSpeed(
-                time: now.addingTimeInterval(Double(-i)),
-                downloadSpeed: Double.random(in: 2.0...15.0),
-                uploadSpeed: Double.random(in: 0.5...5.0)
-            )
-        }.reversed()
+
+    // MARK: - Logic
+
+    private func selectServer(_ server: ServerConfig) {
+        withAnimation {
+            appStateManager.activeServerId = server.id
+            appStateManager.selectedTab = .transfers
+        }
     }
-    
-    private func updateData() {
-        withAnimation(.easeInOut) {
-            let config = speedData.last ?? NetworkSpeed(time: Date(), downloadSpeed: 0, uploadSpeed: 0)
-            
-            // 模拟波动
-            let newDownload = max(0, config.downloadSpeed + Double.random(in: -3.0...3.0))
-            let newUpload = max(0, config.uploadSpeed + Double.random(in: -1.0...1.0))
-            
-            let newData = NetworkSpeed(
-                time: Date(),
-                downloadSpeed: newDownload,
-                uploadSpeed: newUpload
-            )
-            
-            if speedData.count >= 20 {
-                speedData.removeFirst()
+
+    private func getRecentTasks() -> [TorrentTask] {
+        let completed = appStateManager.allTasks.filter {
+            $0.progress >= 1.0 || $0.status == .completed || $0.status == .seeding
+        }
+        // Prefer explicit completion date
+        return completed.sorted {
+            ($0.completionDate ?? Date.distantPast) > ($1.completionDate ?? Date.distantPast)
+        }
+        .prefix(10)
+        .map { $0 }
+    }
+}
+
+// Pro Banner Helper Component
+struct ProBannerItem: View {
+    let task: TorrentTask
+    @Environment(\.modelContext) private var modelContext
+    @State private var backdropURL: URL?
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            // Background Image
+            if let url = backdropURL {
+                CachedAsyncImage(url: url, cacheKey: task.id + "_backdrop.jpg") { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    ZStack {
+                        Color(.systemGray5)
+                        ProgressView()
+                    }
+                }
+            } else {
+                // Fallback Gradient
+                LinearGradient(
+                    colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             }
-            speedData.append(newData)
+
+            // Gradient Overlay
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.8)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+
+            // Text Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(SeedPilotParser.parse(task.name).title)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                HStack {
+                    Text(task.sizeString)
+                    Text("•")
+                    Text(task.status.rawValue)
+                }
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.8))
+            }
+            .padding(16)
+            .padding(.bottom, 10)
+        }
+        .task {
+            if backdropURL == nil {
+                backdropURL = await TMDBService.shared.fetchBackdrop(hash: task.id, name: task.name, context: modelContext)
+            }
         }
     }
 }
 
-#Preview {
-    DashboardView()
+// Simple Poster Thumbnail Helper
+struct PosterThumbnail: View {
+    let task: TorrentTask
+    @Environment(\.modelContext) private var modelContext
+    @State private var url: URL?
+
+    var body: some View {
+        Group {
+            if let u = url {
+                CachedAsyncImage(url: u, cacheKey: task.id + ".jpg") { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color(.systemGray5)
+                }
+            } else {
+                ZStack {
+                    Color(.systemGray5)
+                    Image(systemName: "film")
+                        .font(.title)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task {
+            if url == nil {
+                url = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext)
+            }
+        }
+    }
+}
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
 }

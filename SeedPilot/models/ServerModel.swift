@@ -88,6 +88,8 @@ struct TorrentTask: Identifiable, Hashable {
     let uploaded: Int64      // 已上传字节
     let isSequential: Bool?  // 顺序下载 (Optional to support backward compat if needed, but better non-optional with default)
     let isFirstLastPiecePriority: Bool? // 首尾优先
+    let completionDate: Date? // 完成时间
+
 
     // MARK: - Computed Properties
 

@@ -10,12 +10,29 @@ import SwiftData
 import Observation
 import SwiftUI
 
+enum AppTab: Int {
+    case dashboard, transfers, rss, settings
+}
+
+struct SpeedPoint: Identifiable {
+    let id = UUID()
+    let date: Date
+    let download: Int64
+    let upload: Int64
+}
+
 @Observable
 class AppStateManager {
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
 
     var activeServerId: UUID?
+
+    // Navigation
+    var selectedTab: AppTab = .dashboard
+
+    // Analytics
+    var speedHistory: [SpeedPoint] = []
 
     // Client Cache
     private var clients: [UUID: TorrentClient] = [:]
@@ -133,6 +150,19 @@ class AppStateManager {
         let finalTasks = gatheredTasks
         await MainActor.run {
             self.allTasks = finalTasks
+
+            // Record History
+            let now = Date()
+            let down = finalTasks.reduce(0) { $0 + $1.downloadSpeed }
+            let up = finalTasks.reduce(0) { $0 + $1.uploadSpeed }
+
+            // Limit history to last 60 points (2 minutes if 2s interval)
+            // Or more? Area chart looks better with more data.
+            // 300 points = 10 minutes.
+            if self.speedHistory.count > 60 {
+                self.speedHistory.removeFirst()
+            }
+            self.speedHistory.append(SpeedPoint(date: now, download: down, upload: up))
         }
     }
 
