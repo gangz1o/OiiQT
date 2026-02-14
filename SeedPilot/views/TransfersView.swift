@@ -9,38 +9,57 @@ import SwiftUI
 
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
-    
+
     // 状态筛选
     @State private var selectedStatus: String = "全部"
     let statusOptions = ["全部"] + TorrentStatus.allCases.map { $0.rawValue }
-    
+
     // 添加磁力链接
     @State private var showingAddMagnet = false
     @State private var magnetLink = ""
-    
+
     // 筛选后的任务列表
     var filteredTasks: [TorrentTask] {
+        let tasks = appStateManager.displayedTasks
         if selectedStatus == "全部" {
-            return appStateManager.allTasks
+            return tasks
         } else {
-            return appStateManager.allTasks.filter { $0.status.rawValue == selectedStatus }
+            return tasks.filter { $0.status.rawValue == selectedStatus }
         }
     }
-    
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
+                    // 0. 服务器状态栏 (Pinned Top)
+                    ServerStatusBar(appStateManager: appStateManager)
+                        .background(Color(uiColor: .systemBackground)) // Match Nav Bar
+                        .overlay(
+                            Rectangle()
+                                .frame(height: 0.5)
+                                .foregroundColor(Color(uiColor: .separator)),
+                            alignment: .bottom
+                        )
+
                     // 1. 任务列表
                     if filteredTasks.isEmpty {
                         emptyState
                     } else {
                         List {
                             ForEach(filteredTasks) { task in
-                                TaskRow(task: task)
+                                TorrentRowView(task: task, appStateManager: appStateManager)
+                                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)) // Custom insets for alignment
+                                    .listRowSeparator(.visible) // Or hidden if we use our own dividers
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
-                                            appStateManager.deleteTasks([task])
+                                            appStateManager.deleteTask(task, withData: true) // Default to quick delete with data? Or allow logic?
+                                            // Swipe usage usually implies quick delete.
+                                            // Step 543 added deleteTask(task, withData: Bool)
+                                            // Old code used deleteTasks([task]) which was bulk delete.
+                                            // Let's use deleteTasks([task]) for now or appStateManager.deleteTask(task, withData: true)
+                                            // Let's stick to simple delete for swipe.
+                                            appStateManager.deleteTask(task, withData: true)
                                         } label: {
                                             Label("删除", systemImage: "trash")
                                         }
@@ -67,7 +86,7 @@ struct TransfersView: View {
                         .listStyle(.plain)
                     }
                 }
-                
+
                 // 2. 悬浮按钮 (FAB)
                 Button {
                     showingAddMagnet = true
@@ -82,8 +101,36 @@ struct TransfersView: View {
                 }
                 .padding()
             }
-            .navigationTitle(selectedStatus == "全部" ? "传输任务" : "\(selectedStatus)")
+            .navigationTitle(appStateManager.activeServerName ?? "传输任务")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarTitleMenu {
+                // 全部服务器
+                Button {
+                    withAnimation(.spring()) {
+                        appStateManager.activeServerId = nil
+                    }
+                } label: {
+                    Label("全部服务器", systemImage: "rectangle.stack.fill")
+                }
+
+                // Server List
+                ForEach(appStateManager.servers) { server in
+                    Button {
+                        withAnimation(.spring()) {
+                            appStateManager.activeServerId = server.id
+                        }
+                    } label: {
+                        HStack {
+                            Text(server.name)
+                            if server.isOnline == true {
+                                Image(systemName: "circle.fill").foregroundStyle(.green)
+                            } else {
+                                Image(systemName: "circle.fill").foregroundStyle(.red)
+                            }
+                        }
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -110,9 +157,9 @@ struct TransfersView: View {
             }
         }
     }
-    
+
     // MARK: - Subviews
-    
+
     private var emptyState: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -128,66 +175,61 @@ struct TransfersView: View {
     }
 }
 
-// MARK: - Task Row View
-struct TaskRow: View {
-    let task: TorrentTask
-    
+// MARK: - Status Bar Component
+
+struct ServerStatusBar: View {
+    var appStateManager: AppStateManager
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 文件名
-            Text(task.name)
-                .font(.body)
-                .fontWeight(.medium)
-                .lineLimit(1)
-            
-            // 进度条
-            ProgressView(value: task.progress)
-                .tint(task.status.color)
-            
-            // 详细信息 (大小 / 速度 / 时间)
-            HStack {
-                Text(task.sizeString)
-                
-                if task.status == .downloading || task.status == .seeding {
-                    Text("•")
-                    Text(task.speedString)
-                        .foregroundStyle(task.status == .downloading ? .blue : .green)
-                        .contentTransition(.numericText(value: Double(task.status == .seeding ? task.uploadSpeed : task.downloadSpeed)))
-                }
-                
-                Spacer()
-                
-                // 状态文本或剩余时间
-                if task.status == .downloading {
-                    Text(remainingTimeString)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        HStack {
+            // Left: Server Type / Icon
+            HStack(spacing: 6) {
+                if let type = appStateManager.activeServerType {
+                    Image(systemName: type == .qBittorrent ? "network" : "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(.blue)
                 } else {
-                    Text(task.status.rawValue)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(task.status.color.opacity(0.1))
-                        .foregroundStyle(task.status.color)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    Image(systemName: "server.rack")
+                        .foregroundStyle(.primary)
                 }
+
+                Text(appStateManager.activeServerName ?? "All Servers")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+
+            Spacer()
+
+            // Right: Speeds
+            HStack(spacing: 12) {
+                SpeedLabel(icon: "arrow.down", speed: appStateManager.displayedDownloadSpeed, color: .green)
+                SpeedLabel(icon: "arrow.up", speed: appStateManager.displayedUploadSpeed, color: .blue)
+            }
         }
-        .padding(.vertical, 4)
-        .animation(.spring, value: task.progress) // Animate progress changes
-    }
-    
-    private var remainingTimeString: String {
-        if task.remainingTime < 0 { return "∞" }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .abbreviated
-        return "剩余 " + (formatter.string(from: task.remainingTime) ?? "--")
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }
+
+struct SpeedLabel: View {
+    let icon: String
+    let speed: Int64
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2.bold())
+                .foregroundStyle(color)
+            Text(ByteCountFormatter.string(fromByteCount: speed, countStyle: .binary) + "/s")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.primary)
+        }
+    }
+}
+
+
+
+
 
 #Preview {
     TransfersView()

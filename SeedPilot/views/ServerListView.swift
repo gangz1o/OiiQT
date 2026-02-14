@@ -12,10 +12,10 @@ struct ServerListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppStateManager.self) private var appStateManager
     @Query private var servers: [ServerConfig]
-    
+
     @State private var showingAddServer = false
     @State private var editingServer: ServerConfig?
-    
+
     var body: some View {
         List {
             if servers.isEmpty {
@@ -66,10 +66,10 @@ struct ServerListView: View {
             }
         }
         .sheet(isPresented: $showingAddServer) {
-            AddServerView()
+            EditServerView()
         }
         .sheet(item: $editingServer) { server in
-            AddServerView(serverToEdit: server)
+            EditServerView(serverToEdit: server)
         }
         .onAppear {
             // Initial sync and check
@@ -87,16 +87,16 @@ struct ServerListView: View {
 struct ServerCardRow: View {
     var server: ServerConfig
     @State private var isBreathing = false
-    
+
     @Environment(AppStateManager.self) private var appStateManager
-    
+
     var statusColor: Color {
         if let isOnline = server.isOnline {
             return isOnline ? .green : .red
         }
         return .gray
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 16) {
@@ -117,7 +117,7 @@ struct ServerCardRow: View {
                             isBreathing = false
                         }
                     }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(server.name)
                         .font(.headline)
@@ -126,9 +126,9 @@ struct ServerCardRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 // Type Badge
                 Text(server.type.rawValue)
                     .font(.caption)
@@ -138,14 +138,14 @@ struct ServerCardRow: View {
                     .background(Color.blue.opacity(0.1))
                     .foregroundStyle(.blue)
                     .clipShape(Capsule())
-                
+
                 // Chevron
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             .padding()
-            
+
             if server.isOnline == false {
                 Text("连接超时，请检查网络或穿透设置")
                     .font(.system(size: 10))

@@ -11,11 +11,12 @@ import SwiftData
 @main
 struct SeedPilotApp: App {
     @AppStorage("appearance") private var appearance: String = "system"
-    
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
             ServerConfig.self,
+            TMDBMatch.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

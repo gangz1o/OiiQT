@@ -14,24 +14,47 @@ import SwiftUI
 class AppStateManager {
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
-    
+
+    var activeServerId: UUID?
+
     // Client Cache
     private var clients: [UUID: TorrentClient] = [:]
-    
+
     // MARK: - Computed Properties
-    
-    /// 所有服务器的总下载速度 (Bytes/s)
-    var totalDownloadSpeed: Int64 {
-        allTasks.reduce(0) { $0 + $1.downloadSpeed }
+
+    var displayedTasks: [TorrentTask] {
+        if let id = activeServerId {
+            return allTasks.filter { $0.serverID == id }
+        }
+        return allTasks
     }
-    
-    /// 所有服务器的总上传速度 (Bytes/s)
-    var totalUploadSpeed: Int64 {
-        allTasks.reduce(0) { $0 + $1.uploadSpeed }
+
+    var activeServerName: String? {
+        guard let id = activeServerId else { return nil }
+        return servers.first(where: { $0.id == id })?.name
     }
-    
+
+    var activeServerType: ServerType? {
+        guard let id = activeServerId else { return nil }
+        return servers.first(where: { $0.id == id })?.type
+    }
+
+    /// 显示的任务总下载速度 (Bytes/s)
+    var displayedDownloadSpeed: Int64 {
+        displayedTasks.reduce(0) { $0 + $1.downloadSpeed }
+    }
+
+    /// 显示的任务总上传速度 (Bytes/s)
+    var displayedUploadSpeed: Int64 {
+        displayedTasks.reduce(0) { $0 + $1.uploadSpeed }
+    }
+
+    // Deprecated exact totals if we only use displayed
+    var totalDownloadSpeed: Int64 { displayedDownloadSpeed }
+    var totalUploadSpeed: Int64 { displayedUploadSpeed }
+
     // MARK: - Data Management
-    
+
     /// 从 SwiftData 加载服务器列表 (App launch)
     @MainActor
     func loadServers(context: ModelContext) {
@@ -44,19 +67,19 @@ class AppStateManager {
             print("Failed to load servers: \(error)")
         }
     }
-    
+
     /// Sync servers from UI Query (to ensure we have latest list including new additions)
     @MainActor
     func updateServers(_ newServers: [ServerConfig]) {
         self.servers = newServers
     }
-    
+
     /// 启动自动刷新 (每 2 秒)
     func startAutoRefresh() {
         Task {
             // Initial fetch
             await refreshData()
-            
+
             // Periodic fetch
             while true {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
@@ -64,11 +87,11 @@ class AppStateManager {
             }
         }
     }
-    
+
     /// 刷新所有服务器的任务 (对应 User Request: refreshData)
     func refreshData() async {
         var gatheredTasks: [TorrentTask] = []
-        
+
         // Parallel fetching could be done with TaskGroup, but for now serial is safer for debug
         for server in servers {
             let client = getClient(for: server)
@@ -76,7 +99,7 @@ class AppStateManager {
                 // Try fetch
                 let tasks = try await client.fetchTorrents()
                 gatheredTasks.append(contentsOf: tasks)
-                
+
                 // Mark online
                 await MainActor.run {
                     server.isOnline = true
@@ -88,7 +111,7 @@ class AppStateManager {
                         try await client.login()
                         let tasks = try await client.fetchTorrents()
                         gatheredTasks.append(contentsOf: tasks)
-                        
+
                         // Mark online after retry success
                         await MainActor.run {
                             server.isOnline = true
@@ -106,28 +129,28 @@ class AppStateManager {
                 await MainActor.run { server.isOnline = false }
             }
         }
-        
+
         let finalTasks = gatheredTasks
         await MainActor.run {
             self.allTasks = finalTasks
         }
     }
-    
+
     func checkServerStatus() {
         for server in servers {
             let client = getClient(for: server)
             // Set to nil to show breathing animation
             server.isOnline = nil
-            
+
             Task {
                 do {
                     _ = try await client.checkConnection()
                     await MainActor.run { server.isOnline = true }
                 } catch {
-                    // Auth retry? checkConnection handles 403 by throwing auth failed, 
-                    // but we might want to try auto-login here too? 
+                    // Auth retry? checkConnection handles 403 by throwing auth failed,
+                    // but we might want to try auto-login here too?
                     // For lightweight heartbeat, maybe just separate "Auth Failed" vs "Timeout"?
-                    // User said "Timeout, check network". 
+                    // User said "Timeout, check network".
                     // I'll stick to simple true/false for now as requested.
                     await MainActor.run { server.isOnline = false }
                 }
@@ -139,7 +162,7 @@ class AppStateManager {
         if let existing = clients[server.id] {
             return existing
         }
-        
+
         let client: TorrentClient
         switch server.type {
         case .qBittorrent:
@@ -150,15 +173,15 @@ class AppStateManager {
         clients[server.id] = client
         return client
     }
-    
+
     // MARK: - Task Actions
-    
+
     func addMagnetLink(_ link: String) {
         guard let server = servers.first else {
             print("No server available to add task")
             return
         }
-        
+
         Task {
             let client = getClient(for: server)
             do {
@@ -169,11 +192,11 @@ class AppStateManager {
             }
         }
     }
-    
+
     func pauseTask(_ task: TorrentTask) {
         guard let server = servers.first(where: { $0.id == task.serverID }) else { return }
         let client = getClient(for: server)
-        
+
         Task {
             do {
                 try await client.pauseTask(hash: task.id)
@@ -184,11 +207,11 @@ class AppStateManager {
             }
         }
     }
-    
+
     func resumeTask(_ task: TorrentTask) {
         guard let server = servers.first(where: { $0.id == task.serverID }) else { return }
         let client = getClient(for: server)
-        
+
         Task {
             do {
                 try await client.resumeTask(hash: task.id)
@@ -198,30 +221,81 @@ class AppStateManager {
             }
         }
     }
-    
+
     func deleteTasks(_ tasks: Set<TorrentTask>) {
         for task in tasks {
             guard let server = servers.first(where: { $0.id == task.serverID }) else { continue }
             let client = getClient(for: server)
             Task {
                 do {
-                    try await client.deleteTask(hash: task.id, withData: true) // Default strict delete? Or ask?
-                    // User might want to keep data.
-                    // For now, default to withData: true or false?
-                    // Usually swipe delete implies removing from list.
-                    // User didn't specify. I'll default to withData: false (safer) or true?
-                    // "删除任务" usually implies removing task. Data?
-                    // I will default to false (keep data) for safety, or pass parameter.
-                    // Protocol says func deleteTask(hash: String, withData: Bool)
+                    try await client.deleteTask(hash: task.id, withData: true)
                  } catch {
                     print("Failed to delete: \(error)")
                 }
             }
         }
-        // Refresh after delay?
+        // Refresh after delay
         Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             await refreshData()
+        }
+    }
+
+    // MARK: - Advanced Actions
+
+    func deleteTask(_ task: TorrentTask, withData: Bool) {
+        performTaskAction(task) { client, id in
+            try await client.deleteTask(hash: id, withData: withData)
+            // Refresh handled by performTaskAction or generic refresh
+            Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await self.refreshData()
+            }
+        }
+    }
+
+    func recheckTask(_ task: TorrentTask) {
+        performTaskAction(task) { client, id in try await client.recheckTask(hash: id) }
+    }
+
+    func reannounceTask(_ task: TorrentTask) {
+        performTaskAction(task) { client, id in try await client.reannounceTask(hash: id) }
+    }
+
+    func toggleSequentialDownload(_ task: TorrentTask) {
+         performTaskAction(task) { client, id in try await client.toggleSequentialDownload(hash: id) }
+    }
+
+    func toggleFirstLastPiecePriority(_ task: TorrentTask) {
+         performTaskAction(task) { client, id in try await client.toggleFirstLastPiecePriority(hash: id) }
+    }
+
+    func renameTask(_ task: TorrentTask, newName: String) {
+        performTaskAction(task) { client, id in try await client.renameTask(hash: id, newName: newName) }
+    }
+
+    func forceStartTask(_ task: TorrentTask) {
+        performTaskAction(task) { client, id in try await client.forceStartTask(hash: id) }
+    }
+
+    func setLocation(_ task: TorrentTask, newLocation: String) {
+        performTaskAction(task) { client, id in try await client.setLocation(hash: id, newLocation: newLocation) }
+    }
+
+    func editTrackers(_ task: TorrentTask, newTrackers: String) {
+        performTaskAction(task) { client, id in try await client.editTrackers(hash: id, newTrackers: newTrackers) }
+    }
+
+    private func performTaskAction(_ task: TorrentTask, action: @escaping (TorrentClient, String) async throws -> Void) {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else { return }
+        let client = getClient(for: server)
+        Task {
+            do {
+                try await action(client, task.id)
+                // Optional: await refreshData() or let auto-refresh handle it
+            } catch {
+                print("Task action failed: \(error)")
+            }
         }
     }
 }

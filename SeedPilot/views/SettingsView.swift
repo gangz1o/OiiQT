@@ -9,20 +9,23 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
-    
+
     // 资源管理
     @AppStorage("refreshRate") private var refreshRate: Int = 5
-    
+
     // 应用设置
     @AppStorage("appearance") private var appearance: String = "system"
     @AppStorage("language") private var language: String = "zh-Hans"
     @AppStorage("fontSize") private var fontSize: Double = 1.0
-    
+
+    // Pro 功能
+    @AppStorage("showTMDBData") private var showTMDBData: Bool = false
+
     // UI 状态
     @State private var showingClearCacheAlert = false
     @State private var showingSuccessAlert = false
     @State private var cacheSizeString = "12.4 MB" // Mock
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -33,7 +36,7 @@ struct SettingsView: View {
                     } label: {
                         Label("服务器设置", systemImage: "server.rack")
                     }
-                    
+
                     Picker(selection: $refreshRate) {
                         Text("5秒").tag(5)
                         Text("15秒").tag(15)
@@ -45,7 +48,7 @@ struct SettingsView: View {
                 } header: {
                     Text("资源管理")
                 }
-                
+
                 // MARK: - 应用设置
                 Section {
                     Picker(selection: $appearance) {
@@ -55,14 +58,14 @@ struct SettingsView: View {
                     } label: {
                         Label("外观主题", systemImage: "paintpalette")
                     }
-                    
+
                     Picker(selection: $language) {
                         Text("简体中文").tag("zh-Hans")
                         Text("English").tag("en")
                     } label: {
                         Label("应用语言", systemImage: "globe")
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 8) {
                         Label("字体大小", systemImage: "textformat.size")
                         HStack {
@@ -77,7 +80,18 @@ struct SettingsView: View {
                 } header: {
                     Text("应用设置")
                 }
-                
+
+                // MARK: - Pro 功能
+                Section {
+                    Toggle(isOn: $showTMDBData) {
+                        Label("TMDB 海报数据", systemImage: "film")
+                    }
+                } header: {
+                    Text("Pro 功能")
+                } footer: {
+                    Text("开启后将在种子列表中显示影视海报信息")
+                }
+
                 // MARK: - 存储与维护
                 Section {
                     Button(role: .destructive) {
@@ -86,7 +100,7 @@ struct SettingsView: View {
                         HStack {
                             Label("清除缓存", systemImage: "trash")
                             Spacer()
-                            Text(cacheSizeString)
+                            Text(ByteCountFormatter.string(fromByteCount: Int64(ImageCacheManager.shared.calculateDiskCacheSize()), countStyle: .file))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -104,7 +118,7 @@ struct SettingsView: View {
                 .alert("缓存已清除", isPresented: $showingSuccessAlert) {
                     Button("好的", role: .cancel) { }
                 }
-                
+
                 // MARK: - 关于
                 Section {
                     HStack {
@@ -113,7 +127,7 @@ struct SettingsView: View {
                             .frame(width: 60, height: 60)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
-                        
+
                         VStack(alignment: .leading, spacing: 4) {
                             Text("SeedPilot")
                                 .font(.headline)
@@ -124,7 +138,7 @@ struct SettingsView: View {
                         .padding(.leading, 8)
                     }
                     .padding(.vertical, 8)
-                    
+
                     Link(destination: URL(string: "https://github.com/gangz1o/SeedPilot")!) {
                         Label("GitHub 开源地址", systemImage: "link")
                     }
@@ -138,13 +152,13 @@ struct SettingsView: View {
         // 应用全局样式
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
     }
-    
+
     // MARK: - Actions
-    
+
     private func clearCache() {
         // 1. 清除 URLCache
         URLCache.shared.removeAllCachedResponses()
-        
+
         // 2. 清除临时文件 (NSTemporaryDirectory)
         let fileManager = FileManager.default
         if let tempURL = URL(string: NSTemporaryDirectory()) {
@@ -157,8 +171,14 @@ struct SettingsView: View {
                 print("Failed to list temp directory: \(error)")
             }
         }
-        
-        // 3. 更新 UI
+
+        // 3. 清除海报缓存 (ImageCacheManager)
+        ImageCacheManager.shared.clearCache()
+
+        // Note: We do NOT clear SwiftData metadata (TMDBMatch) as that is considered persistent "Library" data,
+        // unless "Reset" is requested. "Clear Cache" usually implies re-downloadable content (images).
+
+        // 4. Update UI
         withAnimation {
             cacheSizeString = "0 KB"
         }
