@@ -8,6 +8,7 @@
 import SwiftUI
 import Charts
 import SwiftData
+import Combine
 
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -85,6 +86,8 @@ struct DashboardView: View {
 
     // MARK: - Sections
 
+    private static let bannerTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
+
     private var proBannerSection: some View {
         TabView(selection: $bannerIndex) {
             let tasks = getRecentTasks().prefix(5)
@@ -104,6 +107,13 @@ struct DashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
         .padding(.horizontal, 16)
+        .onReceive(Self.bannerTimer) { _ in
+            let count = min(getRecentTasks().count, 5)
+            guard count > 1 else { return }
+            withAnimation {
+                bannerIndex = (bannerIndex + 1) % count
+            }
+        }
     }
 
     private var staticWelcomeBanner: some View {

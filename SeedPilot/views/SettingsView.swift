@@ -30,6 +30,42 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // MARK: - Pro 升级
+                Section {
+                    NavigationLink {
+                        ProView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "sparkles")
+                                .font(.title2)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.purple, .orange],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 32)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("升级到 SeedPilot Pro")
+                                    .font(.headline)
+                                Text("解锁 TMDB 海报墙与动态仪表盘")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Text("查看")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.blue)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 // MARK: - 资源管理
                 Section {
                     NavigationLink {
