@@ -316,6 +316,24 @@ class AppStateManager {
         performTaskAction(task) { client, id in try await client.editTrackers(hash: id, newTrackers: newTrackers) }
     }
 
+    // MARK: - Batch Actions
+
+    func pauseTasks(_ tasks: Set<TorrentTask>) {
+        for task in tasks { pauseTask(task) }
+    }
+
+    func resumeTasks(_ tasks: Set<TorrentTask>) {
+        for task in tasks { resumeTask(task) }
+    }
+
+    func setTransferLocationBatch(_ tasks: Set<TorrentTask>, newLocation: String) {
+         for task in tasks { setLocation(task, newLocation: newLocation) }
+    }
+
+    func editTrackersBatch(_ tasks: Set<TorrentTask>, newTrackers: String) {
+         for task in tasks { editTrackers(task, newTrackers: newTrackers) }
+    }
+
     private func performTaskAction(_ task: TorrentTask, action: @escaping (TorrentClient, String) async throws -> Void) {
         guard let server = servers.first(where: { $0.id == task.serverID }) else { return }
         let client = getClient(for: server)

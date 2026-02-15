@@ -33,11 +33,10 @@ struct DashboardView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         // 1. Pro Banner (Sliding Header)
+                        // 1. Pro Banner (Sliding Header) - Dynamic Visibility
                         if enableProDashboardBackground {
                             proBannerSection
-                        } else {
-                            // Fallback welcome or static banner
-                            staticWelcomeBanner
+                                .transition(.move(edge: .top).combined(with: .opacity))
                         }
 
                         // 2. Speed Indicators (Compact Header)
@@ -49,7 +48,9 @@ struct DashboardView: View {
                         // 4. Recent Gallery (Smaller)
                         recentItemsSection
                     }
-                    .padding(.top, 10)
+
+                    .animation(.spring(response: 0.5, dampingFraction: 0.7), value: enableProDashboardBackground)
+                    .padding(.top, enableProDashboardBackground ? 10 : 20) // More breathing room if no banner
                     .padding(.bottom, 100)
                 }
             }
@@ -145,6 +146,8 @@ struct DashboardView: View {
         HStack(spacing: 30) {
             Spacer()
 
+
+
             // Download
             HStack(spacing: 8) {
                 Image(systemName: "arrow.down.circle.fill")
@@ -152,7 +155,7 @@ struct DashboardView: View {
                     .foregroundStyle(.blue)
                     .symbolEffect(.bounce, value: appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed })
 
-                Text(torrentByteFormatter.string(fromByteCount: appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed }) + "/s")
+                Text(formatBytes(appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed }) + "/s")
                     .font(.system(.title2, design: .rounded).monospacedDigit().bold())
             }
 
@@ -163,7 +166,7 @@ struct DashboardView: View {
                     .foregroundStyle(.green)
                     .symbolEffect(.bounce, value: appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed })
 
-                Text(torrentByteFormatter.string(fromByteCount: appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed }) + "/s")
+                Text(formatBytes(appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed }) + "/s")
                     .font(.system(.title2, design: .rounded).monospacedDigit().bold())
             }
 

@@ -9,6 +9,10 @@ import SwiftUI
 
 struct TorrentRowView: View {
     let task: TorrentTask
+    let isSelected: Bool
+    let isEditing: Bool
+    let toggleSelection: () -> Void
+
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @Environment(\.modelContext) private var modelContext
     var appStateManager: AppStateManager
@@ -23,183 +27,225 @@ struct TorrentRowView: View {
     @State private var showingDeleteConfirmation = false
     @State private var isLoadingPoster = false
     @State private var showingManualMatchSheet = false
-    // Removed newManualMatchName and showingManualMatchAlert as they are moved to ManualMatchView
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            // MARK: - 1. Left Poster Area
-            if showTMDBData {
-                posterArea
+        HStack(spacing: 12) {
+            // MARK: - Checkbox (Edit Mode Only)
+            if isEditing {
+                Button {
+                    toggleSelection()
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                } label: {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 22))
+                        .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+                        .contentShape(Rectangle()) // Make touch area larger
+                }
+                .transition(.move(edge: .leading).combined(with: .opacity))
+                .padding(.leading, 8)
             }
 
-            // MARK: - 2. Right Content Area
-            VStack(alignment: .leading, spacing: 8) {
-                // Row 1: Title + Speed
-                HStack(alignment: .top) {
-                    Text(task.name)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        // Removed layoutPriority(1) to prevent squashing speed capsule
-
-                    Spacer()
-
-                    speedCapsule
-                        .layoutPriority(1) // Ensure speed capsule is fully visible
-                }
-
-                // Row 2: Status + Stats
-                HStack(spacing: 12) {
-                    // Status
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 6, height: 6)
-                        Text(task.status.rawValue)
-                    }
-                    .foregroundStyle(statusColor)
-
-                    // Downloaded
-                    HStack(spacing: 2) {
-                        Image(systemName: "arrow.down")
-                            .font(.caption2)
-                        Text(task.downloadedString)
+            // MARK: - Content
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 12) {
+                    // MARK: - 1. Left Poster Area
+                    if showTMDBData {
+                        posterArea
                     }
 
-                    // Uploaded
-                    HStack(spacing: 2) {
-                        Image(systemName: "arrow.up")
-                            .font(.caption2)
-                        Text(task.uploadedString)
-                    }
+                    // MARK: - 2. Right Content Area
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Feature 1: Top Status Bar
+                        HStack {
+                            // Tracker
+                            Text(task.trackerHost)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue)
+                                .clipShape(Capsule())
 
-                    // Percentage
-                    HStack(spacing: 2) {
-                        Image(systemName: "percent")
-                            .font(.caption2)
-                        Text(task.percentString)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-                // Row 3: Tags
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        TagCapsule(text: task.trackerHost, icon: "network")
-                        TagCapsule(text: task.savePathShort, icon: "folder")
-                        if !task.tags.isEmpty {
-                            ForEach(task.tags.split(separator: ","), id: \.self) { tag in
-                                TagCapsule(text: String(tag), icon: "tag")
+                            // Seeding Time / Added Date if not seeding
+                            if task.status == .seeding {
+                                 HStack(spacing: 2) {
+                                    Image(systemName: "clock")
+                                    Text(task.seedingTimeString)
+                                }
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
                             }
+
+                            Spacer()
+
+                            // Status & Percent
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(statusColor)
+                                    .frame(width: 6, height: 6)
+                                Text(task.status.rawValue)
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(statusColor)
+                                Text(task.percentString)
+                                    .font(.caption2.monospacedDigit().bold())
+                                    .foregroundStyle(statusColor)
+                            }
+                        }
+
+                        // Title
+                        Text(task.name)
+                            .font(.system(size: 14, weight: .medium)) // Slightly refined font size
+                            .foregroundStyle(.primary)
+                            .lineLimit(2) // Allow 2 lines for full names
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        // Feature 3: Progress Bar
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color(.systemGray5))
+                                Capsule().fill(statusColor)
+                                    .frame(width: max(0, geo.size.width * CGFloat(task.progress)))
+                                    .animation(.smooth, value: task.progress)
+                            }
+                        }
+                        .frame(height: 4) // Slimmer
+
+                        // Feature 2: 3x2 Data Grid
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), alignment: .leading),
+                            GridItem(.flexible(), alignment: .leading),
+                            GridItem(.flexible(), alignment: .leading)
+                        ], spacing: 6) {
+                            // Row 1
+                            GridRowIconText(icon: "arrow.down.circle", text: formatBytes(task.downloadSpeed) + "/s", color: .secondary)
+                            GridRowIconText(icon: "arrow.down", text: "\(task.numPeers)/\(task.totalPeers)", color: .secondary) // Peers
+                            GridRowIconText(icon: "doc", text: task.sizeString, color: .secondary) // Size
+
+                            // Row 2
+                            GridRowIconText(icon: "arrow.up.circle", text: formatBytes(task.uploadSpeed) + "/s", color: .secondary)
+                            GridRowIconText(icon: "leaf", text: "\(task.numSeeds)/\(task.totalSeeds)", color: .secondary) // Seeds
+                            GridRowIconText(icon: "arrow.left.and.right", text: String(format: "%.2f", task.ratio), color: .secondary) // Ratio
                         }
                     }
                 }
+                .padding(8)
+            }
+            .background(Color(uiColor: .secondarySystemGroupedBackground)) // Card background
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2) // Subtle shadow
+        }
+        .contentShape(Rectangle()) // Make the whole row tappable
+        .onTapGesture {
+            if isEditing {
+                toggleSelection()
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
             }
         }
-        .padding(.vertical, 8)
         .contextMenu {
-            if task.status == .paused {
-                Button {
-                    appStateManager.resumeTask(task)
-                } label: {
-                    Label("恢复", systemImage: "play.fill")
+            if !isEditing {
+                if task.status == .paused {
+                    Button {
+                        appStateManager.resumeTask(task)
+                    } label: {
+                        Label("恢复", systemImage: "play.fill")
+                    }
+                } else {
+                    Button {
+                        appStateManager.pauseTask(task)
+                    } label: {
+                        Label("暂停", systemImage: "pause.fill")
+                    }
                 }
-            } else {
+
+                Divider()
+
                 Button {
-                    appStateManager.pauseTask(task)
+                    newName = task.name
+                    showingRenameAlert = true
                 } label: {
-                    Label("暂停", systemImage: "pause.fill")
+                    Label("重命名", systemImage: "pencil")
                 }
-            }
 
-            Divider()
-
-            Button {
-                newName = task.name
-                showingRenameAlert = true
-            } label: {
-                Label("重命名", systemImage: "pencil")
-            }
-
-            Menu {
-                // Advanced Tools Submenu
                 Menu {
-                    Button {
-                        appStateManager.recheckTask(task)
+                    // Advanced Tools Submenu
+                    Menu {
+                        Button {
+                            appStateManager.recheckTask(task)
+                        } label: {
+                            Label("强制重新校验", systemImage: "checkmark.seal")
+                        }
+
+                        Button {
+                            appStateManager.reannounceTask(task)
+                        } label: {
+                            Label("强制重新汇报", systemImage: "arrow.clockwise")
+                        }
                     } label: {
-                        Label("强制重新校验", systemImage: "checkmark.seal")
+                        Label("高级工具", systemImage: "gearshape.2")
                     }
 
-                    Button {
-                        appStateManager.reannounceTask(task)
+                    // Download Settings Submenu
+                    Menu {
+                        Button {
+                            appStateManager.toggleSequentialDownload(task)
+                        } label: {
+                            let icon = (task.isSequential == true) ? "checkmark" : "text.insert.secondary"
+                            Label("顺序下载", systemImage: icon)
+                        }
+
+                        Button {
+                            appStateManager.toggleFirstLastPiecePriority(task)
+                        } label: {
+                            let icon = (task.isFirstLastPiecePriority == true) ? "checkmark" : "arrow.up.arrow.down.square"
+                            Label("首/尾优先", systemImage: icon)
+                        }
                     } label: {
-                        Label("强制重新汇报", systemImage: "arrow.clockwise")
+                        Label("下载设置", systemImage: "slider.horizontal.3")
                     }
                 } label: {
-                    Label("高级工具", systemImage: "gearshape.2")
+                    Label("更多操作", systemImage: "ellipsis.circle")
                 }
 
-                // Download Settings Submenu
-                Menu {
-                    Button {
-                        appStateManager.toggleSequentialDownload(task)
-                    } label: {
-                        let icon = (task.isSequential == true) ? "checkmark" : "text.insert.secondary"
-                        Label("顺序下载", systemImage: icon)
-                    }
+                Divider()
 
-                    Button {
-                        appStateManager.toggleFirstLastPiecePriority(task)
-                    } label: {
-                        let icon = (task.isFirstLastPiecePriority == true) ? "checkmark" : "arrow.up.arrow.down.square"
-                        Label("首/尾优先", systemImage: icon)
-                    }
-                } label: {
-                    Label("下载设置", systemImage: "slider.horizontal.3")
-                }
-            } label: {
-                Label("更多操作", systemImage: "ellipsis.circle")
-            }
-
-            Divider()
-
-            Button {
-                appStateManager.forceStartTask(task)
-            } label: {
-                Label("强制开始", systemImage: "bolt.fill")
-            }
-
-            Button {
-                newLocation = task.savePath
-                showingLocationAlert = true
-            } label: {
-                Label("设置保存路径", systemImage: "folder.badge.gear")
-            }
-
-            Button {
-                newTrackers = task.tracker
-                showingTrackersAlert = true
-            } label: {
-                Label("编辑 Tracker", systemImage: "network.badge.shield.half.filled")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                showingDeleteConfirmation = true
-            } label: {
-                Label("删除", systemImage: "trash")
-            }
-
-            Divider()
-
-            if showTMDBData {
                 Button {
-                    showingManualMatchSheet = true
+                    appStateManager.forceStartTask(task)
                 } label: {
-                    Label("手动匹配海报", systemImage: "photo.badge.plus")
+                    Label("强制开始", systemImage: "bolt.fill")
+                }
+
+                Button {
+                    newLocation = task.savePath
+                    showingLocationAlert = true
+                } label: {
+                    Label("设置保存路径", systemImage: "folder.badge.gear")
+                }
+
+                Button {
+                    newTrackers = task.tracker
+                    showingTrackersAlert = true
+                } label: {
+                    Label("编辑 Tracker", systemImage: "network.badge.shield.half.filled")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+
+                Divider()
+
+                if showTMDBData {
+                    Button {
+                        showingManualMatchSheet = true
+                    } label: {
+                        Label("手动匹配海报", systemImage: "photo.badge.plus")
+                    }
                 }
             }
         }
@@ -234,11 +280,6 @@ struct TorrentRowView: View {
             ManualMatchView(taskName: task.name, taskHash: task.id)
                 .presentationDetents([.medium, .large])
                 .onDisappear {
-                    // Refresh poster on disappear if changed
-                    // But how do we know if changed?
-                    // We can force re-fetch or observe
-                    // Let's force re-fetch by toggling a state or calling load
-                    // Trigger refresh
                     refreshPoster()
                 }
         }
@@ -277,7 +318,7 @@ struct TorrentRowView: View {
     private var posterArea: some View {
         Group {
             if let url = posterURL {
-                CachedAsyncImage(url: url, cacheKey: task.id + ".jpg") { image in
+                CachedAsyncImage(url: url, cacheKey: url.lastPathComponent) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -307,11 +348,11 @@ struct TorrentRowView: View {
 
     private var failureView: some View {
         Color.gray.opacity(0.1)
-            .overlay {
-                Image(systemName: "sparkles.tv")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary.opacity(0.5))
-            }
+        .overlay {
+            Image(systemName: "sparkles.tv")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary.opacity(0.5))
+        }
     }
 
     private var speedCapsule: some View {
@@ -319,11 +360,11 @@ struct TorrentRowView: View {
             if task.status == .downloading {
                 Image(systemName: "arrow.down")
                     .font(.caption2)
-                Text(torrentByteFormatter.string(fromByteCount: task.downloadSpeed) + "/s")
+                Text(formatBytes(task.downloadSpeed) + "/s")
             } else if task.status == .seeding {
                 Image(systemName: "arrow.up")
                     .font(.caption2)
-                Text(torrentByteFormatter.string(fromByteCount: task.uploadSpeed) + "/s")
+                Text(formatBytes(task.uploadSpeed) + "/s")
             } else {
                 Text(task.status.rawValue)
             }
@@ -340,8 +381,9 @@ struct TorrentRowView: View {
         switch task.status {
         case .downloading: return .blue
         case .seeding: return .green
+        case .checking: return .orange
         case .error: return .red
-        default: return .secondary
+        default: return Color.gray.opacity(0.8)
         }
     }
 }
@@ -362,6 +404,23 @@ struct TagCapsule: View {
         .padding(.vertical, 4)
         .background(Color(.systemGray6))
         .clipShape(Capsule())
+    }
+}
+
+struct GridRowIconText: View {
+    let icon: String
+    let text: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(color)
+            Text(text)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(color)
+        }
     }
 }
 

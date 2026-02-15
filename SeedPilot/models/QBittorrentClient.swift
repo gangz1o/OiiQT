@@ -121,7 +121,14 @@ class QBittorrentClient: NSObject, TorrentClient {
                     uploaded: task.uploaded ?? 0,
                     isSequential: task.seq_dl,
                     isFirstLastPiecePriority: task.f_l_piece_prio,
-                    completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil
+                    completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil,
+                    seedingTime: TimeInterval(task.seeding_time ?? 0),
+                    addedTime: Date(timeIntervalSince1970: TimeInterval(task.added_on ?? 0)),
+                    numSeeds: task.num_seeds ?? 0,
+                    totalSeeds: task.num_complete ?? 0,
+                    numPeers: task.num_leechs ?? 0,
+                    totalPeers: task.num_incomplete ?? 0,
+                    ratio: task.ratio ?? 0.0
                 )
             }
         } catch {
@@ -385,6 +392,13 @@ struct QBTask: Decodable {
     let seq_dl: Bool?
     let f_l_piece_prio: Bool?
     let completion_on: Int? // Timestamp
+    let added_on: Int?
+    let num_seeds: Int?
+    let num_complete: Int?
+    let num_leechs: Int?
+    let num_incomplete: Int?
+    let ratio: Double?
+    let seeding_time: Int?
 }
 
 enum TorrentClientError: Error {

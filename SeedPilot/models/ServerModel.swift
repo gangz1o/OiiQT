@@ -28,12 +28,20 @@ enum TorrentStatus: String, Codable, CaseIterable {
 }
 
 // Helper Formatter
+// Helper Formatter
+// Helper Formatter
 let torrentByteFormatter: ByteCountFormatter = {
     let formatter = ByteCountFormatter()
     formatter.countStyle = .file
-    formatter.allowsNonnumericFormatting = false // Prevents "Zero KB"
+    formatter.allowsNonnumericFormatting = false
     return formatter
 }()
+
+func formatBytes(_ bytes: Int64) -> String {
+    if bytes == 0 { return "0 B" }
+    let formatted = torrentByteFormatter.string(fromByteCount: bytes)
+    return formatted.replacingOccurrences(of: "bytes", with: "B")
+}
 
 // MARK: - 2. 服务器配置模型
 @Model
@@ -90,17 +98,26 @@ struct TorrentTask: Identifiable, Hashable {
     let isFirstLastPiecePriority: Bool? // 首尾优先
     let completionDate: Date? // 完成时间
 
+    // New Fields for Pro Display
+    let seedingTime: TimeInterval // 做种时间 (秒)
+    let addedTime: Date           // 添加时间
+    let numSeeds: Int             // 连接种子数
+    let totalSeeds: Int           // 总种子数
+    let numPeers: Int             // 连接用户数
+    let totalPeers: Int           // 总用户数
+    let ratio: Double             // 分享率
+
 
     // MARK: - Computed Properties
 
     /// 例如 "1.2 GB"
     var sizeString: String {
-        torrentByteFormatter.string(fromByteCount: size)
+        formatBytes(size)
     }
 
     var speedString: String {
-        let dl = torrentByteFormatter.string(fromByteCount: downloadSpeed)
-        let ul = torrentByteFormatter.string(fromByteCount: uploadSpeed)
+        let dl = formatBytes(downloadSpeed)
+        let ul = formatBytes(uploadSpeed)
         return "↓\(dl)/s ↑\(ul)/s"
     }
 
@@ -113,11 +130,11 @@ struct TorrentTask: Identifiable, Hashable {
     }
 
     var downloadedString: String {
-        torrentByteFormatter.string(fromByteCount: downloaded)
+        formatBytes(downloaded)
     }
 
     var uploadedString: String {
-        torrentByteFormatter.string(fromByteCount: uploaded)
+        formatBytes(uploaded)
     }
 
     var percentString: String {
@@ -129,6 +146,22 @@ struct TorrentTask: Identifiable, Hashable {
         let trimmed = savePath.hasSuffix("/") ? String(savePath.dropLast()) : savePath
         return (trimmed as NSString).lastPathComponent
     }
+
+    var seedingTimeString: String {
+        formatDuration(seedingTime)
+    }
+
+    var ratioString: String {
+        String(format: "%.2f", ratio)
+    }
+}
+
+func formatDuration(_ seconds: TimeInterval) -> String {
+    let formatter = DateComponentsFormatter()
+    formatter.allowedUnits = [.hour, .minute, .second]
+    formatter.unitsStyle = .positional // HH:mm:ss
+    formatter.zeroFormattingBehavior = .pad
+    return formatter.string(from: seconds) ?? "00:00:00"
 }
 
 // MARK: - 4. 抽象客户端协议

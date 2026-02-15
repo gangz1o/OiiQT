@@ -7,12 +7,24 @@
 
 import SwiftUI
 
+
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
+
+    @Environment(\.editMode) private var editMode
+    @State private var searchText = ""
+    @State private var selectedTaskHashes = Set<String>()
 
     // 状态筛选
     @State private var selectedStatus: String = "全部"
     let statusOptions = ["全部"] + TorrentStatus.allCases.map { $0.rawValue }
+
+    // Batch Action States
+    @State private var showingBatchLocationAlert = false
+    @State private var newBatchLocation = ""
+    @State private var showingBatchTrackerAlert = false
+    @State private var newBatchTrackers = ""
+    @State private var showingBatchDeleteConfirmation = false
 
     // 添加磁力链接
     @State private var showingAddMagnet = false
@@ -21,11 +33,28 @@ struct TransfersView: View {
     // 筛选后的任务列表
     var filteredTasks: [TorrentTask] {
         let tasks = appStateManager.displayedTasks
-        if selectedStatus == "全部" {
-            return tasks
+        let statusFiltered = (selectedStatus == "全部") ? tasks : tasks.filter { $0.status.rawValue == selectedStatus }
+
+        if searchText.isEmpty {
+            return statusFiltered
         } else {
-            return tasks.filter { $0.status.rawValue == selectedStatus }
+            return statusFiltered.filter { task in
+                task.name.localizedCaseInsensitiveContains(searchText) ||
+                task.trackerHost.localizedCaseInsensitiveContains(searchText)
+            }
         }
+    }
+
+    private var navigationTitle: String {
+        if editMode?.wrappedValue == .active {
+            return selectedTaskHashes.isEmpty ? "请选择项目" : "已选中 \(selectedTaskHashes.count) 项"
+        } else {
+            return appStateManager.activeServerName ?? "传输任务"
+        }
+    }
+
+    private var isEditing: Bool {
+        editMode?.wrappedValue == .active
     }
 
     var body: some View {
@@ -44,27 +73,37 @@ struct TransfersView: View {
 
                     // 1. 任务列表
                     if filteredTasks.isEmpty {
-                        emptyState
+                        if !searchText.isEmpty {
+                             ContentUnavailableView.search(text: searchText)
+                        } else {
+                            emptyState
+                        }
                     } else {
                         List {
                             ForEach(filteredTasks) { task in
-                                TorrentRowView(task: task, appStateManager: appStateManager)
-                                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)) // Custom insets for alignment
-                                    .listRowSeparator(.visible) // Or hidden if we use our own dividers
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                TorrentRowView(
+                                    task: task,
+                                    isSelected: selectedTaskHashes.contains(task.id),
+                                    isEditing: isEditing,
+                                    toggleSelection: {
+                                        toggleSelection(for: task.id)
+                                    },
+                                    appStateManager: appStateManager
+                                )
+                                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                                .listRowSeparator(.hidden) // Hide default separator as cards have spacing
+                                .listRowBackground(Color.clear)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    if !isEditing {
                                         Button(role: .destructive) {
-                                            appStateManager.deleteTask(task, withData: true) // Default to quick delete with data? Or allow logic?
-                                            // Swipe usage usually implies quick delete.
-                                            // Step 543 added deleteTask(task, withData: Bool)
-                                            // Old code used deleteTasks([task]) which was bulk delete.
-                                            // Let's use deleteTasks([task]) for now or appStateManager.deleteTask(task, withData: true)
-                                            // Let's stick to simple delete for swipe.
                                             appStateManager.deleteTask(task, withData: true)
                                         } label: {
                                             Label("删除", systemImage: "trash")
                                         }
                                     }
-                                    .swipeActions(edge: .leading) {
+                                }
+                                .swipeActions(edge: .leading) {
+                                    if !isEditing {
                                         if task.status == .paused {
                                             Button {
                                                 appStateManager.resumeTask(task)
@@ -81,68 +120,123 @@ struct TransfersView: View {
                                             .tint(.orange)
                                         }
                                     }
+                                }
                             }
                         }
                         .listStyle(.plain)
+                        .refreshable {
+                            await appStateManager.refreshData()
+                        }
                     }
                 }
 
-                // 2. 悬浮按钮 (FAB)
-                Button {
-                    showingAddMagnet = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                        .padding(16)
-                        .background(Color.blue)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 4)
-                }
-                .padding()
-            }
-            .navigationTitle(appStateManager.activeServerName ?? "传输任务")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarTitleMenu {
-                // 全部服务器
-                Button {
-                    withAnimation(.spring()) {
-                        appStateManager.activeServerId = nil
-                    }
-                } label: {
-                    Label("全部服务器", systemImage: "rectangle.stack.fill")
-                }
-
-                // Server List
-                ForEach(appStateManager.servers) { server in
+                // 2. 悬浮按钮 (FAB) - Only show when NOT editing
+                if !isEditing {
                     Button {
-                        withAnimation(.spring()) {
-                            appStateManager.activeServerId = server.id
-                        }
+                        showingAddMagnet = true
                     } label: {
-                        HStack {
-                            Text(server.name)
-                            if server.isOnline == true {
-                                Image(systemName: "circle.fill").foregroundStyle(.green)
+                        Image(systemName: "plus")
+                            .font(.title2.bold())
+                            .foregroundStyle(.white)
+                            .padding(16)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 4)
+                    }
+                    .padding()
+                }
+
+                // 3. Batch Action Toolbar - Only show when editing
+                if isEditing {
+                    batchActionBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 10) // Lift slightly above bottom safe area
+                }
+            }
+            // .sensoryFeedback removed here, triggered manually in Row
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索任务或 Tracker")
+            .toolbar {
+                // Leading: Server Menu OR Select All
+                ToolbarItem(placement: .topBarLeading) {
+                    if isEditing {
+                        Button {
+                            if selectedTaskHashes.count == filteredTasks.count {
+                                selectedTaskHashes.removeAll()
                             } else {
-                                Image(systemName: "circle.fill").foregroundStyle(.red)
+                                selectedTaskHashes = Set(filteredTasks.map { $0.id })
                             }
+                        } label: {
+                            Text(selectedTaskHashes.count == filteredTasks.count ? "取消全选" : "全选")
+                        }
+                    } else {
+                        Menu {
+                            Button {
+                                withAnimation(.spring()) {
+                                    appStateManager.activeServerId = nil
+                                }
+                            } label: {
+                                Label("全部服务器", systemImage: "rectangle.stack.fill")
+                            }
+
+                            ForEach(appStateManager.servers) { server in
+                                Button {
+                                    withAnimation(.spring()) {
+                                        appStateManager.activeServerId = server.id
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(server.name)
+                                        if server.isOnline == true {
+                                            Image(systemName: "circle.fill").foregroundStyle(.green)
+                                        } else {
+                                            Image(systemName: "circle.fill").foregroundStyle(.red)
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "server.rack")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
                         }
                     }
                 }
-            }
-            .toolbar {
+
+                // Trailing: Edit/Done + Filter
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("筛选状态", selection: $selectedStatus) {
-                            ForEach(statusOptions, id: \.self) { status in
-                                Text(status)
-                                    .tag(status)
+                    HStack {
+                         if isEditing {
+                            Button("完成") {
+                                withAnimation {
+                                    editMode?.wrappedValue = .inactive
+                                    selectedTaskHashes.removeAll()
+                                }
+                            }
+                            .bold()
+                        } else {
+                             Button {
+                                withAnimation {
+                                    editMode?.wrappedValue = .active
+                                }
+                            } label: {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 17, weight: .semibold))
                             }
                         }
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
+
+                        Menu {
+                            Picker("筛选状态", selection: $selectedStatus) {
+                                ForEach(statusOptions, id: \.self) { status in
+                                    Text(status)
+                                        .tag(status)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
                             .font(.system(size: 17, weight: .semibold))
+                        }
                     }
                 }
             }
@@ -155,6 +249,129 @@ struct TransfersView: View {
                     magnetLink = ""
                 }
             }
+            .alert("批量修改保存路径", isPresented: $showingBatchLocationAlert) {
+                TextField("新路径", text: $newBatchLocation)
+                Button("取消", role: .cancel) { }
+                Button("确定") {
+                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
+                    appStateManager.setTransferLocationBatch(Set(tasks), newLocation: newBatchLocation)
+                    editMode?.wrappedValue = .inactive
+                    selectedTaskHashes.removeAll()
+                    newBatchLocation = ""
+                }
+            } message: {
+                Text("请输入新的绝对路径。此操作将移动所选任务的数据。")
+            }
+            .alert("批量添加 Tracker", isPresented: $showingBatchTrackerAlert) {
+                TextField("Tracker URL", text: $newBatchTrackers)
+                Button("取消", role: .cancel) { }
+                Button("确定") {
+                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
+                    appStateManager.editTrackersBatch(Set(tasks), newTrackers: newBatchTrackers)
+                    editMode?.wrappedValue = .inactive
+                    selectedTaskHashes.removeAll()
+                    newBatchTrackers = ""
+                }
+            } message: {
+                Text("请输入 Tracker URL。")
+            }
+            .confirmationDialog("批量删除", isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
+                 Button("删除任务 (保留数据)", role: .destructive) {
+                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
+                    for task in tasks {
+                        appStateManager.deleteTask(task, withData: false)
+                    }
+                    editMode?.wrappedValue = .inactive
+                    selectedTaskHashes.removeAll()
+                }
+                Button("删除任务和数据", role: .destructive) {
+                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
+                    // Use batch delete if available or loop
+                     for task in tasks {
+                        appStateManager.deleteTask(task, withData: true)
+                    }
+                    editMode?.wrappedValue = .inactive
+                    selectedTaskHashes.removeAll()
+                }
+                Button("取消", role: .cancel) { }
+            } message: {
+                Text("确定要删除选中的 \(selectedTaskHashes.count) 个任务吗？")
+            }
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func toggleSelection(for hash: String) {
+        if selectedTaskHashes.contains(hash) {
+            selectedTaskHashes.remove(hash)
+        } else {
+            selectedTaskHashes.insert(hash)
+        }
+    }
+
+    private var batchActionBar: some View {
+        HStack(spacing: 0) {
+            Button {
+                actionWithFeedback {
+                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
+                    appStateManager.resumeTasks(Set(tasks))
+                }
+            } label: {
+                batchActionButton(icon: "play.fill", text: "开始")
+            }
+            .disabled(selectedTaskHashes.isEmpty)
+
+            Divider().frame(height: 20)
+
+            Button {
+                actionWithFeedback {
+                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
+                    appStateManager.pauseTasks(Set(tasks))
+                }
+            } label: {
+                batchActionButton(icon: "pause.fill", text: "暂停")
+            }
+            .disabled(selectedTaskHashes.isEmpty)
+
+            Divider().frame(height: 20)
+
+            Button(role: .destructive) {
+                if !selectedTaskHashes.isEmpty {
+                     showingBatchDeleteConfirmation = true
+                }
+            } label: {
+                batchActionButton(icon: "trash.fill", text: "删除", color: .red)
+            }
+            .disabled(selectedTaskHashes.isEmpty)
+        }
+        .frame(height: 60)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+        .padding(.horizontal, 30)
+    }
+
+    private func batchActionButton(icon: String, text: String, color: Color = .primary) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.headline)
+            Text(text)
+                .font(.caption2.bold())
+        }
+        .foregroundStyle(color)
+        .opacity(selectedTaskHashes.isEmpty ? 0.4 : 1.0) // Dim if disabled
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private func actionWithFeedback(action: () -> Void) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        action()
+        withAnimation {
+            editMode?.wrappedValue = .inactive
+            selectedTaskHashes.removeAll()
         }
     }
 
@@ -174,6 +391,8 @@ struct TransfersView: View {
         .background(Color(uiColor: .systemGroupedBackground))
     }
 }
+
+
 
 // MARK: - Status Bar Component
 
@@ -220,7 +439,7 @@ struct SpeedLabel: View {
             Image(systemName: icon)
                 .font(.caption2.bold())
                 .foregroundStyle(color)
-            Text(ByteCountFormatter.string(fromByteCount: speed, countStyle: .binary) + "/s")
+            Text(formatBytes(speed) + "/s")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.primary)
         }

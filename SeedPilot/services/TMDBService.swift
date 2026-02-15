@@ -159,6 +159,9 @@ class TMDBService {
 
         // 2. Update Memory
         cacheURL(posterPath, for: hash)
+
+        // 3. Persist
+        try? context.save()
     }
 
     // MARK: - Private Helpers

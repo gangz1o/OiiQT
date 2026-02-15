@@ -18,7 +18,7 @@ struct ServerListView: View {
 
     var body: some View {
         List {
-            if servers.isEmpty {
+            if appStateManager.servers.isEmpty {
                 ContentUnavailableView(
                     "暂无服务器",
                     systemImage: "server.rack",
@@ -26,7 +26,7 @@ struct ServerListView: View {
                 )
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(servers) { server in
+                ForEach(appStateManager.servers) { server in
                     ServerCardRow(server: server)
                         .padding(.vertical, 4)
                         .listRowSeparator(.hidden)
