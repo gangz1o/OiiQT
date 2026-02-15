@@ -54,8 +54,9 @@ final class ServerConfig {
     var username: String = ""
     var password: String = ""
     var allowInsecureSSL: Bool = false
+    var rpcPath: String = "/transmission/rpc"
 
-    init(name: String, type: ServerType, address: String, port: Int, username: String, password: String, allowInsecureSSL: Bool = false) {
+    init(name: String, type: ServerType, address: String, port: Int, username: String, password: String, allowInsecureSSL: Bool = false, rpcPath: String = "/transmission/rpc") {
         self.id = UUID()
         self.name = name
         self.type = type
@@ -64,6 +65,7 @@ final class ServerConfig {
         self.username = username
         self.password = password
         self.allowInsecureSSL = allowInsecureSSL
+        self.rpcPath = rpcPath
     }
 
     // 计算属性：生成基础 URL
@@ -75,6 +77,16 @@ final class ServerConfig {
     /// 在线状态：nil=检测中, true=在线, false=离线
     @Transient
     var isOnline: Bool? = nil
+}
+
+extension ServerConfig {
+    var statusColor: Color {
+        switch isOnline {
+        case true: return .green
+        case false: return .red
+        case nil: return .gray
+        }
+    }
 }
 
 // MARK: - 3. 统一的任务模型 (UI 展现层)
@@ -173,8 +185,9 @@ protocol TorrentClient {
     // 获取任务列表
     func fetchTorrents() async throws -> [TorrentTask]
 
-    // 添加磁力链接
-    func addMagnetLink(_ link: String) async throws
+    // 添加任务
+    func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws
+    func addTorrentFile(_ fileURL: URL, options: AddTorrentOptions) async throws
 
     // 控制命令
     func pauseTask(hash: String) async throws

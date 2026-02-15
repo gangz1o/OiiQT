@@ -53,6 +53,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         // 设置 Referer 以防某些版本检查
         request.setValue(address, forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)
 
@@ -139,6 +140,8 @@ class QBittorrentClient: NSObject, TorrentClient {
 
     // MARK: - Actions
 
+    // MARK: - Actions
+
     private func getBaseURL() -> String {
         var address = config.address
         if !address.lowercased().hasPrefix("http") { address = "http://" + address }
@@ -146,23 +149,98 @@ class QBittorrentClient: NSObject, TorrentClient {
         return "\(address):\(config.port)"
     }
 
-    func addMagnetLink(_ link: String) async throws {
+    private func configureRequest(_ request: inout URLRequest) {
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+    }
+
+    func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws {
         guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/add") else {
             throw TorrentClientError.invalidURL
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        configureRequest(&request)
 
-        // URL encode the magnet link properly
-        let bodyString = "urls=\(link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? link)"
-        request.httpBody = bodyString.data(using: .utf8)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        let (_, response) = try await session.data(for: request)
+        // Prepare parameters
+        let params: [String: String] = [
+            "urls": urls.joined(separator: "\n"),
+            "savepath": options.savePath,
+            "category": options.category,
+            "tags": options.tags.joined(separator: ","),
+            "paused": options.isPaused ? "true" : "false",
+            "skip_checking": options.skipHashCheck ? "true" : "false",
+            "sequentialDownload": options.isSequential ? "true" : "false",
+            "firstLastPiecePrio": options.isFirstLastPiecePriority ? "true" : "false"
+        ]
+
+        request.httpBody = createMultipartBody(boundary: boundary, data: nil, fileName: nil, params: params)
+
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw TorrentClientError.apiError("Add failed")
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
+            throw TorrentClientError.apiError("Add Torrents failed: \(errorMsg)")
         }
+    }
+
+    func addTorrentFile(_ fileURL: URL, options: AddTorrentOptions) async throws {
+        guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/add") else {
+            throw TorrentClientError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        configureRequest(&request)
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        let params: [String: String] = [
+            "savepath": options.savePath,
+            "category": options.category,
+            "tags": options.tags.joined(separator: ","),
+            "paused": options.isPaused ? "true" : "false",
+            "skip_checking": options.skipHashCheck ? "true" : "false",
+            "sequentialDownload": options.isSequential ? "true" : "false",
+             "firstLastPiecePrio": options.isFirstLastPiecePriority ? "true" : "false"
+        ]
+
+        guard let fileData = try? Data(contentsOf: fileURL) else {
+            throw TorrentClientError.apiError("Cannot read file data")
+        }
+
+        request.httpBody = createMultipartBody(boundary: boundary, data: fileData, fileName: fileURL.lastPathComponent, params: params)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
+            throw TorrentClientError.apiError("Add Torrent File failed: \(errorMsg)")
+        }
+    }
+
+    private func createMultipartBody(boundary: String, data: Data?, fileName: String?, params: [String: String]) -> Data {
+        var body = Data()
+        let lineBreak = "\r\n"
+
+        for (key, value) in params {
+            body.append("--\(boundary + lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak + lineBreak)")
+            body.append("\(value + lineBreak)")
+        }
+
+        if let data = data, let fileName = fileName {
+            body.append("--\(boundary + lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"torrents\"; filename=\"\(fileName)\"\(lineBreak)")
+            body.append("Content-Type: application/x-bittorrent\(lineBreak + lineBreak)")
+            body.append(data)
+            body.append(lineBreak)
+        }
+
+        body.append("--\(boundary)--\(lineBreak)")
+        return body
     }
 
     func pauseTask(hash: String) async throws {
@@ -307,12 +385,20 @@ class QBittorrentClient: NSObject, TorrentClient {
         request.httpMethod = "POST"
 
         var params = ["hashes": hashes]
-        // Manual merge since Dictionary.merge implies mutating current dict
         for (key, value) in extraParams {
             params[key] = value
         }
 
-        let bodyString = params.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
+        let bodyString = params.map { key, value in
+            let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+            // Start with alphanumeric + simple punctuation
+            var allowed = CharacterSet.alphanumerics
+            allowed.insert(charactersIn: "-_.~")
+            // Encoding user input (like paths, urls) requires strict encoding to avoid body breakage
+            let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+            return "\(encodedKey)=\(encodedValue)"
+        }.joined(separator: "&")
+
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
@@ -407,4 +493,12 @@ enum TorrentClientError: Error {
     case authenticationFailed
     case apiError(String)
     case decodingError
+}
+
+extension Data {
+    mutating func append(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
+        }
+    }
 }

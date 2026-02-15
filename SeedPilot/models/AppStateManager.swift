@@ -198,7 +198,7 @@ class AppStateManager {
         case .qBittorrent:
             client = QBittorrentClient(config: server)
         case .transmission:
-            client = QBittorrentClient(config: server)
+            client = TransmissionClient(config: server)
         }
         clients[server.id] = client
         return client
@@ -206,21 +206,45 @@ class AppStateManager {
 
     // MARK: - Task Actions
 
-    func addMagnetLink(_ link: String) {
-        guard let server = servers.first else {
-            print("No server available to add task")
+
+    // MARK: - Actions
+
+    func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws {
+        guard let serverID = activeServerId, let server = servers.first(where: { $0.id == serverID }) else {
+            // Default to first server if none selected? Or throw error
+             if let first = servers.first {
+                 let client = getClient(for: first)
+                 try await client.addTorrents(urls, options: options)
+                 try await Task.sleep(nanoseconds: 500_000_000)
+                 await refreshData()
+                 return
+             }
             return
         }
+        let client = getClient(for: server)
+        try await client.addTorrents(urls, options: options)
 
-        Task {
-            let client = getClient(for: server)
-            do {
-                try await client.addMagnetLink(link)
-                await refreshData() // Refresh list
-            } catch {
-               print("Failed to add magnet link: \(error)")
-            }
+        // Refresh after short delay
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        await refreshData()
+    }
+
+    func addTorrentFile(_ fileURL: URL, options: AddTorrentOptions) async throws {
+        guard let serverID = activeServerId, let server = servers.first(where: { $0.id == serverID }) else {
+             if let first = servers.first {
+                 let client = getClient(for: first)
+                 try await client.addTorrentFile(fileURL, options: options)
+                 try await Task.sleep(nanoseconds: 500_000_000)
+                 await refreshData()
+                 return
+             }
+            return
         }
+        let client = getClient(for: server)
+        try await client.addTorrentFile(fileURL, options: options)
+
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        await refreshData()
     }
 
     func pauseTask(_ task: TorrentTask) {
@@ -319,19 +343,31 @@ class AppStateManager {
     // MARK: - Batch Actions
 
     func pauseTasks(_ tasks: Set<TorrentTask>) {
-        for task in tasks { pauseTask(task) }
+        performBatchAction(tasks) { client, hashes in try await client.pauseTask(hash: hashes) }
     }
 
     func resumeTasks(_ tasks: Set<TorrentTask>) {
-        for task in tasks { resumeTask(task) }
+        performBatchAction(tasks) { client, hashes in try await client.resumeTask(hash: hashes) }
     }
 
     func setTransferLocationBatch(_ tasks: Set<TorrentTask>, newLocation: String) {
-         for task in tasks { setLocation(task, newLocation: newLocation) }
+         performBatchAction(tasks) { client, hashes in try await client.setLocation(hash: hashes, newLocation: newLocation) }
     }
 
     func editTrackersBatch(_ tasks: Set<TorrentTask>, newTrackers: String) {
-         for task in tasks { editTrackers(task, newTrackers: newTrackers) }
+         performBatchAction(tasks) { client, hashes in try await client.editTrackers(hash: hashes, newTrackers: newTrackers) }
+    }
+
+    func forceStartTasks(_ tasks: Set<TorrentTask>) {
+        performBatchAction(tasks) { client, hashes in try await client.forceStartTask(hash: hashes) }
+    }
+
+    func recheckTasks(_ tasks: Set<TorrentTask>) {
+        performBatchAction(tasks) { client, hashes in try await client.recheckTask(hash: hashes) }
+    }
+
+    func reannounceTasks(_ tasks: Set<TorrentTask>) {
+        performBatchAction(tasks) { client, hashes in try await client.reannounceTask(hash: hashes) }
     }
 
     private func performTaskAction(_ task: TorrentTask, action: @escaping (TorrentClient, String) async throws -> Void) {
@@ -343,6 +379,26 @@ class AppStateManager {
                 // Optional: await refreshData() or let auto-refresh handle it
             } catch {
                 print("Task action failed: \(error)")
+            }
+        }
+    }
+
+    private func performBatchAction(_ tasks: Set<TorrentTask>, action: @escaping (TorrentClient, String) async throws -> Void) {
+        // Group by server to optimize calls and handle multi-server selection
+        let grouped = Dictionary(grouping: tasks, by: { $0.serverID })
+
+        for (serverID, serverTasks) in grouped {
+            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
+            let client = getClient(for: server)
+            let hashes = serverTasks.map { $0.id }.joined(separator: "|")
+
+            Task {
+                do {
+                    try await action(client, hashes)
+                    await self.refreshData()
+                } catch {
+                    print("Batch action failed for server \(server.name): \(error)")
+                }
             }
         }
     }

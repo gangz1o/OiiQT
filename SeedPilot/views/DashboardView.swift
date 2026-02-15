@@ -6,392 +6,572 @@
 //
 
 import SwiftUI
-import Charts
 import SwiftData
 import Combine
 
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("enableProDashboardBackground") private var enableProDashboardBackground: Bool = false
+
+    // AppStorage Settings
+    @AppStorage("enableProDashboardBackground") private var enableProDashboardBackground: Bool = true
+    @AppStorage("showTMDBData") private var showTMDBData: Bool = false
 
     // UI State
-    @State private var bannerIndex = 0
+    @State private var bannerTasks: [TorrentTask] = []
+    @State private var bannerSelection: Int = 0
+
+    // Auto-Loop Timer
+    private let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+
+    // Computed Visual State
+    private var isBannerVisible: Bool {
+        enableProDashboardBackground && !bannerTasks.isEmpty
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Background Layer (Subtle Gradient)
-                LinearGradient(
-                    colors: [Color(uiColor: .systemGroupedBackground), Color(uiColor: .systemBackground)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-
-                // Main Content
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // 1. Pro Banner (Sliding Header)
-                        // 1. Pro Banner (Sliding Header) - Dynamic Visibility
-                        if enableProDashboardBackground {
-                            proBannerSection
-                                .transition(.move(edge: .top).combined(with: .opacity))
-                        }
-
-                        // 2. Speed Indicators (Compact Header)
-                        speedHeaderSection
-
-                        // 3. Server Grid
-                        serverTilesSection
-
-                        // 4. Recent Gallery (Smaller)
-                        recentItemsSection
+            ScrollView {
+                VStack(spacing: 0) {
+                    // 1. Smart Hero Banner (Auto-Loop)
+                    if isBannerVisible {
+                        SmartHeroBanner(tasks: bannerTasks, selection: $bannerSelection)
+                            .frame(height: 280)
+                            .transition(.opacity.animation(.spring()))
+                            .onReceive(timer) { _ in
+                                guard !bannerTasks.isEmpty else { return }
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    bannerSelection = (bannerSelection + 1) % bannerTasks.count
+                                }
+                            }
                     }
 
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7), value: enableProDashboardBackground)
-                    .padding(.top, enableProDashboardBackground ? 10 : 20) // More breathing room if no banner
-                    .padding(.bottom, 100)
+                    VStack(spacing: 24) { // Main Content Stack
+                        // 2. Glass Stats Grid
+                        StatsGrid(appStateManager: appStateManager, isImmersive: isBannerVisible)
+                            .offset(y: isBannerVisible ? -40 : 0)
+
+                        // 3. Server Grid (Replacting Engine Card)
+                        ServerGrid(appStateManager: appStateManager)
+                            .offset(y: isBannerVisible ? -40 : 0)
+
+                        // 4. Poster Wall
+                        PosterWall(appStateManager: appStateManager, showTMDB: showTMDBData)
+                             .offset(y: isBannerVisible ? -40 : 0)
+
+                        Spacer(minLength: 50)
+                    }
+                    .padding(.horizontal, 16)
+                    // Add top padding if banner is missing to avoid crowding nav bar
+                    .padding(.top, isBannerVisible ? 0 : 16)
                 }
             }
-            .navigationTitle(appStateManager.activeServerName ?? "仪表盘")
+            .background(Color(uiColor: .systemGroupedBackground))
+            .edgesIgnoringSafeArea(isBannerVisible ? .top : [])
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    HStack(spacing: 4) {
-                        Text(appStateManager.activeServerName ?? "全部服务器")
-                            .font(.headline)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
-                    }
+                    ServerSelector(appStateManager: appStateManager)
                 }
             }
-            .toolbarTitleMenu {
-                Button {
-                    appStateManager.activeServerId = nil
-                } label: {
-                    Label("全部服务器", systemImage: "server.rack")
-                }
-
-                ForEach(appStateManager.servers) { server in
-                    Button {
-                        appStateManager.activeServerId = server.id
-                    } label: {
-                        Label(server.name, systemImage: server.type == .qBittorrent ? "network" : "antenna.radiowaves.left.and.right")
-                    }
-                }
+            .onAppear {
+                refreshBannerData()
+                appStateManager.checkServerStatus()
+            }
+            .onChange(of: appStateManager.allTasks) { _, _ in
+                refreshBannerData()
+            }
+            .onChange(of: enableProDashboardBackground) { _, _ in
+                refreshBannerData()
             }
         }
     }
 
-    // MARK: - Sections
-
-    private static let bannerTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
-
-    private var proBannerSection: some View {
-        TabView(selection: $bannerIndex) {
-            let tasks = getRecentTasks().prefix(5)
-            if tasks.isEmpty {
-                // Default Pro Banner
-                defaultBannerView(title: "SeedPilot Pro", subtitle: "Your Home Command Center")
-                    .tag(0)
-            } else {
-                ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
-                    ProBannerItem(task: task)
-                        .tag(index)
-                }
+    private func refreshBannerData() {
+        guard enableProDashboardBackground else {
+            withAnimation(.spring()) {
+                bannerTasks = []
             }
+            return
         }
-        .tabViewStyle(.page(indexDisplayMode: .automatic))
-        .frame(height: 200)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
-        .padding(.horizontal, 16)
-        .onReceive(Self.bannerTimer) { _ in
-            let count = min(getRecentTasks().count, 5)
-            guard count > 1 else { return }
-            withAnimation {
-                bannerIndex = (bannerIndex + 1) % count
-            }
+
+        // Logic: Get recent tasks
+        let recent = appStateManager.allTasks.sorted {
+            ($0.addedTime ) > ($1.addedTime )
         }
-    }
-
-    private var staticWelcomeBanner: some View {
-        defaultBannerView(title: "SeedPilot", subtitle: "Dashboard")
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .padding(.horizontal, 16)
-    }
-
-    private func defaultBannerView(title: String, subtitle: String) -> some View {
-        ZStack {
-            LinearGradient(
-                colors: [.blue.opacity(0.8), .purple.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            VStack {
-                Text(title)
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(.white)
-                Text(subtitle)
-                    .font(.headline)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-        }
-    }
-
-    private var speedHeaderSection: some View {
-        HStack(spacing: 30) {
-            Spacer()
-
-
-
-            // Download
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.blue)
-                    .symbolEffect(.bounce, value: appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed })
-
-                Text(formatBytes(appStateManager.allTasks.reduce(0) { $0 + $1.downloadSpeed }) + "/s")
-                    .font(.system(.title2, design: .rounded).monospacedDigit().bold())
-            }
-
-            // Upload
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.green)
-                    .symbolEffect(.bounce, value: appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed })
-
-                Text(formatBytes(appStateManager.allTasks.reduce(0) { $0 + $1.uploadSpeed }) + "/s")
-                    .font(.system(.title2, design: .rounded).monospacedDigit().bold())
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 8)
-    }
-
-    private var serverTilesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("服务器", systemImage: "server.rack")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(appStateManager.servers) { server in
-                    Button {
-                        selectServer(server)
-                    } label: {
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Image(systemName: server.type == .qBittorrent ? "network" : "antenna.radiowaves.left.and.right")
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(.blue)
-                                Spacer()
-                                Circle()
-                                    .fill(server.isOnline == true ? Color.green : (server.isOnline == false ? Color.red : Color.gray))
-                                    .frame(width: 6, height: 6)
-                            }
-
-                            Spacer()
-
-                            Text(server.name)
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.9)
-
-                            Spacer()
-
-                            // Mock Progress
-                            Capsule()
-                                .fill(Color.secondary.opacity(0.2))
-                                .frame(height: 3)
-                                .overlay(
-                                    GeometryReader { geo in
-                                        Capsule()
-                                            .fill(Color.blue)
-                                            .frame(width: geo.size.width * 0.45)
-                                    },
-                                    alignment: .leading
-                                )
-                        }
-                        .padding(12)
-                        .aspectRatio(1.0, contentMode: .fit)
-                        .background(Material.thin)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                    }
-                    .buttonStyle(ScaleButtonStyle())
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-    }
-
-    private var recentItemsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("最近完成", systemImage: "clock.arrow.circlepath")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    let recents = getRecentTasks()
-                    if recents.isEmpty {
-                        Text("暂无最近完成的任务")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 16)
-                    } else {
-                        ForEach(recents) { task in
-                            Button {
-                                // Detail action
-                            } label: {
-                                PosterThumbnail(task: task)
-                                    .frame(width: 80, height: 120) // Smaller posters
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(.white.opacity(0.1), lineWidth: 1)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                            }
-                            .buttonStyle(ScaleButtonStyle())
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
-            }
-        }
-    }
-
-    // MARK: - Logic
-
-    private func selectServer(_ server: ServerConfig) {
-        withAnimation {
-            appStateManager.activeServerId = server.id
-            appStateManager.selectedTab = .transfers
-        }
-    }
-
-    private func getRecentTasks() -> [TorrentTask] {
-        let completed = appStateManager.allTasks.filter {
-            $0.progress >= 1.0 || $0.status == .completed || $0.status == .seeding
-        }
-        // Prefer explicit completion date
-        return completed.sorted {
-            ($0.completionDate ?? Date.distantPast) > ($1.completionDate ?? Date.distantPast)
-        }
-        .prefix(10)
+        .prefix(5)
         .map { $0 }
+
+        withAnimation(.spring()) {
+            bannerTasks = recent
+        }
     }
 }
 
-// Pro Banner Helper Component
-struct ProBannerItem: View {
-    let task: TorrentTask
+// MARK: - Components
+
+// 1. Smart Hero Banner
+struct SmartHeroBanner: View {
+    let tasks: [TorrentTask]
+    @Binding var selection: Int
     @Environment(\.modelContext) private var modelContext
-    @State private var backdropURL: URL?
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            // Background Image
-            if let url = backdropURL {
-                CachedAsyncImage(url: url, cacheKey: task.id + "_backdrop.jpg") { image in
-                    image
+        TabView(selection: $selection) {
+            ForEach(Array(tasks.enumerated()), id: \.offset) { index, task in
+                SmartHeroHeader(task: task)
+                    .tag(index)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never)) // Hide dots if we want clean loop, or .automatic
+        .background(Color.black)
+    }
+}
+
+struct SmartHeroHeader: View {
+    let task: TorrentTask
+    @Environment(\.modelContext) private var modelContext
+    @State private var image: UIImage?
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                if let img = image {
+                    Image(uiImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    ZStack {
-                        Color(.systemGray5)
-                        ProgressView()
-                    }
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [.clear, .black.opacity(0.6)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                } else {
+                     Rectangle()
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                        .overlay {
+                            Image(systemName: "film")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary.opacity(0.3))
+                        }
                 }
-            } else {
-                // Fallback Gradient
-                LinearGradient(
-                    colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
             }
-
-            // Gradient Overlay
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.8)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-
-            // Text Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(SeedPilotParser.parse(task.name).title)
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                HStack {
-                    Text(task.sizeString)
-                    Text("•")
-                    Text(task.status.rawValue)
-                }
-                .font(.caption.bold())
-                .foregroundStyle(.white.opacity(0.8))
-            }
-            .padding(16)
-            .padding(.bottom, 10)
         }
         .task {
-            if backdropURL == nil {
-                backdropURL = await TMDBService.shared.fetchBackdrop(hash: task.id, name: task.name, context: modelContext)
+            // Fetch Backdrop
+            if let path = await TMDBService.shared.fetchBackdrop(hash: task.id, name: task.name, context: modelContext),
+               let uiImage = await ImageLoader.shared.loadImage(from: path) {
+                withAnimation {
+                    image = uiImage
+                }
             }
         }
     }
 }
 
-// Simple Poster Thumbnail Helper
-struct PosterThumbnail: View {
-    let task: TorrentTask
-    @Environment(\.modelContext) private var modelContext
-    @State private var url: URL?
+// 2. Glass Stats Grid
+struct StatsGrid: View {
+    let appStateManager: AppStateManager
+    let isImmersive: Bool
 
     var body: some View {
-        Group {
-            if let u = url {
-                CachedAsyncImage(url: u, cacheKey: task.id + ".jpg") { image in
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Color(.systemGray5)
-                }
-            } else {
-                ZStack {
-                    Color(.systemGray5)
-                    Image(systemName: "film")
-                        .font(.title)
-                        .foregroundStyle(.secondary)
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            // Speed
+            GlassStatCell(isImmersive: isImmersive, title: "实时速度", icon: "bolt.horizontal.fill") {
+                VStack(alignment: .leading, spacing: 4) {
+                    // Download
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.down")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.blue)
+
+                        Text(formatBytes(appStateManager.displayedDownloadSpeed))
+                            .font(.headline.monospacedDigit())
+                            .foregroundStyle(.blue)
+                            .contentTransition(.numericText(value: Double(appStateManager.displayedDownloadSpeed)))
+
+                        Text("/s")
+                            .font(.caption2)
+                            .foregroundStyle(.blue.opacity(0.8))
+                    }
+
+                    // Upload
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.green)
+
+                        Text(formatBytes(appStateManager.displayedUploadSpeed))
+                            .font(.headline.monospacedDigit())
+                            .foregroundStyle(.green)
+                            .contentTransition(.numericText(value: Double(appStateManager.displayedUploadSpeed)))
+
+                        Text("/s")
+                            .font(.caption2)
+                            .foregroundStyle(.green.opacity(0.8))
+                    }
                 }
             }
+
+            // Seeding
+            GlassStatCell(isImmersive: isImmersive, title: "做种概况", icon: "leaf.fill") {
+                let count = appStateManager.allTasks.filter({ $0.status == .seeding }).count
+                let size = appStateManager.allTasks.reduce(0) { $0 + $1.size }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text("\(count)")
+                            .font(.title3.bold())
+                            .foregroundStyle(isImmersive ? .white : .primary)
+                            .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+                        Text("个任务")
+                            .font(.caption2)
+                            .foregroundStyle(isImmersive ? .white.opacity(0.8) : .secondary)
+                            .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+                    }
+
+                    Text("\(formatBytes(size))")
+                        .font(.subheadline)
+                        .foregroundStyle(isImmersive ? .white.opacity(0.9) : .secondary)
+                        .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+                }
+            }
+
+            // Storage
+            GlassStatCell(isImmersive: isImmersive, title: "存储空间", icon: "externaldrive.fill") {
+                 VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                         Text("200") // Mock
+                            .font(.title3.bold())
+                            .foregroundStyle(isImmersive ? .white : .primary)
+                            .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+                         Text("GB")
+                            .font(.caption2)
+                            .foregroundStyle(isImmersive ? .white.opacity(0.8) : .secondary)
+                            .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+
+                        Text("/ 1.0 TB")
+                           .font(.caption)
+                           .foregroundStyle(isImmersive ? .white.opacity(0.6) : .secondary)
+                           .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+                    }
+
+                    Capsule()
+                        .fill(isImmersive ? Color.white.opacity(0.2) : Color.secondary.opacity(0.1))
+                        .frame(height: 4)
+                        .overlay(
+                            Capsule()
+                                .fill(isImmersive ? Color.white : Color.blue)
+                                .frame(width: 40), // Mock width
+                            alignment: .leading
+                        )
+                        .shadow(color: isImmersive ? .black.opacity(0.5) : .clear, radius: 1)
+                }
+            }
+
+            // Connection
+            GlassStatCell(isImmersive: isImmersive, title: "连接状态", icon: "waveform.path.ecg") {
+                 HStack {
+                    Circle()
+                         .fill(isImmersive ? Color.white : Color.green)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: isImmersive ? .black.opacity(0.5) : .clear, radius: 2)
+
+                     Text("正常")
+                        .font(.headline.bold())
+                         .foregroundStyle(isImmersive ? .white : .primary)
+                         .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+                }
+                 Text("15ms")
+                    .font(.caption)
+                    .foregroundStyle(isImmersive ? .white.opacity(0.7) : .secondary)
+                    .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+
+            }
         }
-        .task {
-            if url == nil {
-                url = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext)
+        .animation(.spring(), value: appStateManager.displayedDownloadSpeed)
+    }
+}
+
+struct GlassStatCell<Content: View>: View {
+    let isImmersive: Bool
+    let title: String
+    let icon: String
+    let content: () -> Content
+
+    init(isImmersive: Bool, title: String, icon: String, @ViewBuilder content: @escaping () -> Content) {
+        self.isImmersive = isImmersive
+        self.title = title
+        self.icon = icon
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(.caption.bold())
+            .foregroundStyle(isImmersive ? .white.opacity(0.7) : .secondary)
+            .shadow(color: isImmersive ? .black.opacity(0.8) : .clear, radius: 2)
+
+            content()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Background Logic
+        .background(
+            Group {
+                if isImmersive {
+                    Rectangle()
+                        .fill(.ultraThinMaterial) // Base Glass
+                        .overlay(Color.black.opacity(0.4)) // Darker tint for contrast
+                } else {
+                    Color(uiColor: .secondarySystemGroupedBackground) // Solid White
+                }
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+             RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isImmersive ? Color.white.opacity(0.1) : Color.clear, lineWidth: 0.5)
+        )
+        .shadow(color: Color.black.opacity(isImmersive ? 0.2 : 0.05), radius: 5, x: 0, y: 3)
+    }
+}
+
+// 3. Server Grid (Horizontal Scroll)
+struct ServerGrid: View {
+    let appStateManager: AppStateManager
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(appStateManager.servers) { server in
+                    ServerGridItem(
+                        server: server,
+                        isActive: appStateManager.activeServerId == server.id
+                    ) {
+                        selectServer(server)
+                    }
+                }
+            }
+            .padding(.horizontal, 4) // Align visually
+            .padding(.vertical, 4) // Shadow space
+        }
+    }
+
+    private func selectServer(_ server: ServerConfig) {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+
+        withAnimation {
+            appStateManager.activeServerId = server.id
+        }
+    }
+}
+
+struct ServerGridItem: View {
+    let server: ServerConfig
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Top Row: Logo + Status Dot
+                HStack(alignment: .top) {
+                    Group {
+                        if server.type == .transmission {
+                            if UIImage(named: "tr_logo") != nil {
+                                Image("tr_logo")
+                                    .resizable().aspectRatio(contentMode: .fit)
+                            } else {
+                                Image(systemName: "tray.and.arrow.down.fill")
+                                    .resizable().aspectRatio(contentMode: .fit)
+                                    .foregroundStyle(.orange)
+                            }
+                        } else {
+                            if UIImage(named: "qb_logo") != nil {
+                                Image("qb_logo")
+                                    .resizable().aspectRatio(contentMode: .fit)
+                            } else {
+                                Image(systemName: "network")
+                                    .resizable().aspectRatio(contentMode: .fit)
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+                    .frame(width: 48, height: 48) // Bolder/Larger
+                    // .clipShape(Circle()) // If needed
+
+                    Spacer()
+
+                    // Status Dot (Top Right)
+                    Circle()
+                        .fill(server.statusColor)
+                        .frame(width: 8, height: 8)
+                }
+
+                Spacer() // Push content to edges
+
+                // Bottom Text
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(server.name)
+                        .font(.headline) // Larger/Bolder
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(server.address)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(16)
+            .frame(width: 160, height: 140) // Wider/Square-ish
+            .background(Color(uiColor: isActive ? .secondarySystemGroupedBackground : .tertiarySystemGroupedBackground))
+            .background(Color(uiColor: .systemBackground)) // Always clean white if active or not?
+            // Actually, keep subtle difference:
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(isActive ? Color.blue : Color.clear, lineWidth: 2)
+            )
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// 4. Poster Wall (Unchanged Logic, just ensure context passed)
+struct PosterWall: View {
+    let appStateManager: AppStateManager
+    let showTMDB: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("最近完成", systemImage: "clock")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 8)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    let recents = appStateManager.allTasks.prefix(10)
+                    if recents.isEmpty {
+                        Text("暂无数据")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+                            .frame(height: 150)
+                    } else {
+                        ForEach(recents) { task in
+                            PosterCard(task: task, showTMDB: showTMDB)
+                                .frame(width: 100, height: 150)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.bottom, 20)
             }
         }
     }
 }
 
-struct ScaleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+struct PosterCard: View {
+    let task: TorrentTask
+    let showTMDB: Bool
+    @Environment(\.modelContext) private var modelContext
+    @State private var posterImage: UIImage?
+
+    var body: some View {
+        ZStack {
+            if showTMDB, let img = posterImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                // Fallback / Art
+                ZStack {
+                    Color(uiColor: .tertiarySystemGroupedBackground) // Darker card
+                    VStack {
+                        Image(systemName: "film")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                        Text(task.name)
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 4)
+                    }
+                }
+            }
+        }
+        .frame(width: 100, height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+        .task(id: showTMDB) {
+             if showTMDB {
+                if let path = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext),
+                   let img = await ImageLoader.shared.loadImage(from: path) {
+                    withAnimation {
+                         posterImage = img
+                    }
+                }
+             }
+        }
+    }
+}
+
+// Header Selector
+struct ServerSelector: View {
+    let appStateManager: AppStateManager
+
+    var body: some View {
+        Menu {
+            Button {
+                appStateManager.activeServerId = nil
+            } label: {
+                Label("全部服务器", systemImage: "server.rack")
+            }
+            ForEach(appStateManager.servers) { server in
+                Button {
+                     appStateManager.activeServerId = server.id
+                } label: {
+                    Label(server.name, systemImage: "network")
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                 Text(appStateManager.activeServerName ?? "全部服务器")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle()) // Hit test
+        }
+    }
+}
+
+
+
+class ImageLoader {
+    static let shared = ImageLoader()
+    func loadImage(from url: URL) async -> UIImage? {
+        try? await Task.detached {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return UIImage(data: data)
+        }.value
     }
 }

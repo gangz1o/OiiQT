@@ -21,6 +21,7 @@ struct EditServerView: View {
     @State private var username = ""
     @State private var password = ""
     @State private var allowInsecureSSL = false
+    @State private var rpcPath = "/transmission/rpc"
     @State private var isPasswordVisible = false
 
     // Test Connection State
@@ -66,6 +67,15 @@ struct EditServerView: View {
                         Image(systemName: "number")
                         TextField("端口", text: $port)
                             .keyboardType(.numberPad)
+                    }
+
+                    if type == .transmission {
+                        HStack {
+                            Image(systemName: "folder.fill")
+                            TextField("RPC 路径", text: $rpcPath)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
                     }
                 }
                 .foregroundStyle(.blue) // Tint icons
@@ -171,6 +181,7 @@ struct EditServerView: View {
                     username = server.username
                     password = server.password
                     allowInsecureSSL = server.allowInsecureSSL
+                    rpcPath = server.rpcPath
                 }
             }
         }
@@ -179,15 +190,6 @@ struct EditServerView: View {
     private func saveServer() {
         // 处理地址前缀
         let formattedAddress = address.trimmingCharacters(in: .whitespaces)
-        // Remove existing protocol if user typed it again awkwardly or just clean up
-        // Keep the protocol if user typed it
-        // if formattedAddress.hasPrefix("http://") { ... }
-
-        // We will store raw address without protocol usually, or keep consistent?
-        // AppStateManager/Client logic adds http:// if missing.
-        // Let's store pure IP/Domain to be clean, or keep logical.
-        // Current Client logic: checks prefix.
-        // Let's just trim whitespace.
 
         if let server = serverToEdit {
             // Update
@@ -198,6 +200,7 @@ struct EditServerView: View {
             server.username = username.trimmingCharacters(in: .whitespaces)
             server.password = password
             server.allowInsecureSSL = allowInsecureSSL
+            server.rpcPath = rpcPath.trimmingCharacters(in: .whitespaces)
         } else {
             // Insert
             let config = ServerConfig(
@@ -207,7 +210,8 @@ struct EditServerView: View {
                 port: Int(port) ?? 8080,
                 username: username.trimmingCharacters(in: .whitespaces),
                 password: password,
-                allowInsecureSSL: allowInsecureSSL
+                allowInsecureSSL: allowInsecureSSL,
+                rpcPath: rpcPath.trimmingCharacters(in: .whitespaces)
             )
             modelContext.insert(config)
         }
@@ -222,8 +226,6 @@ struct EditServerView: View {
         Task {
             // Construct temp config
             let formattedAddress = address.trimmingCharacters(in: .whitespaces)
-            // Keep protocol
-            // if formattedAddress.hasPrefix("http://") { ... }
 
             let tempConfig = ServerConfig(
                 name: "Test",
@@ -232,15 +234,18 @@ struct EditServerView: View {
                 port: Int(port) ?? 8080,
                 username: username.trimmingCharacters(in: .whitespaces),
                 password: password,
-                allowInsecureSSL: allowInsecureSSL
+                allowInsecureSSL: allowInsecureSSL,
+                rpcPath: rpcPath.trimmingCharacters(in: .whitespaces)
             )
 
-            let client = QBittorrentClient(config: tempConfig)
+            let client: TorrentClient = (type == .qBittorrent) ?
+                QBittorrentClient(config: tempConfig) :
+                TransmissionClient(config: tempConfig)
 
             do {
                 try await client.login()
                 let version = try await client.checkConnection()
-                testResult = .success("连接成功 (v\(version))")
+                testResult = .success("连接成功: \(type.rawValue) (v\(version))")
             } catch {
                 if let urlError = error as? URLError,
                    urlError.code == .serverCertificateUntrusted || urlError.code == .secureConnectionFailed,

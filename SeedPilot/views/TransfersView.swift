@@ -17,32 +17,66 @@ struct TransfersView: View {
 
     // 状态筛选
     @State private var selectedStatus: String = "全部"
-    let statusOptions = ["全部"] + TorrentStatus.allCases.map { $0.rawValue }
+    // NEW: Sorting
+    @State private var sortOption: SortOption = .dateAdded
+    @State private var sortAscending: Bool = false // Default Descending (Newest first)
+    // NEW: Tracker Filter
+    @State private var selectedTracker: String = "全部 Tracker"
 
     // Batch Action States
-    @State private var showingBatchLocationAlert = false
-    @State private var newBatchLocation = ""
-    @State private var showingBatchTrackerAlert = false
-    @State private var newBatchTrackers = ""
-    @State private var showingBatchDeleteConfirmation = false
+    // ... (unchanged)
 
-    // 添加磁力链接
+    // 添加任务
     @State private var showingAddMagnet = false
-    @State private var magnetLink = ""
 
     // 筛选后的任务列表
     var filteredTasks: [TorrentTask] {
-        let tasks = appStateManager.displayedTasks
-        let statusFiltered = (selectedStatus == "全部") ? tasks : tasks.filter { $0.status.rawValue == selectedStatus }
+        var tasks = appStateManager.displayedTasks
 
-        if searchText.isEmpty {
-            return statusFiltered
-        } else {
-            return statusFiltered.filter { task in
+        // 1. Status Filter
+        if selectedStatus != "全部" {
+            tasks = tasks.filter { $0.status.rawValue == selectedStatus }
+        }
+
+        // 2. Search Text
+        if !searchText.isEmpty {
+            tasks = tasks.filter { task in
                 task.name.localizedCaseInsensitiveContains(searchText) ||
                 task.trackerHost.localizedCaseInsensitiveContains(searchText)
             }
         }
+
+        // 3. Tracker Filter
+        if selectedTracker != "全部 Tracker" {
+            tasks = tasks.filter { $0.trackerHost == selectedTracker }
+        }
+
+        // 4. Sort
+        return tasks.sorted { t1, t2 in
+            var result: Bool
+            switch sortOption {
+            case .dateAdded:
+                result = t1.addedTime < t2.addedTime
+            case .name:
+                result = t1.name.localizedStandardCompare(t2.name) == .orderedAscending
+            case .downloadSpeed:
+                result = t1.downloadSpeed < t2.downloadSpeed
+            case .uploadSpeed:
+                result = t1.uploadSpeed < t2.uploadSpeed
+            case .size:
+                result = t1.size < t2.size
+            case .progress:
+                 result = t1.progress < t2.progress
+            }
+            return sortAscending ? result : !result
+        }
+    }
+
+    // Helper to extract unique trackers
+    var uniqueTrackers: [String] {
+        let hosts = appStateManager.allTasks.map { $0.trackerHost }
+        let unique = Set(hosts)
+        return ["全部 Tracker"] + unique.sorted()
     }
 
     private var navigationTitle: String {
@@ -57,26 +91,38 @@ struct TransfersView: View {
         editMode?.wrappedValue == .active
     }
 
+    // Check if any filter is active for the badge
+    private var isFilterActive: Bool {
+        selectedStatus != "全部" || selectedTracker != "全部 Tracker" || sortOption != .dateAdded || sortAscending != false
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottom) {
                 VStack(spacing: 0) {
                     // 0. 服务器状态栏 (Pinned Top)
                     ServerStatusBar(appStateManager: appStateManager)
-                        .background(Color(uiColor: .systemBackground)) // Match Nav Bar
-                        .overlay(
-                            Rectangle()
-                                .frame(height: 0.5)
-                                .foregroundColor(Color(uiColor: .separator)),
-                            alignment: .bottom
-                        )
+                        .background(Color(uiColor: .systemBackground))
+
+                    // 0.5. Quick Filter Bar (Capsule) - Hide when editing
+                    if !isEditing {
+                        QuickFilterBar(selectedStatus: $selectedStatus)
+                            .padding(.bottom, 8) // Spacing from list
+                            .background(Color(uiColor: .systemBackground))
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 0.5)
+                                    .foregroundColor(Color(uiColor: .separator)),
+                                alignment: .bottom
+                            )
+                    }
 
                     // 1. 任务列表
                     if filteredTasks.isEmpty {
                         if !searchText.isEmpty {
                              ContentUnavailableView.search(text: searchText)
                         } else {
-                            emptyState
+                            ContentUnavailableView("无任务", systemImage: "tray", description: Text("当前筛选条件下没有任务"))
                         }
                     } else {
                         List {
@@ -90,8 +136,8 @@ struct TransfersView: View {
                                     },
                                     appStateManager: appStateManager
                                 )
-                                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
-                                .listRowSeparator(.hidden) // Hide default separator as cards have spacing
+                                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)) // Wider spacing
+                                .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     if !isEditing {
@@ -127,33 +173,42 @@ struct TransfersView: View {
                         .refreshable {
                             await appStateManager.refreshData()
                         }
+                        .animation(.spring(), value: filteredTasks) // Animate reordering
                     }
                 }
 
-                // 2. 悬浮按钮 (FAB) - Only show when NOT editing
+                // 3. Batch Action Panel - Only show when editing
+                if isEditing && !selectedTaskHashes.isEmpty {
+                     BatchActionPanel(
+                        selectedTaskHashes: $selectedTaskHashes,
+                        isEditing: Binding(
+                            get: { editMode?.wrappedValue == .active },
+                            set: { if !$0 { editMode?.wrappedValue = .inactive } }
+                        )
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 0)
+                    .zIndex(2)
+                }
+
+                // FAB (Floating Action Button) for Adding Task
                 if !isEditing {
                     Button {
                         showingAddMagnet = true
                     } label: {
                         Image(systemName: "plus")
-                            .font(.title2.bold())
+                            .font(.system(size: 24, weight: .semibold))
                             .foregroundStyle(.white)
-                            .padding(16)
+                            .frame(width: 56, height: 56)
                             .background(Color.blue)
                             .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 4)
+                            .shadow(radius: 4, x: 0, y: 2)
                     }
-                    .padding()
-                }
-
-                // 3. Batch Action Toolbar - Only show when editing
-                if isEditing {
-                    batchActionBar
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .padding(.bottom, 10) // Lift slightly above bottom safe area
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
             }
-            // .sensoryFeedback removed here, triggered manually in Row
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索任务或 Tracker")
@@ -204,9 +259,49 @@ struct TransfersView: View {
                     }
                 }
 
-                // Trailing: Edit/Done + Filter
+                // Trailing: Add + Filter + Edit/Done
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack {
+                    HStack(spacing: 16) {
+                        // Unified Sort & Filter Menu
+                         if !isEditing {
+                            Menu {
+                                // Section 1: Sort
+                                Section("排序") {
+                                    Picker("排序方式", selection: $sortOption) {
+                                        ForEach(SortOption.allCases) { option in
+                                            Text(option.rawValue).tag(option)
+                                        }
+                                    }
+
+                                    Toggle(isOn: $sortAscending) {
+                                        Label("升序排列", systemImage: "arrow.up.arrow.down")
+                                    }
+                                }
+
+                                // Section 2: Filter
+                                Section("筛选 Tracker") {
+                                    Picker("Tracker", selection: $selectedTracker) {
+                                        ForEach(uniqueTrackers, id: \.self) { tracker in
+                                            Text(tracker).tag(tracker)
+                                        }
+                                    }
+                                }
+
+                            } label: {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "line.3.horizontal.decrease.circle")
+                                        .font(.system(size: 17, weight: .semibold))
+
+                                    if isFilterActive {
+                                        Circle()
+                                            .fill(.red)
+                                            .frame(width: 8, height: 8)
+                                            .offset(x: 2, y: -2)
+                                    }
+                                }
+                            }
+                        }
+
                          if isEditing {
                             Button("完成") {
                                 withAnimation {
@@ -225,77 +320,12 @@ struct TransfersView: View {
                                     .font(.system(size: 17, weight: .semibold))
                             }
                         }
-
-                        Menu {
-                            Picker("筛选状态", selection: $selectedStatus) {
-                                ForEach(statusOptions, id: \.self) { status in
-                                    Text(status)
-                                        .tag(status)
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 17, weight: .semibold))
-                        }
                     }
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .alert("添加磁力链接", isPresented: $showingAddMagnet) {
-                TextField("粘贴磁力链接", text: $magnetLink)
-                Button("取消", role: .cancel) { }
-                Button("添加") {
-                    appStateManager.addMagnetLink(magnetLink)
-                    magnetLink = ""
-                }
-            }
-            .alert("批量修改保存路径", isPresented: $showingBatchLocationAlert) {
-                TextField("新路径", text: $newBatchLocation)
-                Button("取消", role: .cancel) { }
-                Button("确定") {
-                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
-                    appStateManager.setTransferLocationBatch(Set(tasks), newLocation: newBatchLocation)
-                    editMode?.wrappedValue = .inactive
-                    selectedTaskHashes.removeAll()
-                    newBatchLocation = ""
-                }
-            } message: {
-                Text("请输入新的绝对路径。此操作将移动所选任务的数据。")
-            }
-            .alert("批量添加 Tracker", isPresented: $showingBatchTrackerAlert) {
-                TextField("Tracker URL", text: $newBatchTrackers)
-                Button("取消", role: .cancel) { }
-                Button("确定") {
-                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
-                    appStateManager.editTrackersBatch(Set(tasks), newTrackers: newBatchTrackers)
-                    editMode?.wrappedValue = .inactive
-                    selectedTaskHashes.removeAll()
-                    newBatchTrackers = ""
-                }
-            } message: {
-                Text("请输入 Tracker URL。")
-            }
-            .confirmationDialog("批量删除", isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
-                 Button("删除任务 (保留数据)", role: .destructive) {
-                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
-                    for task in tasks {
-                        appStateManager.deleteTask(task, withData: false)
-                    }
-                    editMode?.wrappedValue = .inactive
-                    selectedTaskHashes.removeAll()
-                }
-                Button("删除任务和数据", role: .destructive) {
-                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
-                    // Use batch delete if available or loop
-                     for task in tasks {
-                        appStateManager.deleteTask(task, withData: true)
-                    }
-                    editMode?.wrappedValue = .inactive
-                    selectedTaskHashes.removeAll()
-                }
-                Button("取消", role: .cancel) { }
-            } message: {
-                Text("确定要删除选中的 \(selectedTaskHashes.count) 个任务吗？")
+            .sheet(isPresented: $showingAddMagnet) {
+                AddTorrentView()
             }
         }
     }
@@ -307,71 +337,6 @@ struct TransfersView: View {
             selectedTaskHashes.remove(hash)
         } else {
             selectedTaskHashes.insert(hash)
-        }
-    }
-
-    private var batchActionBar: some View {
-        HStack(spacing: 0) {
-            Button {
-                actionWithFeedback {
-                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
-                    appStateManager.resumeTasks(Set(tasks))
-                }
-            } label: {
-                batchActionButton(icon: "play.fill", text: "开始")
-            }
-            .disabled(selectedTaskHashes.isEmpty)
-
-            Divider().frame(height: 20)
-
-            Button {
-                actionWithFeedback {
-                    let tasks = appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
-                    appStateManager.pauseTasks(Set(tasks))
-                }
-            } label: {
-                batchActionButton(icon: "pause.fill", text: "暂停")
-            }
-            .disabled(selectedTaskHashes.isEmpty)
-
-            Divider().frame(height: 20)
-
-            Button(role: .destructive) {
-                if !selectedTaskHashes.isEmpty {
-                     showingBatchDeleteConfirmation = true
-                }
-            } label: {
-                batchActionButton(icon: "trash.fill", text: "删除", color: .red)
-            }
-            .disabled(selectedTaskHashes.isEmpty)
-        }
-        .frame(height: 60)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
-        .padding(.horizontal, 30)
-    }
-
-    private func batchActionButton(icon: String, text: String, color: Color = .primary) -> some View {
-        VStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.headline)
-            Text(text)
-                .font(.caption2.bold())
-        }
-        .foregroundStyle(color)
-        .opacity(selectedTaskHashes.isEmpty ? 0.4 : 1.0) // Dim if disabled
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-    }
-
-    private func actionWithFeedback(action: () -> Void) {
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-        action()
-        withAnimation {
-            editMode?.wrappedValue = .inactive
-            selectedTaskHashes.removeAll()
         }
     }
 
