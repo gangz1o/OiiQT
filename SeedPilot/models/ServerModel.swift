@@ -68,6 +68,12 @@ final class ServerConfig {
         self.rpcPath = rpcPath
     }
 
+    // Statistics
+    var totalSeedingCount: Int = 0
+    var totalDownloadingCount: Int = 0
+    var totalSeedingSize: Int64 = 0
+    var totalRatio: Double = 0.0
+
     // 计算属性：生成基础 URL
     @Transient
     var baseURL: String {

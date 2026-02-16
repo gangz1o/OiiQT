@@ -218,8 +218,10 @@ struct SettingsView: View {
 
     private func updateCacheSize() {
         ImageCache.default.calculateDiskStorageSize { result in
-            if case .success(let size) = result {
-                cacheSizeString = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+            Task { @MainActor in
+                if case .success(let size) = result {
+                    cacheSizeString = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+                }
             }
         }
     }
@@ -228,24 +230,26 @@ struct SettingsView: View {
         // 1. Clear Kingfisher image cache (memory + disk)
         ImageCache.default.clearMemoryCache()
         ImageCache.default.clearDiskCache {
-            // 2. Clear URLCache (for any non-image network responses)
-            URLCache.shared.removeAllCachedResponses()
+            Task { @MainActor in
+                // 2. Clear URLCache (for any non-image network responses)
+                URLCache.shared.removeAllCachedResponses()
 
-            // 3. Clear temp files
-            let fileManager = FileManager.default
-            if let tempURL = URL(string: NSTemporaryDirectory()) {
-                if let tempContents = try? fileManager.contentsOfDirectory(at: tempURL, includingPropertiesForKeys: nil) {
-                    for file in tempContents {
-                        try? fileManager.removeItem(at: file)
+                // 3. Clear temp files
+                let fileManager = FileManager.default
+                if let tempURL = URL(string: NSTemporaryDirectory()) {
+                    if let tempContents = try? fileManager.contentsOfDirectory(at: tempURL, includingPropertiesForKeys: nil) {
+                        for file in tempContents {
+                            try? fileManager.removeItem(at: file)
+                        }
                     }
                 }
-            }
 
-            // 4. Update UI
-            withAnimation {
-                cacheSizeString = "0 KB"
+                // 4. Update UI
+                withAnimation {
+                    cacheSizeString = "0 KB"
+                }
+                showingSuccessAlert = true
             }
-            showingSuccessAlert = true
         }
     }
 }

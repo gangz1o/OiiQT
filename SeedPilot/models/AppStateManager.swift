@@ -120,6 +120,20 @@ class AppStateManager {
                 // Mark online
                 await MainActor.run {
                     server.isOnline = true
+
+                    // Update stats
+                    server.totalSeedingCount = tasks.filter { $0.status == .seeding }.count
+                    server.totalDownloadingCount = tasks.filter { $0.status == .downloading }.count
+                    server.totalSeedingSize = tasks.filter { $0.status == .seeding }.reduce(0) { $0 + $1.size }
+
+                    let totalUploaded = tasks.reduce(0) { $0 + $1.uploaded }
+                    let totalDownloaded = tasks.reduce(0) { $0 + $1.downloaded }
+
+                    if totalDownloaded > 0 {
+                        server.totalRatio = Double(totalUploaded) / Double(totalDownloaded)
+                    } else {
+                        server.totalRatio = 0.0
+                    }
                 }
             } catch let error as TorrentClientError {
                 // If auth failed, try login and retry
@@ -233,7 +247,7 @@ class AppStateManager {
         await refreshData()
         print("[SeedPilot] Added torrents to \(server.name), triggered refresh.")
     }
-    
+
     /// Add torrents with automatic re-login on auth failure
     private func addTorrentsWithRetry(client: TorrentClient, urls: [String], options: AddTorrentOptions) async throws {
         do {

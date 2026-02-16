@@ -136,13 +136,13 @@ struct TorrentRowView: View {
             .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2) // Subtle shadow
         }
         .contentShape(Rectangle()) // Make the whole row tappable
-        .onTapGesture {
-            if isEditing {
+        .gesture(
+            isEditing ? TapGesture().onEnded {
                 toggleSelection()
                 let impact = UIImpactFeedbackGenerator(style: .light)
                 impact.impactOccurred()
-            }
-        }
+            } : nil
+        )
         .contextMenu {
             if !isEditing {
                 if task.status == .paused {
@@ -191,7 +191,7 @@ struct TorrentRowView: View {
                         Button {
                             appStateManager.toggleSequentialDownload(task)
                         } label: {
-                            let icon = (task.isSequential == true) ? "checkmark" : "text.insert.secondary"
+                            let icon = (task.isSequential == true) ? "checkmark" : "arrow.down.to.line"
                             Label("顺序下载", systemImage: icon)
                         }
 

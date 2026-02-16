@@ -136,6 +136,45 @@ class TMDBService {
         return URL(string: "https://image.tmdb.org/t/p/w780" + backdropPath)
     }
 
+    /// 获取完整详情 (用于 Detail View)
+    @MainActor
+    func fetchDetails(hash: String, name: String, context: ModelContext) async -> TMDBItem? {
+        // 1. Try to find existing manual match or cached match to guide us?
+        // Since we don't store ID, we have to search again.
+        // Optimization: If we have a stored posterPath, we can try to find the item that matches that posterPath in the search results.
+
+        // 2. Parse & Search
+        let metadata = SeedPilotParser.parse(name)
+        guard !metadata.title.isEmpty else { return nil }
+
+        let items = await search(query: metadata.title)
+
+        // 3. Select Best Match
+        // If we have a stored poster path (from fetchPoster), we should prefer the item that has that path.
+        let storedMatch = fetchMatch(hash: hash, context: context)
+
+        if let storedPoster = storedMatch?.posterPath {
+            if let exact = items.first(where: { $0.posterPath == storedPoster }) {
+                return exact
+            }
+        }
+
+        // Otherwise use smart match logic
+        if let best = selectBestMatch(from: items, year: metadata.year) {
+            return best
+        }
+
+        // Fallback: English Title
+        if let englishTitle = metadata.englishTitle, !englishTitle.isEmpty {
+             let enItems = await search(query: englishTitle)
+             if let best = selectBestMatch(from: enItems, year: metadata.year) {
+                 return best
+             }
+        }
+
+        return nil
+    }
+
     /// 搜索 API (支持分页，自动重试一次)
     func search(query: String, page: Int = 1) async -> [TMDBItem] {
         guard apiKey != "YOUR_API_KEY_HERE",
@@ -232,32 +271,32 @@ class TMDBService {
     private func selectBestMatch(from items: [TMDBItem], year: String?) -> TMDBItem? {
         let withPoster = items.filter { $0.posterPath != nil }
         guard !withPoster.isEmpty else { return nil }
-        
+
         guard let targetYear = year else {
             return withPoster.first
         }
-        
+
         var bestItem: TMDBItem?
         var bestScore = -1
-        
+
         for (index, item) in withPoster.enumerated() {
             var score = 0
-            
+
             if item.year == targetYear {
                 score += 100
             } else if let itemYear = Int(item.year), let target = Int(targetYear), abs(itemYear - target) <= 1 {
                 score += 50
             }
-            
+
             // Prefer earlier results (TMDB relevance order)
             score += max(0, 10 - index)
-            
+
             if score > bestScore {
                 bestScore = score
                 bestItem = item
             }
         }
-        
+
         return bestItem
     }
 }
@@ -271,6 +310,8 @@ struct TMDBItem: Identifiable, Hashable {
     let backdropPath: String?
     let releaseDate: String?
     let mediaType: String // "movie" or "tv"
+    let overview: String?
+    let voteAverage: Double?
 
     var fullPosterURL: URL? {
         guard let path = posterPath else { return nil }
@@ -307,6 +348,8 @@ private struct TMDBResult: Decodable {
     let name: String?
     let release_date: String?
     let first_air_date: String?
+    let overview: String?
+    let vote_average: Double?
 
     func toDomainModel() -> TMDBItem? {
         // Only movies and tv shows
@@ -319,7 +362,9 @@ private struct TMDBResult: Decodable {
             posterPath: poster_path,
             backdropPath: backdrop_path,
             releaseDate: release_date ?? first_air_date,
-            mediaType: media_type ?? "unknown"
+            mediaType: media_type ?? "unknown",
+            overview: overview,
+            voteAverage: vote_average
         )
     }
 }

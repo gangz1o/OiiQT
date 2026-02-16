@@ -167,6 +167,14 @@ struct TransfersView: View {
                                         }
                                     }
                                 }
+                                .background {
+                                    if !isEditing {
+                                        NavigationLink(destination: TorrentDetailView(task: task, appStateManager: appStateManager)) {
+                                            EmptyView()
+                                        }
+                                        .opacity(0)
+                                    }
+                                }
                             }
                         }
                         .listStyle(.plain)
