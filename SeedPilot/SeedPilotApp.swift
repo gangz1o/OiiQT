@@ -7,15 +7,18 @@
 
 import SwiftUI
 import SwiftData
+import Kingfisher
 
 @main
 struct SeedPilotApp: App {
     @AppStorage("appearance") private var appearance: String = "system"
 
     init() {
-        // Configure Native URLCache (50MB memory, 500MB disk)
-        let cache = URLCache(memoryCapacity: 50 * 1024 * 1024, diskCapacity: 500 * 1024 * 1024, diskPath: "seedpilot_images")
-        URLCache.shared = cache
+        // Configure Kingfisher Image Cache
+        let cache = ImageCache.default
+        cache.memoryStorage.config.totalCostLimit = 100 * 1024 * 1024   // 100 MB memory
+        cache.diskStorage.config.sizeLimit = 500 * 1024 * 1024          // 500 MB disk
+        cache.diskStorage.config.expiration = .days(7)                  // 7-day expiry
     }
 
     var sharedModelContainer: ModelContainer = {

@@ -6,71 +6,32 @@
 //
 
 import SwiftUI
+import Kingfisher
 
-/// A native replacement for Kingfisher's KFImage using standard AsyncImage with URLCache.
-/// Provides consistent API for the rest of the app.
+// MARK: - Unified Image Component
+
+/// Drop-in replacement for AsyncImage, powered by Kingfisher.
+/// Handles memory + disk caching, fade-in animation, and smooth gradient placeholders.
 struct SimpleCachedImage: View {
     let url: URL?
 
     var body: some View {
-        if let url = url {
-            // Using AsyncImage relying on URLCache.shared which we configured in App.init
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        Color.gray.opacity(0.15)
-                        ProgressView()
-                    }
-                case .success(let image):
-                    image
-                        .resizable()
-                        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
-                case .failure:
-                    ZStack {
-                        Color.gray.opacity(0.1)
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    }
-                @unknown default:
-                    EmptyView()
-                }
-            }
-        } else {
-            ZStack {
-                Color.gray.opacity(0.1)
-                Image(systemName: "photo")
-                    .foregroundStyle(.secondary)
-            }
-        }
+        KFImage(url)
+            .placeholder { SeedPilotPlaceholder() }
+            .fade(duration: 0.25)
+            .resizable()
     }
 }
 
-// Keep the generic struct if we need it later, but simplified for now to strict match usage
-struct CachedAsyncImage<Content: View, Placeholder: View>: View where Content: View, Placeholder: View {
-    let url: URL?
-    let content: (Image) -> Content
-    let placeholder: () -> Placeholder
+// MARK: - Gradient Placeholder
 
-    init(url: URL?, @ViewBuilder content: @escaping (Image) -> Content, @ViewBuilder placeholder: @escaping () -> Placeholder) {
-        self.url = url
-        self.content = content
-        self.placeholder = placeholder
-    }
-
+/// Smooth diagonal gradient placeholder — used across the entire app for loading & failure states.
+struct SeedPilotPlaceholder: View {
     var body: some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .success(let image):
-                content(image)
-            case .empty:
-                placeholder()
-            case .failure:
-                // We could expose failure, but for now just show placeholder or empty
-                placeholder()
-            @unknown default:
-                placeholder()
-            }
-        }
+        LinearGradient(
+            colors: [Color(.systemGray6), Color(.systemGray4)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }

@@ -18,28 +18,12 @@ struct RSSFeedTileView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Top: Favicon + refresh indicator
             HStack {
-                AsyncImage(url: URL(string: source.faviconUrl ?? "")) { phase in
-                    switch phase {
-                    case .empty:
-                        Color.gray.opacity(0.1)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    case .failure:
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .foregroundStyle(.blue)
-                            .padding(8)
-                            .background(Color.blue.opacity(0.1))
-                            .clipShape(Circle())
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-                .frame(width: 44, height: 44)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                SimpleCachedImage(url: URL(string: source.faviconUrl ?? ""))
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
 
                 Spacer()
                 

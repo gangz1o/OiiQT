@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Kingfisher
 
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -26,7 +27,7 @@ struct SettingsView: View {
     // UI 状态
     @State private var showingClearCacheAlert = false
     @State private var showingSuccessAlert = false
-    @State private var cacheSizeString = "12.4 MB" // Mock
+    @State private var cacheSizeString = "计算中..."
 
     var body: some View {
         NavigationStack {
@@ -158,7 +159,7 @@ struct SettingsView: View {
                         HStack {
                             Label("清除缓存", systemImage: "trash")
                             Spacer()
-                            Text(ByteCountFormatter.string(fromByteCount: Int64(ImageCacheManager.shared.calculateDiskCacheSize()), countStyle: .file))
+                            Text(cacheSizeString)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -168,7 +169,7 @@ struct SettingsView: View {
                         }
                         Button("取消", role: .cancel) { }
                     } message: {
-                        Text("这将删除所有临时文件和网络缓存，不会影响已下载的任务。")
+                        Text("这将删除所有临时文件和图片缓存，不会影响已下载的任务。")
                     }
                 } header: {
                     Text("存储与维护")
@@ -206,41 +207,46 @@ struct SettingsView: View {
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.large)
+            .onAppear {
+                updateCacheSize()
+            }
         }
-        // 应用全局样式
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
     }
 
     // MARK: - Actions
 
-    private func clearCache() {
-        // 1. 清除 URLCache
-        URLCache.shared.removeAllCachedResponses()
-
-        // 2. 清除临时文件 (NSTemporaryDirectory)
-        let fileManager = FileManager.default
-        if let tempURL = URL(string: NSTemporaryDirectory()) {
-            do {
-                let tempContents = try fileManager.contentsOfDirectory(at: tempURL, includingPropertiesForKeys: nil)
-                for file in tempContents {
-                    try? fileManager.removeItem(at: file)
-                }
-            } catch {
-                print("Failed to list temp directory: \(error)")
+    private func updateCacheSize() {
+        ImageCache.default.calculateDiskStorageSize { result in
+            if case .success(let size) = result {
+                cacheSizeString = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
             }
         }
+    }
 
-        // 3. 清除海报缓存 (ImageCacheManager)
-        ImageCacheManager.shared.clearCache()
+    private func clearCache() {
+        // 1. Clear Kingfisher image cache (memory + disk)
+        ImageCache.default.clearMemoryCache()
+        ImageCache.default.clearDiskCache {
+            // 2. Clear URLCache (for any non-image network responses)
+            URLCache.shared.removeAllCachedResponses()
 
-        // Note: We do NOT clear SwiftData metadata (TMDBMatch) as that is considered persistent "Library" data,
-        // unless "Reset" is requested. "Clear Cache" usually implies re-downloadable content (images).
+            // 3. Clear temp files
+            let fileManager = FileManager.default
+            if let tempURL = URL(string: NSTemporaryDirectory()) {
+                if let tempContents = try? fileManager.contentsOfDirectory(at: tempURL, includingPropertiesForKeys: nil) {
+                    for file in tempContents {
+                        try? fileManager.removeItem(at: file)
+                    }
+                }
+            }
 
-        // 4. Update UI
-        withAnimation {
-            cacheSizeString = "0 KB"
+            // 4. Update UI
+            withAnimation {
+                cacheSizeString = "0 KB"
+            }
+            showingSuccessAlert = true
         }
-        showingSuccessAlert = true
     }
 }
 

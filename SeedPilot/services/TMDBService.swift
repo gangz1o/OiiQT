@@ -22,7 +22,7 @@ class TMDBService {
 
     // MARK: - Caching
     // Memory Cache for Hash -> PosterURLString (NOT Image data, just mapping)
-    // Image data is handled by ImageCacheManager
+    // Image data is handled by Kingfisher
     private let urlCache = NSCache<NSString, NSString>()
 
     // Legacy UserDefaults (for migration)

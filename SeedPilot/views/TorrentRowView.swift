@@ -322,41 +322,22 @@ struct TorrentRowView: View {
     private var posterArea: some View {
         Group {
             if let url = posterURL {
-                CachedAsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .transition(.opacity)
-                } placeholder: {
-                     placeholder
-                }
+                SimpleCachedImage(url: url)
+                    .aspectRatio(contentMode: .fill)
+            } else if isLoadingPoster {
+                SeedPilotPlaceholder()
+                    .overlay { ProgressView() }
             } else {
-                if isLoadingPoster {
-                     placeholder
-                } else {
-                     failureView
-                }
+                SeedPilotPlaceholder()
+                    .overlay {
+                        Image(systemName: "sparkles.tv")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary.opacity(0.5))
+                    }
             }
         }
-        .frame(width: 65, height: 97.5) // 1.5:1 ratio
+        .frame(width: 65, height: 97.5)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    private var placeholder: some View {
-        Rectangle()
-            .fill(Color(.systemGray5))
-            .overlay {
-                ProgressView()
-            }
-    }
-
-    private var failureView: some View {
-        Color.gray.opacity(0.1)
-        .overlay {
-            Image(systemName: "sparkles.tv")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary.opacity(0.5))
-        }
     }
 
     private var speedCapsule: some View {

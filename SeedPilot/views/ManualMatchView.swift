@@ -164,21 +164,11 @@ struct MatchRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Left: Poster
-            AsyncImage(url: item.fullPosterURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                case .empty:
-                    Color(.systemGray6)
-                case .failure:
-                    Color(.systemGray5).overlay(Image(systemName: "photo").foregroundStyle(.secondary))
-                @unknown default:
-                    EmptyView()
-                }
-            }
-            .frame(width: 45, height: 67.5) // Small thumbnail
-            .cornerRadius(6)
-            .clipped()
+            SimpleCachedImage(url: item.fullPosterURL)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 45, height: 67.5)
+                .cornerRadius(6)
+                .clipped()
 
             // Right: Info
             VStack(alignment: .leading, spacing: 4) {
