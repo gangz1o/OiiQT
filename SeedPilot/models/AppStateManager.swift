@@ -209,24 +209,45 @@ class AppStateManager {
 
     // MARK: - Actions
 
-    func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws {
-        guard let serverID = activeServerId, let server = servers.first(where: { $0.id == serverID }) else {
-            // Default to first server if none selected? Or throw error
+    func addTorrents(_ urls: [String], options: AddTorrentOptions, to targetServerID: UUID? = nil) async throws {
+        // Determine target server
+        let finalServerID = targetServerID ?? activeServerId
+
+        guard let serverID = finalServerID, let server = servers.first(where: { $0.id == serverID }) else {
+            // Default to first server if none selected and no active
              if let first = servers.first {
                  let client = getClient(for: first)
-                 try await client.addTorrents(urls, options: options)
+                 try await addTorrentsWithRetry(client: client, urls: urls, options: options)
                  try await Task.sleep(nanoseconds: 500_000_000)
                  await refreshData()
                  return
              }
             return
         }
-        let client = getClient(for: server)
-        try await client.addTorrents(urls, options: options)
 
-        // Refresh after short delay
-        try await Task.sleep(nanoseconds: 1_000_000_000)
+        let client = getClient(for: server)
+        try await addTorrentsWithRetry(client: client, urls: urls, options: options)
+
+        // Refresh after short delay to let qBittorrent process the add
+        try await Task.sleep(nanoseconds: 1_500_000_000)
         await refreshData()
+        print("[SeedPilot] Added torrents to \(server.name), triggered refresh.")
+    }
+    
+    /// Add torrents with automatic re-login on auth failure
+    private func addTorrentsWithRetry(client: TorrentClient, urls: [String], options: AddTorrentOptions) async throws {
+        do {
+            try await client.addTorrents(urls, options: options)
+        } catch let error as TorrentClientError {
+            if case .authenticationFailed = error {
+                // Session expired, try login and retry
+                print("[SeedPilot] Auth failed on addTorrents, re-logging in...")
+                try await client.login()
+                try await client.addTorrents(urls, options: options)
+            } else {
+                throw error
+            }
+        }
     }
 
     func addTorrentFile(_ fileURL: URL, options: AddTorrentOptions) async throws {

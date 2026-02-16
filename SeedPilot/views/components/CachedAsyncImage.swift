@@ -2,61 +2,74 @@
 //  CachedAsyncImage.swift
 //  SeedPilot
 //
-//  Created by gangz1o on 2026/2/15.
+//  Created by gangz1o on 2026/2/16.
 //
 
 import SwiftUI
 
-struct CachedAsyncImage<Content: View, Placeholder: View>: View {
+/// A native replacement for Kingfisher's KFImage using standard AsyncImage with URLCache.
+/// Provides consistent API for the rest of the app.
+struct SimpleCachedImage: View {
     let url: URL?
-    let cacheKey: String? // Usually the last path component (e.g. filename)
-    @ViewBuilder let content: (Image) -> Content
-    @ViewBuilder let placeholder: () -> Placeholder
-
-    @State private var image: UIImage? = nil
-    @State private var isLoading = false
 
     var body: some View {
-        ZStack {
-            if let uiImage = image {
-                content(Image(uiImage: uiImage))
-            } else {
-                placeholder()
-                    .onAppear {
-                        loadImage()
+        if let url = url {
+            // Using AsyncImage relying on URLCache.shared which we configured in App.init
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    ZStack {
+                        Color.gray.opacity(0.15)
+                        ProgressView()
                     }
+                case .success(let image):
+                    image
+                        .resizable()
+                        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+                case .failure:
+                    ZStack {
+                        Color.gray.opacity(0.1)
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+                @unknown default:
+                    EmptyView()
+                }
             }
-        }
-        .onChange(of: url) { _, _ in
-            loadImage() // Reload if URL changes
+        } else {
+            ZStack {
+                Color.gray.opacity(0.1)
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
+}
 
-    private func loadImage() {
-        guard let url = url else { return }
+// Keep the generic struct if we need it later, but simplified for now to strict match usage
+struct CachedAsyncImage<Content: View, Placeholder: View>: View where Content: View, Placeholder: View {
+    let url: URL?
+    let content: (Image) -> Content
+    let placeholder: () -> Placeholder
 
-        // Key generation logic: use provided key or MD5 of URL?
-        // Simple usage: use url.lastPathComponent if unique enough (TMDB posters are unique IDs).
-        // Or hash of absolute string.
-        let key = cacheKey ?? url.lastPathComponent
+    init(url: URL?, @ViewBuilder content: @escaping (Image) -> Content, @ViewBuilder placeholder: @escaping () -> Placeholder) {
+        self.url = url
+        self.content = content
+        self.placeholder = placeholder
+    }
 
-        isLoading = true
-
-        Task {
-            // Check cache
-            if let cached = ImageCacheManager.shared.image(forKey: key) {
-                await MainActor.run {
-                    self.image = cached
-                    self.isLoading = false
-                }
-                return
-            }
-
-            // Download
-            let downloaded = await ImageCacheManager.shared.downloadImage(url: url, key: key)
-            await MainActor.run {
-                self.image = downloaded
-                self.isLoading = false
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                content(image)
+            case .empty:
+                placeholder()
+            case .failure:
+                // We could expose failure, but for now just show placeholder or empty
+                placeholder()
+            @unknown default:
+                placeholder()
             }
         }
     }

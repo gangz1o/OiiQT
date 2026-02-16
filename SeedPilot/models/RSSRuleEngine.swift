@@ -11,7 +11,7 @@ class RSSRuleEngine {
     static let shared = RSSRuleEngine()
 
     // Matches an item against a source's rules
-    func matches(item: RSSItem, source: RSSFeedSource) -> Bool {
+    func matchesRule(item: RSSItem, source: RSSFeedSource) -> Bool {
         // 1. Must match ALL include keywords (if any)
         if !source.includeKeywords.isEmpty {
             let title = item.title.lowercased()
@@ -43,30 +43,7 @@ class RSSRuleEngine {
 
     // Cleans title for TMDB search (removes tags, quality, etc)
     func cleanTitleForTMDB(_ title: String) -> String {
-        var clean = title
-
-        // Remove content in brackets [...]
-        clean = clean.replacingOccurrences(of: "\\[.*?\\]", with: "", options: .regularExpression)
-
-        // Remove content in parentheses (...)
-        clean = clean.replacingOccurrences(of: "\\(.*?\\)", with: "", options: .regularExpression)
-
-        // Remove common patterns like S01E01, 1080p, etc.
-        let patterns = [
-            "S\\d{2}E\\d{2}", // S01E01
-            "1080p|720p|2160p|4K|REMUX|HEVC|x264|x265|AAC|FLAC", // Tech specs
-            "\\d{4}" // Year (maybe keep year? TMDB uses it, but often strict matching fails. Let's keep year if it looks like (Year) but we stripped parens above)
-        ]
-
-        for pattern in patterns {
-             clean = clean.replacingOccurrences(of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
-        }
-
-        // Replace dots/underscores with spaces
-        clean = clean.replacingOccurrences(of: "\\.|_", with: " ", options: .regularExpression)
-
-        // Trim whitespace
-        return clean.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TitleParser.parse(title).cleanTitle
     }
 
     // Helper: Parse "1.2 GB", "500 MB" to Double (GB)

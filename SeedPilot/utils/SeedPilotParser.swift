@@ -12,6 +12,15 @@ struct SeedPilotMetadata {
     let year: String?
     let season: String?
     let quality: String?
+    let englishTitle: String?  // Fallback English title for TMDB search
+    
+    init(title: String, year: String?, season: String?, quality: String?, englishTitle: String? = nil) {
+        self.title = title
+        self.year = year
+        self.season = season
+        self.quality = quality
+        self.englishTitle = englishTitle
+    }
 }
 
 struct SeedPilotParser {
@@ -39,6 +48,10 @@ struct SeedPilotParser {
     // MARK: - API
 
     static func parse(_ rawName: String) -> SeedPilotMetadata {
+        // 0. Pre-extract: Chinese text in brackets at end of title
+        //    Many PT sites: "Swallowed Star S01 2020...[吞噬星空]" or "[HHWEB][吞噬星空]..."
+        let bracketChinese = extractChineseFromBrackets(rawName)
+        
         // 1. Preprocessing: Replace dots with spaces, consolidate spaces
         var cleaned = rawName.replacingOccurrences(of: ".", with: " ")
         cleaned = cleaned.replacingOccurrences(of: "_", with: " ")
@@ -49,8 +62,6 @@ struct SeedPilotParser {
         cleaned = cleaned.trimmingCharacters(in: .whitespaces)
 
         // 2. Remove Noise (Blacklist Prefix)
-        // E.g. "[MBC] Title" or "MBC Title"
-        // We remove if it appears at start
         if let regex = try? NSRegularExpression(pattern: "^\(tvStationPattern)", options: .caseInsensitive) {
             let range = NSRange(location: 0, length: cleaned.utf16.count)
             cleaned = regex.stringByReplacingMatches(in: cleaned, options: [], range: range, withTemplate: " ")
@@ -65,7 +76,6 @@ struct SeedPilotParser {
         var seasonFound: String?
         var qualityFound: String?
 
-        // Helper to update cutIndex if match is earlier
         func checkMatch(_ pattern: String, in text: String) {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return }
             let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
@@ -75,8 +85,6 @@ struct SeedPilotParser {
                     if range.lowerBound < cutIndex {
                         cutIndex = range.lowerBound
                     }
-
-                    // Extract Metadata
                     let matchedString = String(text[range])
                     if pattern == yearPattern { yearFound = matchedString }
                     if pattern == seasonPattern { seasonFound = matchedString }
@@ -89,35 +97,68 @@ struct SeedPilotParser {
             checkMatch(p, in: cleaned)
         }
 
-        // 4. Extract Title
+        // 4. Extract Title (portion before first anchor)
         var title = String(cleaned[..<cutIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Remove trailing " - " or similar if cut happened abruptly
         title = title.trimmingCharacters(in: CharacterSet(charactersIn: "-_[]()"))
         title = title.trimmingCharacters(in: .whitespaces)
+        
+        // Also try to extract year from full raw name if not found in cleaned prefix
+        if yearFound == nil {
+            if let range = rawName.range(of: "\\b(19|20)\\d{2}\\b", options: .regularExpression) {
+                yearFound = String(rawName[range])
+            }
+        }
 
         // 5. Chinese Prioritization
-        // If title contains Chinese, extract the Chinese part?
-        // Or if the WHOLE title has Chinese and English, prefers Chinese characters?
-        // Logic: "The Good of China 人世间" -> "人世间"
-        // Regex for Chinese: \p{Han}
-        if hasChineseCharacters(title) {
-            // Extract contiguous Chinese block?
-            // Or just remove English words if mixed?
-            // Simple approach: Extraction of Chinese substring(s).
+        // Priority: bracket Chinese > inline Chinese > English title
+        if let bracketCN = bracketChinese, !bracketCN.isEmpty {
+            // Use Chinese name from brackets (most reliable for PT sites)
+            title = bracketCN
+        } else if hasChineseCharacters(title) {
             let chinesePart = extractChinese(title)
             if !chinesePart.isEmpty {
                 title = chinesePart
             }
         }
+        // Keep English title as fallback (stored in englishTitle)
+        let englishTitle = String(cleaned[..<cutIndex])
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-_[]()"))
+            .trimmingCharacters(in: .whitespaces)
 
-        // Fallback: if title is empty (unlikely), return raw
         if title.isEmpty { title = rawName }
 
-        return SeedPilotMetadata(title: title, year: yearFound, season: seasonFound, quality: qualityFound)
+        return SeedPilotMetadata(title: title, year: yearFound, season: seasonFound, quality: qualityFound, englishTitle: englishTitle != title ? englishTitle : nil)
     }
 
     // MARK: - Helpers
+    
+    /// Extract Chinese text from square brackets in the raw title.
+    /// PT sites often append Chinese names: "English Title S01 2020...[中文名]" or "[Group][中文名]..."
+    private static func extractChineseFromBrackets(_ text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: "\\[([^\\]]*[\u{4e00}-\u{9fa5}][^\\]]*)\\]", options: []) else { return nil }
+        let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+        
+        // Find the bracket content that is primarily Chinese (filter out tags like [1080p], [HHWEB])
+        var bestMatch: String?
+        var bestChineseCount = 0
+        
+        for result in results {
+            guard result.numberOfRanges > 1,
+                  let range = Range(result.range(at: 1), in: text) else { continue }
+            let content = String(text[range]).trimmingCharacters(in: .whitespaces)
+            
+            // Count Chinese characters
+            let chineseCount = content.unicodeScalars.filter { $0.value >= 0x4E00 && $0.value <= 0x9FA5 }.count
+            
+            // Must have at least 2 Chinese chars and be primarily Chinese (>50%)
+            if chineseCount >= 2 && chineseCount > bestChineseCount {
+                bestChineseCount = chineseCount
+                bestMatch = content
+            }
+        }
+        
+        return bestMatch
+    }
 
     private static func hasChineseCharacters(_ text: String) -> Bool {
         return text.range(of: "\\p{Han}", options: .regularExpression) != nil

@@ -150,7 +150,10 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     private func configureRequest(_ request: inout URLRequest) {
+        let baseURL = getBaseURL()
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue(baseURL, forHTTPHeaderField: "Referer")
+        request.setValue(baseURL, forHTTPHeaderField: "Origin")
     }
 
     func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws {
@@ -166,23 +169,48 @@ class QBittorrentClient: NSObject, TorrentClient {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         // Prepare parameters
-        let params: [String: String] = [
+        var params: [String: String] = [
             "urls": urls.joined(separator: "\n"),
-            "savepath": options.savePath,
-            "category": options.category,
-            "tags": options.tags.joined(separator: ","),
             "paused": options.isPaused ? "true" : "false",
             "skip_checking": options.skipHashCheck ? "true" : "false",
             "sequentialDownload": options.isSequential ? "true" : "false",
             "firstLastPiecePrio": options.isFirstLastPiecePriority ? "true" : "false"
         ]
+        
+        if !options.savePath.isEmpty {
+            params["savepath"] = options.savePath
+        }
+        if !options.category.isEmpty {
+            params["category"] = options.category
+        }
+        if !options.tags.isEmpty {
+            params["tags"] = options.tags.joined(separator: ",")
+        }
 
         request.httpBody = createMultipartBody(boundary: boundary, data: nil, fileName: nil, params: params)
 
+        print("[SeedPilot] addTorrents URL: \(urls)")
+
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
-            throw TorrentClientError.apiError("Add Torrents failed: \(errorMsg)")
+        let responseBody = String(data: data, encoding: .utf8) ?? ""
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
+        }
+        
+        print("[SeedPilot] addTorrents response: HTTP \(httpResponse.statusCode), body: \(responseBody)")
+        
+        if httpResponse.statusCode == 403 {
+            throw TorrentClientError.authenticationFailed
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw TorrentClientError.apiError("Add Torrents failed: HTTP \(httpResponse.statusCode) \(responseBody)")
+        }
+        
+        // qBittorrent returns "Fails." in body when add actually failed
+        if responseBody.trimmingCharacters(in: .whitespacesAndNewlines) == "Fails." {
+            throw TorrentClientError.apiError("qBittorrent rejected the torrent URL. Check that the URL is a valid torrent/magnet link.")
         }
     }
 
@@ -215,9 +243,22 @@ class QBittorrentClient: NSObject, TorrentClient {
         request.httpBody = createMultipartBody(boundary: boundary, data: fileData, fileName: fileURL.lastPathComponent, params: params)
 
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown Error"
-            throw TorrentClientError.apiError("Add Torrent File failed: \(errorMsg)")
+        let responseBody = String(data: data, encoding: .utf8) ?? ""
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
+        }
+        
+        if httpResponse.statusCode == 403 {
+            throw TorrentClientError.authenticationFailed
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw TorrentClientError.apiError("Add Torrent File failed: HTTP \(httpResponse.statusCode) \(responseBody)")
+        }
+        
+        if responseBody.trimmingCharacters(in: .whitespacesAndNewlines) == "Fails." {
+            throw TorrentClientError.apiError("qBittorrent rejected the torrent file.")
         }
     }
 

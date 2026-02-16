@@ -12,11 +12,19 @@ import SwiftData
 struct SeedPilotApp: App {
     @AppStorage("appearance") private var appearance: String = "system"
 
+    init() {
+        // Configure Native URLCache (50MB memory, 500MB disk)
+        let cache = URLCache(memoryCapacity: 50 * 1024 * 1024, diskCapacity: 500 * 1024 * 1024, diskPath: "seedpilot_images")
+        URLCache.shared = cache
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
             ServerConfig.self,
             TMDBMatch.self,
+            RSSFeedSource.self,
+            RSSItem.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -131,14 +131,13 @@ struct SmartHeroBanner: View {
 struct SmartHeroHeader: View {
     let task: TorrentTask
     @Environment(\.modelContext) private var modelContext
-    @State private var image: UIImage?
+    @State private var backdropURL: URL?
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                if let img = image {
-                    Image(uiImage: img)
-                        .resizable()
+                if let url = backdropURL {
+                    SimpleCachedImage(url: url)
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geo.size.width, height: geo.size.height)
                         .clipped()
@@ -161,11 +160,10 @@ struct SmartHeroHeader: View {
             }
         }
         .task {
-            // Fetch Backdrop
-            if let path = await TMDBService.shared.fetchBackdrop(hash: task.id, name: task.name, context: modelContext),
-               let uiImage = await ImageLoader.shared.loadImage(from: path) {
+            // Fetch Backdrop URL
+            if let path = await TMDBService.shared.fetchBackdrop(hash: task.id, name: task.name, context: modelContext) {
                 withAnimation {
-                    image = uiImage
+                    backdropURL = path
                 }
             }
         }
@@ -488,13 +486,12 @@ struct PosterCard: View {
     let task: TorrentTask
     let showTMDB: Bool
     @Environment(\.modelContext) private var modelContext
-    @State private var posterImage: UIImage?
+    @State private var posterURL: URL?
 
     var body: some View {
         ZStack {
-            if showTMDB, let img = posterImage {
-                Image(uiImage: img)
-                    .resizable()
+            if showTMDB, let url = posterURL {
+                SimpleCachedImage(url: url)
                     .aspectRatio(contentMode: .fill)
             } else {
                 // Fallback / Art
@@ -520,10 +517,9 @@ struct PosterCard: View {
         .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
         .task(id: showTMDB) {
              if showTMDB {
-                if let path = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext),
-                   let img = await ImageLoader.shared.loadImage(from: path) {
+                if let path = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext) {
                     withAnimation {
-                         posterImage = img
+                         posterURL = path
                     }
                 }
              }
@@ -566,12 +562,4 @@ struct ServerSelector: View {
 
 
 
-class ImageLoader {
-    static let shared = ImageLoader()
-    func loadImage(from url: URL) async -> UIImage? {
-        try? await Task.detached {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            return UIImage(data: data)
-        }.value
-    }
-}
+

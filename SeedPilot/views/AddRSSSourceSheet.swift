@@ -7,10 +7,12 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import SwiftData
 
 struct AddRSSSourceSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var sources: [RSSFeedSource]
+    @Environment(\.modelContext) private var modelContext
+    // Removed Binding sources
 
     @State private var urlString: String = ""
     @State private var nameString: String = ""
@@ -21,13 +23,29 @@ struct AddRSSSourceSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("RSS URL", text: $urlString)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .onChange(of: urlString) { _, newValue in
-                            parseDomainAndAutoFill(url: newValue)
+                    HStack {
+                        TextField("RSS URL", text: $urlString)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .onChange(of: urlString) { _, newValue in
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                // Only update if significantly different to avoid loop, or just parse
+                                parseDomainAndAutoFill(url: trimmed)
+                            }
+
+                        // Paste Button
+                        Button {
+                            if let string = UIPasteboard.general.string {
+                                urlString = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                                parseDomainAndAutoFill(url: urlString)
+                            }
+                        } label: {
+                            Image(systemName: "doc.on.clipboard")
+                            .foregroundStyle(.blue)
                         }
+                        .buttonStyle(.borderless)
+                    }
 
                     TextField("名称", text: $nameString)
                 } header: {
@@ -67,10 +85,13 @@ struct AddRSSSourceSheet: View {
     }
 
     private func checkClipboard() {
-        if let string = UIPasteboard.general.string, string.isValidURL {
-            urlString = string
-            // Trigger shared parsing logic
-            parseDomainAndAutoFill(url: string)
+        if let string = UIPasteboard.general.string {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isValidURL {
+                urlString = trimmed
+                // Trigger shared parsing logic
+                parseDomainAndAutoFill(url: trimmed)
+            }
         }
     }
 
@@ -102,9 +123,7 @@ struct AddRSSSourceSheet: View {
             faviconUrl: getFaviconURL(for: urlString)
         )
 
-        withAnimation {
-            sources.append(newSource)
-        }
+        modelContext.insert(newSource)
         dismiss()
     }
 
@@ -119,10 +138,11 @@ struct AddRSSSourceSheet: View {
 fileprivate extension String {
     var isValidURL: Bool {
         // Simple check
-        return lowercased().hasPrefix("http") && URL(string: self) != nil
+        let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.lowercased().hasPrefix("http") && URL(string: trimmed) != nil
     }
 }
 
 #Preview {
-    AddRSSSourceSheet(sources: .constant([]))
+    AddRSSSourceSheet()
 }

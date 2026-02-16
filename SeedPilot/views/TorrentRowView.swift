@@ -318,7 +318,7 @@ struct TorrentRowView: View {
     private var posterArea: some View {
         Group {
             if let url = posterURL {
-                CachedAsyncImage(url: url, cacheKey: url.lastPathComponent) { image in
+                CachedAsyncImage(url: url) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)

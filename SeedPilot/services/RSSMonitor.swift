@@ -36,10 +36,11 @@ class RSSMonitor {
                 pubDate: Date(),
                 isDownloaded: false,
                 sourceName: source.name,
-                fileSize: "15 GB" // Size: 15
+                fileSize: "15 GB", // Size: 15
+                tmdbPosterUrl: nil
             )
 
-            if RSSRuleEngine.shared.matches(item: mockItem, source: source) {
+            if RSSRuleEngine.shared.matchesRule(item: mockItem, source: source) {
                 print("RSSMonitor: MATCH FOUND! \(mockItem.title)")
                 print("RSSMonitor: Triggering download to server ID: \(String(describing: source.targetServerId))")
                 // TODO: Trigger actual download API

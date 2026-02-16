@@ -54,10 +54,15 @@ class TMDBService {
             if let path = match.posterPath {
                 cacheURL(path, for: hash)
                 return URL(string: imageBaseURL + path)
-            } else {
-                // Matched but no poster?
+            } else if match.isManualOverride {
+                // Manual override with no poster — respect user choice
+                return nil
+            } else if match.lastMatchedTime.timeIntervalSinceNow > -86400 * 3 {
+                // Auto-matched failure less than 3 days old — don't retry yet
                 return nil
             }
+            // Auto-matched failure older than 3 days — allow retry with improved algorithm
+            context.delete(match)
         }
 
         // 3. Migration: Check Legacy UserDefaults
@@ -71,11 +76,11 @@ class TMDBService {
         }
 
         // 4. Clean Name & Search (Network)
-        let cleanedName = cleanTorrentName(name)
-        guard !cleanedName.isEmpty else { return nil }
+        let metadata = SeedPilotParser.parse(name)
+        guard !metadata.title.isEmpty else { return nil }
 
-        // Search
-        guard let posterPath = await searchFirstMatch(query: cleanedName) else {
+        // Search with smart matching (title + year + fallback)
+        guard let posterPath = await searchBestMatch(metadata: metadata) else {
              let match = TMDBMatch(hashString: hash, posterPath: nil, isManualOverride: false)
              context.insert(match)
              urlCache.setObject("null", forKey: hash as NSString)
@@ -106,11 +111,12 @@ class TMDBService {
         }
 
         // 2. Network Search
-        let cleanedName = cleanTorrentName(name)
-        guard !cleanedName.isEmpty else { return nil }
+        let metadata = SeedPilotParser.parse(name)
+        guard !metadata.title.isEmpty else { return nil }
 
-        let items = await search(query: cleanedName)
-        guard let backdropPath = items.first?.backdropPath else { return nil }
+        let items = await search(query: metadata.title)
+        let bestItem = selectBestMatch(from: items, year: metadata.year)
+        guard let backdropPath = bestItem?.backdropPath else { return nil }
 
         // 3. Save/Update Match
         if let match = fetchMatch(hash: hash, context: context) {
@@ -178,14 +184,73 @@ class TMDBService {
         urlCache.setObject(path as NSString, forKey: hash as NSString)
     }
 
-    private func searchFirstMatch(query: String) async -> String? {
-        let items = await search(query: query)
-        return items.first?.posterPath
+    /// Smart search with fallback strategy:
+    /// 1. Chinese title + year → best year-matched result
+    /// 2. Chinese title only → best result
+    /// 3. English title + year (if available) → best year-matched result
+    /// 4. English title only → first result
+    private func searchBestMatch(metadata: SeedPilotMetadata) async -> String? {
+        // Strategy 1: Primary title (Chinese if available)
+        let primaryResults = await search(query: metadata.title)
+        if let best = selectBestMatch(from: primaryResults, year: metadata.year) {
+            print("[TMDB] Matched '\(metadata.title)' (year: \(metadata.year ?? "nil")) → \(best.title)")
+            return best.posterPath
+        }
+
+        // Strategy 2: English title fallback (if different from primary)
+        if let englishTitle = metadata.englishTitle, !englishTitle.isEmpty {
+            let englishResults = await search(query: englishTitle)
+            if let best = selectBestMatch(from: englishResults, year: metadata.year) {
+                print("[TMDB] Matched English '\(englishTitle)' (year: \(metadata.year ?? "nil")) → \(best.title)")
+                return best.posterPath
+            }
+        }
+
+        print("[TMDB] No match for '\(metadata.title)'")
+        return nil
     }
 
-    /// 清洗种子名称，提取核心标题
-    private func cleanTorrentName(_ name: String) -> String {
-        return SeedPilotParser.parse(name).title
+    /// Select the best match from TMDB results using year scoring
+    private func selectBestMatch(from items: [TMDBItem], year: String?) -> TMDBItem? {
+        guard !items.isEmpty else { return nil }
+        guard let targetYear = year else {
+            // No year info, return first result with a poster
+            return items.first { $0.posterPath != nil } ?? items.first
+        }
+        
+        // Score each result: year match is highest priority
+        var bestItem: TMDBItem?
+        var bestScore = -1
+        
+        for item in items {
+            var score = 0
+            
+            // Year matching (highest weight)
+            if item.year == targetYear {
+                score += 100
+            } else if let itemYear = Int(item.year), let target = Int(targetYear), abs(itemYear - target) <= 1 {
+                // Allow 1 year tolerance (release date variance between regions)
+                score += 50
+            }
+            
+            // Has poster (required for useful result)
+            if item.posterPath != nil {
+                score += 10
+            }
+            
+            // Prefer results that appear earlier in search results (TMDB relevance)
+            // First results get a small bonus
+            if bestItem == nil {
+                score += 5
+            }
+            
+            if score > bestScore {
+                bestScore = score
+                bestItem = item
+            }
+        }
+        
+        return bestItem
     }
 }
 

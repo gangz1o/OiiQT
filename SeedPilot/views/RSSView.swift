@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 enum AutomationViewMode: String, CaseIterable, Identifiable {
     case sources = "订阅源"
@@ -15,9 +16,14 @@ enum AutomationViewMode: String, CaseIterable, Identifiable {
 }
 
 struct RSSView: View {
+    @Environment(\.modelContext) private var modelContext
+
     @State private var selectedMode: AutomationViewMode = .sources
-    @State private var sources: [RSSFeedSource] = RSSFeedSource.examples
+    // Query Sources from SwiftData
+    @Query(sort: \RSSFeedSource.lastUpdated, order: .reverse) private var sources: [RSSFeedSource]
+
     @State private var showingAddSheet = false
+    @State private var editingSource: RSSFeedSource? // For Edit Rule Sheet
 
     // Grid Setup
     let columns = [
@@ -54,16 +60,14 @@ struct RSSView: View {
                                             RSSFeedTileView(
                                                 source: source,
                                                 onRefresh: {
-                                                    // Mock refresh or trigger manager
+                                                    // Refresh logic to be implemented (likely fetch and update context)
                                                 },
                                                 onEditRules: {
-                                                    // Mock edit
+                                                    editingSource = source
                                                 },
                                                 onDelete: {
-                                                    if let index = sources.firstIndex(where: { $0.id == source.id }) {
-                                                        _ = withAnimation {
-                                                            sources.remove(at: index)
-                                                        }
+                                                    withAnimation {
+                                                        modelContext.delete(source)
                                                     }
                                                 }
                                             )
@@ -99,8 +103,11 @@ struct RSSView: View {
                 }
             }
             .sheet(isPresented: $showingAddSheet) {
-                AddRSSSourceSheet(sources: $sources)
+                AddRSSSourceSheet()
                     .presentationDetents([.medium])
+            }
+            .sheet(item: $editingSource) { source in
+                EditRSSRuleView(source: source)
             }
         }
     }
@@ -108,4 +115,5 @@ struct RSSView: View {
 
 #Preview {
     RSSView()
+        .modelContainer(for: [RSSFeedSource.self, RSSItem.self], inMemory: true)
 }
