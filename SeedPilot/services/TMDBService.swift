@@ -44,8 +44,11 @@ class TMDBService {
     func fetchPoster(hash: String, name: String, context: ModelContext) async -> URL? {
         // 1. Check Memory URL Cache first
         if let cachedPath = urlCache.object(forKey: hash as NSString) as String? {
-             // Specific "null" check just in case we cached a failure to avoid loop
-            if cachedPath == "null" { return nil }
+            if cachedPath == "null" {
+                print("[TMDB] fetchPoster: memory cache HIT (null) for '\(name)'")
+                return nil
+            }
+            print("[TMDB] fetchPoster: memory cache HIT for '\(name)'")
             return URL(string: imageBaseURL + cachedPath)
         }
 
@@ -53,37 +56,37 @@ class TMDBService {
         if let match = fetchMatch(hash: hash, context: context) {
             if let path = match.posterPath {
                 cacheURL(path, for: hash)
+                print("[TMDB] fetchPoster: SwiftData HIT for '\(name)' → \(path)")
                 return URL(string: imageBaseURL + path)
             } else if match.isManualOverride {
-                // Manual override with no poster — respect user choice
-                return nil
-            } else if match.lastMatchedTime.timeIntervalSinceNow > -86400 * 3 {
-                // Auto-matched failure less than 3 days old — don't retry yet
                 return nil
             }
-            // Auto-matched failure older than 3 days — allow retry with improved algorithm
+            print("[TMDB] fetchPoster: SwiftData had failed match for '\(name)', deleting for retry")
             context.delete(match)
         }
 
         // 3. Migration: Check Legacy UserDefaults
         if let legacyPath = legacyOverrides[hash] {
-            // Migrate to SwiftData
             let match = TMDBMatch(hashString: hash, posterPath: legacyPath, isManualOverride: true)
             context.insert(match)
-
             cacheURL(legacyPath, for: hash)
             return URL(string: imageBaseURL + legacyPath)
         }
 
         // 4. Clean Name & Search (Network)
         let metadata = SeedPilotParser.parse(name)
-        guard !metadata.title.isEmpty else { return nil }
+        print("[TMDB] fetchPoster: parsed '\(name)' → title: '\(metadata.title)', year: \(metadata.year ?? "nil"), english: \(metadata.englishTitle ?? "nil")")
+        guard !metadata.title.isEmpty else {
+            print("[TMDB] fetchPoster: SKIP empty title for '\(name)'")
+            return nil
+        }
 
         // Search with smart matching (title + year + fallback)
         guard let posterPath = await searchBestMatch(metadata: metadata) else {
              let match = TMDBMatch(hashString: hash, posterPath: nil, isManualOverride: false)
              context.insert(match)
              urlCache.setObject("null", forKey: hash as NSString)
+            print("[TMDB] fetchPoster: NO MATCH for '\(name)'")
             return nil
         }
 
@@ -92,6 +95,7 @@ class TMDBService {
         context.insert(match)
         cacheURL(posterPath, for: hash)
 
+        print("[TMDB] fetchPoster: MATCHED '\(name)' → \(posterPath)")
         return URL(string: imageBaseURL + posterPath)
     }
 
@@ -132,22 +136,30 @@ class TMDBService {
         return URL(string: "https://image.tmdb.org/t/p/w780" + backdropPath)
     }
 
-    /// 搜索 API (支持分页)
+    /// 搜索 API (支持分页，自动重试一次)
     func search(query: String, page: Int = 1) async -> [TMDBItem] {
         guard apiKey != "YOUR_API_KEY_HERE",
               let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(baseURL)/search/multi?api_key=\(apiKey)&query=\(encodedQuery)&language=zh-CN&page=\(page)") else {
+            print("[TMDB] search: SKIP (invalid API key or query encoding) for '\(query)'")
             return []
         }
 
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let response = try JSONDecoder().decode(TMDBResponse.self, from: data)
-            return response.results.compactMap { $0.toDomainModel() }
-        } catch {
-            print("TMDB Search Error: \(error)")
-            return []
+        for attempt in 1...2 {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let response = try JSONDecoder().decode(TMDBResponse.self, from: data)
+                let items = response.results.compactMap { $0.toDomainModel() }
+                print("[TMDB] search: query='\(query)' → \(items.count) results, first 3: \(items.prefix(3).map { "[\($0.title), year=\($0.year), poster=\($0.posterPath != nil)]" })")
+                return items
+            } catch {
+                print("[TMDB] Search Error (attempt \(attempt)) for '\(query)': \(error)")
+                if attempt < 2 {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                }
+            }
         }
+        return []
     }
 
     /// 保存手动匹配结果
@@ -168,6 +180,11 @@ class TMDBService {
 
         // 3. Persist
         try? context.save()
+    }
+
+    /// 清除特定 hash 的内存缓存，允许重新匹配
+    func clearCache(for hash: String) {
+        urlCache.removeObject(forKey: hash as NSString)
     }
 
     // MARK: - Private Helpers
@@ -211,38 +228,29 @@ class TMDBService {
     }
 
     /// Select the best match from TMDB results using year scoring
+    /// Only considers items with a posterPath; falls back to first item with poster if no year match
     private func selectBestMatch(from items: [TMDBItem], year: String?) -> TMDBItem? {
-        guard !items.isEmpty else { return nil }
+        let withPoster = items.filter { $0.posterPath != nil }
+        guard !withPoster.isEmpty else { return nil }
+        
         guard let targetYear = year else {
-            // No year info, return first result with a poster
-            return items.first { $0.posterPath != nil } ?? items.first
+            return withPoster.first
         }
         
-        // Score each result: year match is highest priority
         var bestItem: TMDBItem?
         var bestScore = -1
         
-        for item in items {
+        for (index, item) in withPoster.enumerated() {
             var score = 0
             
-            // Year matching (highest weight)
             if item.year == targetYear {
                 score += 100
             } else if let itemYear = Int(item.year), let target = Int(targetYear), abs(itemYear - target) <= 1 {
-                // Allow 1 year tolerance (release date variance between regions)
                 score += 50
             }
             
-            // Has poster (required for useful result)
-            if item.posterPath != nil {
-                score += 10
-            }
-            
-            // Prefer results that appear earlier in search results (TMDB relevance)
-            // First results get a small bonus
-            if bestItem == nil {
-                score += 5
-            }
+            // Prefer earlier results (TMDB relevance order)
+            score += max(0, 10 - index)
             
             if score > bestScore {
                 bestScore = score

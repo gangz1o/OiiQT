@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
+    @Query private var rssSources: [RSSFeedSource]
+    @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
 
     var body: some View {
         TabView(selection: Bindable(appStateManager).selectedTab) {
@@ -47,12 +50,26 @@ struct ContentView: View {
         .onAppear {
             let appearance = UITabBarAppearance()
             appearance.configureWithDefaultBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial) // 磨砂玻璃效果
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
 
             // 加载数据
             appStateManager.loadServers(context: modelContext)
+        }
+        .onChange(of: rssRefreshInterval) {
+            // Restart timer when setting changes
+            RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+        }
+        .onChange(of: rssSources.count) {
+            // Restart timer when sources change
+            if rssRefreshInterval > 0 {
+                RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+            }
+        }
+        .task {
+            // Start RSS auto-refresh on launch
+            RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
         }
     }
 }

@@ -9,13 +9,14 @@ import SwiftUI
 
 struct RSSFeedTileView: View {
     let source: RSSFeedSource
+    var isRefreshing: Bool = false
     var onRefresh: () -> Void
     var onEditRules: () -> Void
     var onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Top: Favicon
+            // Top: Favicon + refresh indicator
             HStack {
                 AsyncImage(url: URL(string: source.faviconUrl ?? "")) { phase in
                     switch phase {
@@ -36,11 +37,16 @@ struct RSSFeedTileView: View {
                     }
                 }
                 .frame(width: 44, height: 44)
-                .background(Color.white) // Ensure background for transparent pngs
+                .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
 
                 Spacer()
+                
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
 
             Spacer()

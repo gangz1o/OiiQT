@@ -242,6 +242,13 @@ struct TorrentRowView: View {
 
                 if showTMDBData {
                     Button {
+                        TMDBService.shared.clearCache(for: task.id)
+                        Task { await refreshPosterAsync() }
+                    } label: {
+                        Label("重新匹配海报", systemImage: "arrow.triangle.2.circlepath")
+                    }
+
+                    Button {
                         showingManualMatchSheet = true
                     } label: {
                         Label("手动匹配海报", systemImage: "photo.badge.plus")
@@ -280,7 +287,8 @@ struct TorrentRowView: View {
             ManualMatchView(taskName: task.name, taskHash: task.id)
                 .presentationDetents([.medium, .large])
                 .onDisappear {
-                    refreshPoster()
+                    TMDBService.shared.clearCache(for: task.id)
+                    Task { await refreshPosterAsync() }
                 }
         }
         .confirmationDialog("确认删除", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
@@ -295,21 +303,17 @@ struct TorrentRowView: View {
             Text("您确定要删除 \"\(task.name)\" 吗？")
         }
         .task(id: task.name) {
-             refreshPoster()
+            await refreshPosterAsync()
         }
     }
 
-    private func refreshPoster() {
-        if showTMDBData {
-            isLoadingPoster = true
-            Task {
-                // Pass modelContext for SwiftData persistence
-                let url = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext)
-                await MainActor.run {
-                    self.posterURL = url
-                    self.isLoadingPoster = false
-                }
-            }
+    private func refreshPosterAsync() async {
+        guard showTMDBData else { return }
+        isLoadingPoster = true
+        let url = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext)
+        if !Task.isCancelled {
+            self.posterURL = url
+            self.isLoadingPoster = false
         }
     }
 

@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 
 @Observable
 class RSSMonitor {
@@ -14,43 +15,135 @@ class RSSMonitor {
 
     var lastCheckTime: Date?
     var isChecking: Bool = false
+    
+    private var timerTask: Task<Void, Never>?
 
-    // Mock Background Check
-    func checkFeeds(sources: [RSSFeedSource]) async {
+    // MARK: - Auto Refresh Timer
+
+    /// Start or restart the auto-refresh timer based on user setting.
+    /// Call this on app launch and whenever the setting changes.
+    func startAutoRefresh(sources: [RSSFeedSource], context: ModelContext, appStateManager: AppStateManager?) {
+        stopAutoRefresh()
+        
+        let intervalMinutes = UserDefaults.standard.integer(forKey: "rssRefreshInterval")
+        guard intervalMinutes > 0 else {
+            print("[RSSMonitor] Auto-refresh disabled (interval = 0)")
+            return
+        }
+        
+        let intervalNanos = UInt64(intervalMinutes) * 60 * 1_000_000_000
+        print("[RSSMonitor] Auto-refresh started: every \(intervalMinutes) min")
+        
+        timerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: intervalNanos)
+                guard !Task.isCancelled else { break }
+                await self?.checkFeeds(sources: sources, context: context, appStateManager: appStateManager)
+            }
+        }
+    }
+    
+    func stopAutoRefresh() {
+        timerTask?.cancel()
+        timerTask = nil
+    }
+
+    // MARK: - Feed Check
+
+    /// Fetch all enabled RSS sources, deduplicate items, and auto-download if rules match.
+    @MainActor
+    func checkFeeds(sources: [RSSFeedSource], context: ModelContext, appStateManager: AppStateManager?) async {
         guard !isChecking else { return }
         isChecking = true
+        print("[RSSMonitor] Starting check for \(sources.count) sources...")
 
-        print("RSSMonitor: Starting background check...")
+        for source in sources where source.isEnabled {
+            do {
+                let fetchedItems = try await RSSManager.shared.fetchRSS(source: source)
+                
+                let existingByLink = Dictionary(source.items.map { ($0.link, $0) }, uniquingKeysWith: { first, _ in first })
+                let existingByTitle = Dictionary(source.items.map { ($0.title, $0) }, uniquingKeysWith: { first, _ in first })
 
-        // Simulate network delay
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-        for source in sources where source.autoDownload {
-            // In a real app, we'd fetch XML here.
-            // For now, we simulate finding a "New Item" using the mock generator
-            // and checking it against the rules.
-
-            let mockItem = RSSItem(
-                title: "[MockGroup] New Movie 2024 1080p REMUX", // Keywords: 1080p, REMUX
-                link: "https://example.com/torrent",
-                pubDate: Date(),
-                isDownloaded: false,
-                sourceName: source.name,
-                fileSize: "15 GB", // Size: 15
-                tmdbPosterUrl: nil
-            )
-
-            if RSSRuleEngine.shared.matchesRule(item: mockItem, source: source) {
-                print("RSSMonitor: MATCH FOUND! \(mockItem.title)")
-                print("RSSMonitor: Triggering download to server ID: \(String(describing: source.targetServerId))")
-                // TODO: Trigger actual download API
-            } else {
-                print("RSSMonitor: Item ignored by rules: \(mockItem.title)")
+                var newItems: [RSSItem] = []
+                
+                for item in fetchedItems {
+                    if existingByLink[item.link] != nil { continue }
+                    
+                    if let oldItem = existingByTitle[item.title], oldItem.link != item.link {
+                        oldItem.link = item.link
+                        oldItem.isDownloaded = false
+                    } else {
+                        item.source = source
+                        context.insert(item)
+                        newItems.append(item)
+                    }
+                }
+                source.lastUpdated = Date()
+                
+                // Auto-download: check new items against rules
+                if source.autoDownload, let asm = appStateManager {
+                    for item in newItems {
+                        if RSSRuleEngine.shared.matchesRule(item: item, source: source) && !item.isDownloaded {
+                            print("[RSSMonitor] Auto-download match: \(item.title)")
+                            let options = AddTorrentOptions(
+                                savePath: source.savePath,
+                                category: source.category,
+                                isPaused: source.addPaused,
+                                isFirstLastPiecePriority: source.priority > 0
+                            )
+                            do {
+                                try await asm.addTorrents([item.link], options: options, to: source.targetServerId)
+                                item.isDownloaded = true
+                            } catch {
+                                print("[RSSMonitor] Auto-download failed: \(error)")
+                            }
+                        }
+                    }
+                }
+                
+                if !newItems.isEmpty {
+                    print("[RSSMonitor] \(source.name): \(newItems.count) new items")
+                }
+            } catch {
+                print("[RSSMonitor] Failed to fetch \(source.name): \(error)")
             }
         }
 
         lastCheckTime = Date()
         isChecking = false
-        print("RSSMonitor: Check complete.")
+        print("[RSSMonitor] Check complete.")
+    }
+    
+    // MARK: - Single Source Refresh
+    
+    /// Refresh a single RSS source (used by "立即刷新" button).
+    @MainActor
+    func refreshSource(_ source: RSSFeedSource, context: ModelContext) async {
+        do {
+            let fetchedItems: [RSSItem]
+            if source.url.contains("example.com") || source.url.contains("test") {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                fetchedItems = RSSItem.examples
+            } else {
+                fetchedItems = try await RSSManager.shared.fetchRSS(source: source)
+            }
+
+            let existingByLink = Dictionary(source.items.map { ($0.link, $0) }, uniquingKeysWith: { first, _ in first })
+            let existingByTitle = Dictionary(source.items.map { ($0.title, $0) }, uniquingKeysWith: { first, _ in first })
+
+            for item in fetchedItems {
+                if existingByLink[item.link] != nil { continue }
+                if let oldItem = existingByTitle[item.title], oldItem.link != item.link {
+                    oldItem.link = item.link
+                    oldItem.isDownloaded = false
+                } else {
+                    item.source = source
+                    context.insert(item)
+                }
+            }
+            source.lastUpdated = Date()
+        } catch {
+            print("[RSSMonitor] Refresh failed for \(source.name): \(error)")
+        }
     }
 }

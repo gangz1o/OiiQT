@@ -24,6 +24,7 @@ struct RSSView: View {
 
     @State private var showingAddSheet = false
     @State private var editingSource: RSSFeedSource? // For Edit Rule Sheet
+    @State private var refreshingSourceId: UUID? // Track which source is refreshing
 
     // Grid Setup
     let columns = [
@@ -59,8 +60,9 @@ struct RSSView: View {
                                         NavigationLink(destination: RSSFeedDetailView(source: source)) {
                                             RSSFeedTileView(
                                                 source: source,
+                                                isRefreshing: refreshingSourceId == source.id,
                                                 onRefresh: {
-                                                    // Refresh logic to be implemented (likely fetch and update context)
+                                                    refreshSource(source)
                                                 },
                                                 onEditRules: {
                                                     editingSource = source
@@ -108,6 +110,22 @@ struct RSSView: View {
             }
             .sheet(item: $editingSource) { source in
                 EditRSSRuleView(source: source)
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func refreshSource(_ source: RSSFeedSource) {
+        guard refreshingSourceId == nil else { return }
+        refreshingSourceId = source.id
+
+        Task {
+            await RSSMonitor.shared.refreshSource(source, context: modelContext)
+            await MainActor.run {
+                withAnimation {
+                    refreshingSourceId = nil
+                }
             }
         }
     }

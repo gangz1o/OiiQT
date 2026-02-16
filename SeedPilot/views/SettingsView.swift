@@ -12,6 +12,7 @@ struct SettingsView: View {
 
     // 资源管理
     @AppStorage("refreshRate") private var refreshRate: Int = 5
+    @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
 
     // 应用设置
     @AppStorage("appearance") private var appearance: String = "system"
@@ -82,8 +83,25 @@ struct SettingsView: View {
                     } label: {
                         Label("数据刷新频率", systemImage: "arrow.clockwise")
                     }
+
+                    Picker(selection: $rssRefreshInterval) {
+                        Text("5 分钟").tag(5)
+                        Text("15 分钟").tag(15)
+                        Text("30 分钟").tag(30)
+                        Text("1 小时").tag(60)
+                        Text("2 小时").tag(120)
+                        Text("关闭自动刷新").tag(0)
+                    } label: {
+                        Label("RSS 自动刷新", systemImage: "antenna.radiowaves.left.and.right")
+                    }
                 } header: {
                     Text("资源管理")
+                } footer: {
+                    if rssRefreshInterval > 0 {
+                        Text("每 \(rssRefreshInterval) 分钟自动检查订阅源更新")
+                    } else {
+                        Text("已关闭自动刷新，仅支持手动刷新")
+                    }
                 }
 
                 // MARK: - 应用设置
