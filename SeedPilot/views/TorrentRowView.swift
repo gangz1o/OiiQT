@@ -94,11 +94,20 @@ struct TorrentRowView: View {
                         }
 
                         // Title
-                        Text(task.name)
-                            .font(.system(size: 14, weight: .medium)) // Slightly refined font size
+                        let titleText = Text(task.name)
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary)
-                            .lineLimit(2) // Allow 2 lines for full names
-                            .fixedSize(horizontal: false, vertical: true)
+
+                        if appStateManager.activeServerId == nil,
+                           let serverName = appStateManager.servers.first(where: { $0.id == task.serverID })?.name {
+                             (titleText + Text("  \(serverName)").font(.caption).foregroundStyle(.secondary))
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            titleText
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
                         // Feature 3: Progress Bar
                         GeometryReader { geo in

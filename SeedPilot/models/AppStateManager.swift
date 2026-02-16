@@ -70,6 +70,15 @@ class AppStateManager {
     var totalDownloadSpeed: Int64 { displayedDownloadSpeed }
     var totalUploadSpeed: Int64 { displayedUploadSpeed }
 
+    // MARK: - Asset Stats
+    var displayedSeedingCount: Int {
+        displayedTasks.filter { $0.status == .seeding }.count
+    }
+
+    var displayedSeedingSize: Int64 {
+        displayedTasks.filter { $0.status == .seeding }.reduce(0) { $0 + $1.size }
+    }
+
     // MARK: - Data Management
 
     /// 从 SwiftData 加载服务器列表 (App launch)

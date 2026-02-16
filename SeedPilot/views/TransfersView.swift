@@ -373,19 +373,27 @@ struct ServerStatusBar: View {
 
     var body: some View {
         HStack {
-            // Left: Server Type / Icon
-            HStack(spacing: 6) {
-                if let type = appStateManager.activeServerType {
-                    Image(systemName: type == .qBittorrent ? "network" : "antenna.radiowaves.left.and.right")
-                        .foregroundStyle(.blue)
-                } else {
-                    Image(systemName: "server.rack")
-                        .foregroundStyle(.primary)
+            // Left: Assets Snapshot (Seeds + Size)
+            HStack(spacing: 12) {
+                // Seeding Count
+                HStack(spacing: 4) {
+                    Image(systemName: "leaf.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                    Text("\(appStateManager.displayedSeedingCount)")
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
 
-                Text(appStateManager.activeServerName ?? "All Servers")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+                // Total Size
+                HStack(spacing: 4) {
+                    Image(systemName: "shippingbox")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(formatBytes(appStateManager.displayedSeedingSize))
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -450,8 +458,8 @@ struct ServerBrandIcon: View {
                     }
                 }
             } else {
-                // All Servers or None
-                Image(systemName: "server.rack")
+                // All Servers (Grid Icon)
+                Image(systemName: "square.grid.2x2.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .foregroundStyle(.primary)
