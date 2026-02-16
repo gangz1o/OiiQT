@@ -250,7 +250,9 @@ struct TransfersView: View {
                                     }
                                 } label: {
                                     HStack {
+                                        ServerBrandIcon(type: server.type, size: 20)
                                         Text(server.name)
+                                        Spacer()
                                         if server.isOnline == true {
                                             Image(systemName: "circle.fill").foregroundStyle(.green)
                                         } else {
@@ -260,9 +262,8 @@ struct TransfersView: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: "server.rack")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
+                            // Header Brand Indicator
+                            ServerBrandIcon(type: appStateManager.activeServerType, size: 22)
                         }
                     }
                 }
@@ -365,8 +366,6 @@ struct TransfersView: View {
     }
 }
 
-
-
 // MARK: - Status Bar Component
 
 struct ServerStatusBar: View {
@@ -416,6 +415,50 @@ struct SpeedLabel: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.primary)
         }
+    }
+}
+
+// MARK: - Brand Icon Component
+struct ServerBrandIcon: View {
+    let type: ServerType?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let type = type {
+                if type == .transmission {
+                    if UIImage(named: "tr_logo") != nil {
+                        Image("tr_logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        Image(systemName: "tray.and.arrow.down.fill")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .foregroundStyle(.orange)
+                    }
+                } else {
+                    if UIImage(named: "qb_logo") != nil {
+                        Image("qb_logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        Image(systemName: "network")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .foregroundStyle(.blue)
+                    }
+                }
+            } else {
+                // All Servers or None
+                Image(systemName: "server.rack")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 }
 
