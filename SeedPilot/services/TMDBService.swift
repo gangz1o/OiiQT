@@ -45,11 +45,13 @@ class TMDBService {
         // 1. Check Memory URL Cache first
         if let cachedPath = urlCache.object(forKey: hash as NSString) as String? {
             if cachedPath == "null" {
-                print("[TMDB] fetchPoster: memory cache HIT (null) for '\(name)'")
-                return nil
+                // Negative cache is only a short-term optimization.
+                // Clear it here so future attempts can recover from transient network/match failures.
+                urlCache.removeObject(forKey: hash as NSString)
+            } else {
+                print("[TMDB] fetchPoster: memory cache HIT for '\(name)'")
+                return URL(string: imageBaseURL + cachedPath)
             }
-            print("[TMDB] fetchPoster: memory cache HIT for '\(name)'")
-            return URL(string: imageBaseURL + cachedPath)
         }
 
         // 2. data persistence (SwiftData)
@@ -368,5 +370,4 @@ private struct TMDBResult: Decodable {
         )
     }
 }
-
 

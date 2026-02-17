@@ -36,6 +36,8 @@ class AppStateManager {
 
     // Client Cache
     private var clients: [UUID: TorrentClient] = [:]
+    private var lastKnownServerStatus: [UUID: Bool] = [:]
+    private var serverStatusFailureStreak: [UUID: Int] = [:]
 
     // MARK: - Computed Properties
 
@@ -98,6 +100,9 @@ class AppStateManager {
     @MainActor
     func updateServers(_ newServers: [ServerConfig]) {
         self.servers = newServers
+        let validServerIDs = Set(newServers.map(\.id))
+        lastKnownServerStatus = lastKnownServerStatus.filter { validServerIDs.contains($0.key) }
+        serverStatusFailureStreak = serverStatusFailureStreak.filter { validServerIDs.contains($0.key) }
     }
 
     /// 启动自动刷新 (每 2 秒)
@@ -128,7 +133,7 @@ class AppStateManager {
 
                 // Mark online
                 await MainActor.run {
-                    server.isOnline = true
+                    markServerOnline(server)
 
                     // Update stats
                     server.totalSeedingCount = tasks.filter { $0.status == .seeding }.count
@@ -154,19 +159,35 @@ class AppStateManager {
 
                         // Mark online after retry success
                         await MainActor.run {
-                            server.isOnline = true
+                            markServerOnline(server)
+
+                            server.totalSeedingCount = tasks.filter { $0.status == .seeding }.count
+                            server.totalDownloadingCount = tasks.filter { $0.status == .downloading }.count
+                            server.totalSeedingSize = tasks.filter { $0.status == .seeding }.reduce(0) { $0 + $1.size }
+
+                            let totalUploaded = tasks.reduce(0) { $0 + $1.uploaded }
+                            let totalDownloaded = tasks.reduce(0) { $0 + $1.downloaded }
+                            server.totalRatio = totalDownloaded > 0
+                                ? Double(totalUploaded) / Double(totalDownloaded)
+                                : 0.0
                         }
                     } catch {
                         print("Auth retry failed for \(server.name): \(error)")
-                        await MainActor.run { server.isOnline = false }
+                        await MainActor.run {
+                            markServerFailure(server)
+                        }
                     }
                 } else {
                     print("Fetch failed for \(server.name): \(error)")
-                    await MainActor.run { server.isOnline = false }
+                    await MainActor.run {
+                        markServerFailure(server)
+                    }
                 }
             } catch {
                 print("Unknown error for \(server.name): \(error)")
-                await MainActor.run { server.isOnline = false }
+                await MainActor.run {
+                    markServerFailure(server)
+                }
             }
         }
 
@@ -192,23 +213,49 @@ class AppStateManager {
     func checkServerStatus() {
         for server in servers {
             let client = getClient(for: server)
-            // Set to nil to show breathing animation
-            server.isOnline = nil
 
             Task {
-                do {
-                    _ = try await client.checkConnection()
-                    await MainActor.run { server.isOnline = true }
-                } catch {
-                    // Auth retry? checkConnection handles 403 by throwing auth failed,
-                    // but we might want to try auto-login here too?
-                    // For lightweight heartbeat, maybe just separate "Auth Failed" vs "Timeout"?
-                    // User said "Timeout, check network".
-                    // I'll stick to simple true/false for now as requested.
-                    await MainActor.run { server.isOnline = false }
+                var success = false
+
+                for attempt in 0...2 {
+                    do {
+                        _ = try await client.checkConnection()
+                        success = true
+                        break
+                    } catch {
+                        if attempt < 2 {
+                            try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        }
+                    }
+                }
+
+                await MainActor.run {
+                    if success {
+                        markServerOnline(server)
+                    } else {
+                        markServerFailure(server)
+                    }
                 }
             }
         }
+    }
+
+    @MainActor
+    private func markServerOnline(_ server: ServerConfig) {
+        server.isOnline = true
+        lastKnownServerStatus[server.id] = true
+        serverStatusFailureStreak[server.id] = 0
+    }
+
+    @MainActor
+    private func markServerFailure(_ server: ServerConfig) {
+        let streak = (serverStatusFailureStreak[server.id] ?? 0) + 1
+        serverStatusFailureStreak[server.id] = streak
+
+        let previousOnline = lastKnownServerStatus[server.id] ?? (server.isOnline == true)
+        let keepOnline = previousOnline && streak <= 1
+        server.isOnline = keepOnline
+        lastKnownServerStatus[server.id] = keepOnline
     }
 
     private func getClient(for server: ServerConfig) -> TorrentClient {

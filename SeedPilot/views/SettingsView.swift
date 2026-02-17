@@ -9,7 +9,7 @@ import SwiftUI
 import Kingfisher
 
 struct SettingsView: View {
-    @Environment(AppStateManager.self) private var appStateManager
+    private let dashboardConfig = DashboardConfig.shared
 
     // 资源管理
     @AppStorage("refreshRate") private var refreshRate: Int = 5
@@ -22,7 +22,7 @@ struct SettingsView: View {
 
     // Pro 功能
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
-    @AppStorage("enableProDashboardBackground") private var enableProDashboardBackground: Bool = false
+    @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
 
     // UI 状态
     @State private var showingClearCacheAlert = false
@@ -137,12 +137,19 @@ struct SettingsView: View {
                     Text("应用设置")
                 }
 
+                Section("仪表盘定制") {
+                    Toggle("最近完成 (Recent Finished)", isOn: dashboardConfig.showRecentFinishedBinding)
+                    Toggle("流量监控 (Live Traffic)", isOn: dashboardConfig.showLiveTrafficBinding)
+                    Toggle("资产总览 (Global Assets)", isOn: dashboardConfig.showGlobalAssetsBinding)
+                    Toggle("服务器状态 (Server Status)", isOn: dashboardConfig.showServerStatusBinding)
+                }
+
                 // MARK: - Pro 功能
                 Section {
                     Toggle(isOn: $showTMDBData) {
                         Label("TMDB 海报数据", systemImage: "film")
                     }
-                    Toggle(isOn: $enableProDashboardBackground) {
+                    Toggle(isOn: $proDashboardBackgroundEnabled) {
                         Label("Pro 仪表盘背景", systemImage: "photo.artframe")
                     }
                 } header: {
@@ -258,5 +265,4 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
-        .environment(AppStateManager())
 }

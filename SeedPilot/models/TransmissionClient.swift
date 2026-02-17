@@ -110,6 +110,10 @@ class TransmissionClient: NSObject, TorrentClient {
     func fetchTorrents() async throws -> [TorrentTask] {
         struct TorrentGet: Decodable {
             struct Item: Decodable {
+                struct Tracker: Decodable {
+                    let announce: String?
+                }
+
                 let id: Int
                 let hashString: String
                 let name: String
@@ -125,6 +129,8 @@ class TransmissionClient: NSObject, TorrentClient {
                 let uploadRatio: Double
                 let peersConnected: Int
                 let secondsSeeding: Int? // Optional
+                let tracker: String?
+                let trackers: [Tracker]?
             }
             let torrents: [Item]
         }
@@ -132,13 +138,40 @@ class TransmissionClient: NSObject, TorrentClient {
         let fields = [
             "id", "hashString", "name", "totalSize", "rateDownload", "rateUpload",
             "status", "downloadDir", "percentDone", "eta", "downloadedEver",
-            "uploadedEver", "uploadRatio", "peersConnected", "secondsSeeding"
+            "uploadedEver", "uploadRatio", "peersConnected", "secondsSeeding",
+            "tracker", "trackers"
         ]
 
         let args = try await performRequest("torrent-get", arguments: ["fields": fields], responseType: TorrentGet.self)
 
+        func normalizedTrackerURL(_ raw: String) -> String {
+            if URL(string: raw) != nil {
+                return raw
+            }
+            // Some clients may return host/path without scheme. Add a scheme so existing URL-host formatting works.
+            return "http://\(raw)"
+        }
+
+        func pickTrackerURL(primary: String?, trackers: [TorrentGet.Item.Tracker]?) -> String {
+            let primaryCandidate = primary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !primaryCandidate.isEmpty {
+                return normalizedTrackerURL(primaryCandidate)
+            }
+
+            if let firstAnnounce = trackers?
+                .compactMap(\.announce)
+                .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+                .first(where: { !$0.isEmpty }) {
+                return normalizedTrackerURL(firstAnnounce)
+            }
+
+            return ""
+        }
+
         return args.torrents.map { item in
-            TorrentTask(
+            let trackerURL = pickTrackerURL(primary: item.tracker, trackers: item.trackers)
+
+            return TorrentTask(
                 id: item.hashString,
                 name: item.name,
                 progress: item.percentDone,
@@ -148,7 +181,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 remainingTime: TimeInterval(item.eta),
                 status: mapStatus(item.status),
                 serverID: config.id,
-                tracker: "", // Transmission torrent-get can return trackers list, skipping for now for perf or simple view
+                tracker: trackerURL,
                 savePath: item.downloadDir,
                 tags: "", // Transmission doesn't handle tags same way as qB, uses labels in newer versions. Skipping.
                 downloaded: item.downloadedEver,

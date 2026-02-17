@@ -100,7 +100,9 @@ struct TorrentRowView: View {
 
                         if appStateManager.activeServerId == nil,
                            let serverName = appStateManager.servers.first(where: { $0.id == task.serverID })?.name {
-                             (titleText + Text("  \(serverName)").font(.caption).foregroundStyle(.secondary))
+                            Text(
+                                "\(titleText)  \(Text(serverName).font(.caption).foregroundStyle(.secondary))"
+                            )
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
@@ -417,5 +419,4 @@ struct GridRowIconText: View {
         }
     }
 }
-
 
