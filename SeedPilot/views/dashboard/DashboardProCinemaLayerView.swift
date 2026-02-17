@@ -13,16 +13,23 @@ struct DashboardProCinemaLayerView: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var posterItems: [ProPosterItem] = []
+    @State private var showDebugFallback = false
+    @State private var currentIndex = 0
+    @State private var autoPlayResetToken = UUID()
+    @State private var isAutoAdvancing = false
+    @State private var dragOffset: CGFloat = 0
 
     private var refreshKey: String {
-        tasks
-            .map { "\($0.id)-\($0.name)-\($0.completionDate?.timeIntervalSince1970 ?? 0)-\($0.addedTime.timeIntervalSince1970)" }
+        combinedTorrents
+            .map { "\($0.id)-\($0.completionDate?.timeIntervalSince1970 ?? 0)" }
             .sorted()
             .joined(separator: "|")
     }
 
+    private var combinedTorrents: [TorrentTask] { tasks }
+
     private var candidateTasks: [TorrentTask] {
-        tasks
+        combinedTorrents
             .filter { task in
                 !task.name.hasKnownNonMediaExtension
             }
@@ -31,24 +38,91 @@ struct DashboardProCinemaLayerView: View {
                 let rhsDate = $1.completionDate ?? $1.addedTime
                 return lhsDate > rhsDate
             }
-            .prefix(80)
+            .prefix(40)
             .map { $0 }
     }
 
     var body: some View {
-        Group {
-            if !posterItems.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(Array(posterItems.enumerated()), id: \.element.id) { index, item in
+        VStack(alignment: .leading, spacing: 0) {
+            if !posterItems.isEmpty || showDebugFallback {
+                GeometryReader { geo in
+                    let displayItems = showDebugFallback ? ProPosterItem.debugPlaceholders : posterItems
+                    let idsKey = displayItems.map(\.id).joined(separator: "|")
+                    let cardWidth: CGFloat = 120
+                    let spacing: CGFloat = 14
+                    let step = cardWidth + spacing
+                    let threshold: CGFloat = 40
+                    let centeredBaseOffset = (geo.size.width - cardWidth) / 2
+                    let trackOffset = centeredBaseOffset - (CGFloat(currentIndex) * step) + dragOffset
+
+                    HStack(spacing: spacing) {
+                        ForEach(Array(displayItems.enumerated()), id: \.element.id) { index, item in
                             DashboardProPosterCard(item: item)
-                                .rotationEffect(.degrees(Double((index % 5) - 2) * 1.2))
+                                .frame(width: cardWidth, height: 180)
+                                .scaleEffect(index == currentIndex ? 1.04 : 0.96)
+                                .opacity(index == currentIndex ? 1 : 0.9)
                         }
                     }
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 6)
+                    .offset(x: trackOffset)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.88), value: currentIndex)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 8)
+                            .onChanged { value in
+                                dragOffset = value.translation.width
+                            }
+                            .onEnded { value in
+                                let itemCount = displayItems.count
+                                guard itemCount > 0 else {
+                                    dragOffset = 0
+                                    return
+                                }
+
+                                var nextIndex = currentIndex
+                                if value.translation.width <= -threshold {
+                                    nextIndex = min(currentIndex + 1, itemCount - 1)
+                                } else if value.translation.width >= threshold {
+                                    nextIndex = max(currentIndex - 1, 0)
+                                }
+
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                                    currentIndex = nextIndex
+                                    dragOffset = 0
+                                }
+                                autoPlayResetToken = UUID()
+                            }
+                    )
+                    .task(id: "\(idsKey)-\(autoPlayResetToken.uuidString)") {
+                        guard !displayItems.isEmpty else { return }
+                        currentIndex = min(max(currentIndex, 0), max(displayItems.count - 1, 0))
+                        guard displayItems.count > 1 else { return }
+
+                        while !Task.isCancelled {
+                            try? await Task.sleep(nanoseconds: 5_000_000_000)
+                            guard !Task.isCancelled else { return }
+                            isAutoAdvancing = true
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                                currentIndex = (currentIndex + 1) % displayItems.count
+                            }
+                            isAutoAdvancing = false
+                        }
+                    }
+                    .onChange(of: currentIndex) { _, _ in
+                        if !isAutoAdvancing {
+                            autoPlayResetToken = UUID()
+                        }
+                    }
+                    .onChange(of: idsKey) { _, _ in
+                        currentIndex = min(max(currentIndex, 0), max(displayItems.count - 1, 0))
+                        autoPlayResetToken = UUID()
+                    }
                 }
+                .frame(height: 220)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            print("Dashboard: Pro cinema layer mounted, candidateTasks=\(candidateTasks.count)")
         }
         .task(id: refreshKey) {
             await refreshPosters()
@@ -58,29 +132,57 @@ struct DashboardProCinemaLayerView: View {
     @MainActor
     private func refreshPosters() async {
         var resolved: [ProPosterItem] = []
-        if candidateTasks.isEmpty {
+        showDebugFallback = false
+        guard !candidateTasks.isEmpty else {
             posterItems = []
+            print("Dashboard: No movie torrents with poster found")
+            #if DEBUG
+            showDebugFallback = true
+            #endif
             return
         }
 
         for task in candidateTasks {
             guard !Task.isCancelled else { return }
             if let posterURL = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext) {
+                guard isValidTMDBPosterURL(posterURL) else { continue }
                 if !resolved.contains(where: { $0.id == task.id }) {
-                    resolved.append(ProPosterItem(task: task, posterURL: posterURL))
+                    resolved.append(ProPosterItem(id: task.id, posterURL: posterURL))
+                    // Render immediately once we have a valid poster to avoid waiting for full scan.
                     posterItems = resolved
                 }
             }
             if resolved.count == 7 { break }
         }
+
+        posterItems = resolved
+        if resolved.isEmpty {
+            print("Dashboard: No movie torrents with poster found")
+            #if DEBUG
+            showDebugFallback = true
+            #endif
+        }
+    }
+
+    private func isValidTMDBPosterURL(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return host.contains("image.tmdb.org")
     }
 }
 
 private struct ProPosterItem: Identifiable {
-    let task: TorrentTask
-    let posterURL: URL
+    let id: String
+    let posterURL: URL?
 
-    var id: String { task.id }
+    static let debugPlaceholders: [ProPosterItem] = [
+        ProPosterItem(id: "debug-1", posterURL: nil),
+        ProPosterItem(id: "debug-2", posterURL: nil),
+        ProPosterItem(id: "debug-3", posterURL: nil)
+    ]
+}
+
+private extension ProPosterItem {
+    var isDebugPlaceholder: Bool { posterURL == nil }
 }
 
 private extension String {
@@ -101,24 +203,26 @@ private struct DashboardProPosterCard: View {
     let item: ProPosterItem
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            SimpleCachedImage(url: item.posterURL)
-                .aspectRatio(contentMode: .fill)
-
-            LinearGradient(
-                colors: [Color.black.opacity(0), Color.black.opacity(0.58)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            Text(item.task.name)
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .lineLimit(2)
-                .padding(8)
+        ZStack {
+            if item.isDebugPlaceholder {
+                SeedPilotPlaceholder()
+                    .overlay {
+                        Image(systemName: "film.stack.fill")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+            } else {
+                SimpleCachedImage(url: item.posterURL)
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+            }
         }
-        .frame(width: 130, height: 195)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
+        )
         .shadow(color: .black.opacity(0.14), radius: 4, x: 0, y: 2)
     }
 }

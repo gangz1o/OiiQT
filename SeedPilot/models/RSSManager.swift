@@ -29,7 +29,9 @@ class RSSManager: NSObject, XMLParserDelegate {
             throw URLError(.badURL)
         }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, _) = try await URLSession.shared.data(for: request)
 
         // Reset state
         currentFeedItems = []

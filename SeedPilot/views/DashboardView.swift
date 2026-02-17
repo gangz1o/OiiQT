@@ -17,8 +17,16 @@ struct DashboardView: View {
     @AppStorage(DashboardConfig.Keys.showGlobalAssets) private var showGlobalAssets: Bool = true
     @AppStorage(DashboardConfig.Keys.showServerStatus) private var showServerStatus: Bool = true
 
+    private var isProCinemaEnabled: Bool {
+        proDashboardBackgroundEnabled || UserDefaults.standard.bool(forKey: "proDashboardBackgroundEnabled")
+    }
+
     private var needsGlobalStatsData: Bool {
         showGlobalAssets
+    }
+
+    private var combinedTorrents: [TorrentTask] {
+        appStateManager.allTasks
     }
 
     private var globalStatsRefreshKey: String {
@@ -32,7 +40,7 @@ struct DashboardView: View {
 
     private var layoutAnimationKey: String {
         [
-            proDashboardBackgroundEnabled ? "1" : "0",
+            isProCinemaEnabled ? "1" : "0",
             showLiveTraffic ? "1" : "0",
             showGlobalAssets ? "1" : "0",
             showServerStatus ? "1" : "0",
@@ -43,8 +51,8 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                if proDashboardBackgroundEnabled {
-                    DashboardProCinemaLayerView(tasks: appStateManager.allTasks)
+                if isProCinemaEnabled {
+                    DashboardProCinemaLayerView(tasks: combinedTorrents)
                 }
 
                 if showLiveTraffic {
@@ -97,6 +105,12 @@ struct DashboardView: View {
         }
         .onDisappear {
             dashboardViewModel.stopAutoRefresh()
+        }
+        .onAppear {
+            print("Dashboard: proDashboardBackgroundEnabled=\(proDashboardBackgroundEnabled), resolved=\(isProCinemaEnabled)")
+        }
+        .onChange(of: proDashboardBackgroundEnabled) { _, newValue in
+            print("Dashboard: proDashboardBackgroundEnabled changed -> \(newValue)")
         }
     }
 }

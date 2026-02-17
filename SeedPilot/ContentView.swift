@@ -11,6 +11,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var rssSources: [RSSFeedSource]
     @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
 
@@ -70,6 +71,12 @@ struct ContentView: View {
         .task {
             // Start RSS auto-refresh on launch
             RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active {
+                // Restart monitor when app returns to foreground (triggers overdue check)
+                RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+            }
         }
     }
 }

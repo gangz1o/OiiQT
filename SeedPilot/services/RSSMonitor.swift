@@ -13,10 +13,13 @@ import SwiftUI
 class RSSMonitor {
     static let shared = RSSMonitor()
 
-    var lastCheckTime: Date?
+    var lastCheckTime: Date? {
+        get { UserDefaults.standard.object(forKey: "rssLastCheckTime") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "rssLastCheckTime") }
+    }
     var isChecking: Bool = false
     
-    private var timerTask: Task<Void, Never>?
+    private var timer: Timer?
 
     // MARK: - Auto Refresh Timer
 
@@ -31,30 +34,75 @@ class RSSMonitor {
             return
         }
         
-        let intervalNanos = UInt64(intervalMinutes) * 60 * 1_000_000_000
-        print("[RSSMonitor] Auto-refresh started: every \(intervalMinutes) min")
+        let intervalSeconds = TimeInterval(intervalMinutes * 60)
+        print("[RSSMonitor] Auto-refresh starting: every \(intervalMinutes) min")
         
-        timerTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNanos)
-                guard !Task.isCancelled else { break }
-                await self?.checkFeeds(sources: sources, context: context, appStateManager: appStateManager)
+        // Immediate overdue check
+        let isOverdue: Bool
+        if let lastCheck = lastCheckTime {
+            let elapsed = Date().timeIntervalSince(lastCheck)
+            isOverdue = elapsed >= intervalSeconds
+            print("[RSSMonitor] Last check \(Int(elapsed))s ago, overdue=\(isOverdue)")
+        } else {
+            isOverdue = true
+            print("[RSSMonitor] Never checked before, overdue=true")
+        }
+        
+        if isOverdue {
+            Task { @MainActor in
+                await self.checkFeeds(context: context, appStateManager: appStateManager)
             }
         }
+        
+        // Foundation Timer on main RunLoop — most reliable timer on iOS
+        timer = Timer.scheduledTimer(withTimeInterval: intervalSeconds, repeats: true) { [weak self] _ in
+            print("[RSSMonitor] ⏰ Timer fired at \(Date())")
+            Task { @MainActor in
+                await self?.checkFeeds(context: context, appStateManager: appStateManager)
+            }
+        }
+        // Ensure timer fires even during scroll/tracking
+        if let timer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
+        
+        print("[RSSMonitor] ✅ Timer scheduled on main RunLoop, interval=\(Int(intervalSeconds))s")
     }
     
     func stopAutoRefresh() {
-        timerTask?.cancel()
-        timerTask = nil
+        if timer != nil {
+            print("[RSSMonitor] Stopping previous timer")
+        }
+        timer?.invalidate()
+        timer = nil
     }
 
     // MARK: - Feed Check
 
     /// Fetch all enabled RSS sources, deduplicate items, and auto-download if rules match.
     @MainActor
-    func checkFeeds(sources: [RSSFeedSource], context: ModelContext, appStateManager: AppStateManager?) async {
-        guard !isChecking else { return }
+    func checkFeeds(context: ModelContext, appStateManager: AppStateManager?) async {
+        guard !isChecking else {
+            print("[RSSMonitor] Already checking, skipping")
+            return
+        }
         isChecking = true
+        defer {
+            isChecking = false
+            lastCheckTime = Date()
+            print("[RSSMonitor] Check complete at \(Date())")
+        }
+
+        // Always fetch fresh sources from SwiftData
+        let sources: [RSSFeedSource]
+        do {
+            let descriptor = FetchDescriptor<RSSFeedSource>()
+            sources = try context.fetch(descriptor)
+        } catch {
+            print("[RSSMonitor] Failed to fetch sources from DB: \(error)")
+            return
+        }
+        
         print("[RSSMonitor] Starting check for \(sources.count) sources...")
 
         for source in sources where source.isEnabled {
@@ -72,13 +120,15 @@ class RSSMonitor {
                     if let oldItem = existingByTitle[item.title], oldItem.link != item.link {
                         oldItem.link = item.link
                         oldItem.isDownloaded = false
-                    } else {
+                    } else if existingByTitle[item.title] == nil {
                         item.source = source
                         context.insert(item)
                         newItems.append(item)
                     }
                 }
                 source.lastUpdated = Date()
+                
+                print("[RSSMonitor] \(source.name): fetched=\(fetchedItems.count), new=\(newItems.count)")
                 
                 // Auto-download: check new items against rules
                 if source.autoDownload, let asm = appStateManager {
@@ -94,24 +144,17 @@ class RSSMonitor {
                             do {
                                 try await asm.addTorrents([item.link], options: options, to: source.targetServerId)
                                 item.isDownloaded = true
+                                print("[RSSMonitor] Auto-download success: \(item.title)")
                             } catch {
                                 print("[RSSMonitor] Auto-download failed: \(error)")
                             }
                         }
                     }
                 }
-                
-                if !newItems.isEmpty {
-                    print("[RSSMonitor] \(source.name): \(newItems.count) new items")
-                }
             } catch {
                 print("[RSSMonitor] Failed to fetch \(source.name): \(error)")
             }
         }
-
-        lastCheckTime = Date()
-        isChecking = false
-        print("[RSSMonitor] Check complete.")
     }
     
     // MARK: - Single Source Refresh
@@ -136,7 +179,7 @@ class RSSMonitor {
                 if let oldItem = existingByTitle[item.title], oldItem.link != item.link {
                     oldItem.link = item.link
                     oldItem.isDownloaded = false
-                } else {
+                } else if existingByTitle[item.title] == nil {
                     item.source = source
                     context.insert(item)
                 }
