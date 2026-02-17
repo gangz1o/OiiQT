@@ -14,9 +14,8 @@ struct DashboardProCinemaLayerView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var posterItems: [ProPosterItem] = []
     @State private var showDebugFallback = false
-    @State private var currentIndex = 0
+    @State private var trackIndex = 1
     @State private var autoPlayResetToken = UUID()
-    @State private var isAutoAdvancing = false
     @State private var dragOffset: CGFloat = 0
 
     private var refreshKey: String {
@@ -47,24 +46,26 @@ struct DashboardProCinemaLayerView: View {
             if !posterItems.isEmpty || showDebugFallback {
                 GeometryReader { geo in
                     let displayItems = showDebugFallback ? ProPosterItem.debugPlaceholders : posterItems
-                    let idsKey = displayItems.map(\.id).joined(separator: "|")
+                    let loopItems = loopedItems(for: displayItems)
+                    let idsKey = loopItems.map(\.id).joined(separator: "|")
                     let cardWidth: CGFloat = 120
                     let spacing: CGFloat = 14
                     let step = cardWidth + spacing
                     let threshold: CGFloat = 40
                     let centeredBaseOffset = (geo.size.width - cardWidth) / 2
-                    let trackOffset = centeredBaseOffset - (CGFloat(currentIndex) * step) + dragOffset
+                    let safeTrackIndex = min(max(trackIndex, 0), max(loopItems.count - 1, 0))
+                    let trackOffset = centeredBaseOffset - (CGFloat(safeTrackIndex) * step) + dragOffset
 
                     HStack(spacing: spacing) {
-                        ForEach(Array(displayItems.enumerated()), id: \.element.id) { index, item in
-                            DashboardProPosterCard(item: item)
+                        ForEach(Array(loopItems.enumerated()), id: \.element.id) { index, loopItem in
+                            DashboardProPosterCard(item: loopItem.item)
                                 .frame(width: cardWidth, height: 180)
-                                .scaleEffect(index == currentIndex ? 1.04 : 0.96)
-                                .opacity(index == currentIndex ? 1 : 0.9)
+                                .scaleEffect(index == safeTrackIndex ? 1.04 : 0.96)
+                                .opacity(index == safeTrackIndex ? 1 : 0.9)
                         }
                     }
                     .offset(x: trackOffset)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.88), value: currentIndex)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.88), value: safeTrackIndex)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 8)
@@ -72,21 +73,29 @@ struct DashboardProCinemaLayerView: View {
                                 dragOffset = value.translation.width
                             }
                             .onEnded { value in
-                                let itemCount = displayItems.count
-                                guard itemCount > 0 else {
-                                    dragOffset = 0
+                                guard !displayItems.isEmpty else {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                                        dragOffset = 0
+                                    }
+                                    return
+                                }
+                                guard displayItems.count > 1 else {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                                        dragOffset = 0
+                                    }
                                     return
                                 }
 
-                                var nextIndex = currentIndex
+                                var nextIndex = safeTrackIndex
                                 if value.translation.width <= -threshold {
-                                    nextIndex = min(currentIndex + 1, itemCount - 1)
+                                    nextIndex += 1
                                 } else if value.translation.width >= threshold {
-                                    nextIndex = max(currentIndex - 1, 0)
+                                    nextIndex -= 1
                                 }
+                                nextIndex = min(max(nextIndex, 0), max(loopItems.count - 1, 0))
 
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-                                    currentIndex = nextIndex
+                                    trackIndex = nextIndex
                                     dragOffset = 0
                                 }
                                 autoPlayResetToken = UUID()
@@ -94,26 +103,38 @@ struct DashboardProCinemaLayerView: View {
                     )
                     .task(id: "\(idsKey)-\(autoPlayResetToken.uuidString)") {
                         guard !displayItems.isEmpty else { return }
-                        currentIndex = min(max(currentIndex, 0), max(displayItems.count - 1, 0))
+                        trackIndex = displayItems.count > 1
+                            ? min(max(trackIndex, 1), displayItems.count)
+                            : 0
                         guard displayItems.count > 1 else { return }
 
                         while !Task.isCancelled {
                             try? await Task.sleep(nanoseconds: 5_000_000_000)
                             guard !Task.isCancelled else { return }
-                            isAutoAdvancing = true
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-                                currentIndex = (currentIndex + 1) % displayItems.count
+                                trackIndex += 1
                             }
-                            isAutoAdvancing = false
                         }
                     }
-                    .onChange(of: currentIndex) { _, _ in
-                        if !isAutoAdvancing {
-                            autoPlayResetToken = UUID()
+                    .onChange(of: trackIndex) { _, newValue in
+                        let displayCount = displayItems.count
+                        guard displayCount > 1 else { return }
+                        if newValue == 0 {
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 380_000_000)
+                                guard trackIndex == 0 else { return }
+                                withAnimation(.none) { trackIndex = displayCount }
+                            }
+                        } else if newValue == displayCount + 1 {
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 380_000_000)
+                                guard trackIndex == displayCount + 1 else { return }
+                                withAnimation(.none) { trackIndex = 1 }
+                            }
                         }
                     }
                     .onChange(of: idsKey) { _, _ in
-                        currentIndex = min(max(currentIndex, 0), max(displayItems.count - 1, 0))
+                        trackIndex = displayItems.count > 1 ? 1 : 0
                         autoPlayResetToken = UUID()
                     }
                 }
@@ -168,6 +189,19 @@ struct DashboardProCinemaLayerView: View {
         guard let host = url.host?.lowercased() else { return false }
         return host.contains("image.tmdb.org")
     }
+
+    private func loopedItems(for items: [ProPosterItem]) -> [LoopPosterItem] {
+        guard items.count > 1, let first = items.first, let last = items.last else {
+            return items.map { LoopPosterItem(id: $0.id, item: $0) }
+        }
+
+        var result: [LoopPosterItem] = []
+        result.reserveCapacity(items.count + 2)
+        result.append(LoopPosterItem(id: "loop-head-\(last.id)", item: last))
+        result.append(contentsOf: items.map { LoopPosterItem(id: $0.id, item: $0) })
+        result.append(LoopPosterItem(id: "loop-tail-\(first.id)", item: first))
+        return result
+    }
 }
 
 private struct ProPosterItem: Identifiable {
@@ -183,6 +217,11 @@ private struct ProPosterItem: Identifiable {
 
 private extension ProPosterItem {
     var isDebugPlaceholder: Bool { posterURL == nil }
+}
+
+private struct LoopPosterItem: Identifiable {
+    let id: String
+    let item: ProPosterItem
 }
 
 private extension String {
