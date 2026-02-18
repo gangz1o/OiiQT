@@ -16,16 +16,16 @@ struct ProView: View {
 
         var title: String {
             switch self {
-            case .monthly: return "按月订阅"
-            case .yearly: return "按年订阅"
-            case .lifetime: return "终身买断"
+            case .monthly: return LanguageManager.shared.localized("Monthly Subscription")
+            case .yearly: return LanguageManager.shared.localized("Yearly Subscription")
+            case .lifetime: return LanguageManager.shared.localized("Lifetime Purchase")
             }
         }
 
         var price: String {
             switch self {
-            case .monthly: return "¥6.00 / 月"
-            case .yearly: return "¥58.00 / 年"
+            case .monthly: return LanguageManager.shared.localized("¥6.00 / month")
+            case .yearly: return LanguageManager.shared.localized("¥58.00 / year")
             case .lifetime: return "¥128.00"
             }
         }
@@ -104,7 +104,7 @@ struct ProView: View {
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
 
-                Text("解锁极致视觉体验，掌控你的影音世界。")
+                Text(LanguageManager.shared.localized("Unlock a premium visual experience and take control of your media world."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -117,11 +117,11 @@ struct ProView: View {
 
     private var featuresSection: some View {
         VStack(spacing: 20) {
-            featureRow(icon: "movieclapper.fill", color: .purple, title: "TMDB 海报墙", desc: "自动匹配高清电影海报和大幅背景图。")
+            featureRow(icon: "movieclapper.fill", color: .purple, title: LanguageManager.shared.localized("TMDB Poster Wall"), desc: LanguageManager.shared.localized("Automatically match high-quality movie posters and cinematic backdrops."))
             Divider()
-            featureRow(icon: "chart.bar.doc.horizontal.fill", color: .blue, title: "Pro 动态仪表盘", desc: "以精美轮播图展示最近完成的任务。")
+            featureRow(icon: "chart.bar.doc.horizontal.fill", color: .blue, title: LanguageManager.shared.localized("Pro Dynamic Dashboard"), desc: LanguageManager.shared.localized("Show recently finished tasks with elegant dynamic carousels."))
             Divider()
-            featureRow(icon: "heart.fill", color: .red, title: "支持独立开发", desc: "助力 SeedPilot 持续迭代更新。")
+            featureRow(icon: "heart.fill", color: .red, title: LanguageManager.shared.localized("Support Independent Development"), desc: LanguageManager.shared.localized("Help SeedPilot continue shipping improvements."))
         }
         .padding(20)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
@@ -152,7 +152,7 @@ struct ProView: View {
     private var pricingSection: some View {
         VStack(spacing: 12) {
             // Yearly (Best Value)
-            planButton(type: .yearly, badge: "最推荐 / 省 50%")
+            planButton(type: .yearly, badge: LanguageManager.shared.localized("Recommended / Save 50%"))
 
             // Monthly
             planButton(type: .monthly)
@@ -175,9 +175,11 @@ struct ProView: View {
                         Text(type.title)
                             .font(.headline)
                             .foregroundStyle(selectedPlan == type ? .blue : .primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
 
                         if type == .yearly {
-                            Text("相当于 ¥4.83 / 月")
+                            Text(LanguageManager.shared.localized("Equivalent to ¥4.83 / month"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -221,7 +223,7 @@ struct ProView: View {
             Button {
                 // Action
             } label: {
-                Text("立即订阅 (\(selectedPlan.priceValue))")
+                Text(String(format: LanguageManager.shared.localized("Subscribe Now (%@)"), selectedPlan.priceValue))
                     .font(.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -232,13 +234,13 @@ struct ProView: View {
             }
             .padding(.horizontal, 32)
 
-            Button("恢复购买") {
+            Button(LanguageManager.shared.localized("Restore Purchases")) {
                 // Restore action
             }
             .font(.subheadline)
             .foregroundStyle(.blue)
 
-            Text("确认购买后，将向您的 Apple ID 账户收款。订阅会自动续期，除非在当前订阅期结束前至少 24 小时取消。")
+            Text(LanguageManager.shared.localized("Payment will be charged to your Apple ID upon confirmation. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period."))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

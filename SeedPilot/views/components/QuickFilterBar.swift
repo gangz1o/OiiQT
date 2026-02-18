@@ -7,21 +7,67 @@
 
 import SwiftUI
 
-struct QuickFilterBar: View {
-    @Binding var selectedStatus: String
+enum TaskStatusFilter: String, CaseIterable, Identifiable {
+    case all
+    case downloading
+    case seeding
+    case paused
+    case error
 
-    // Hardcoded options to match the requested filtering logic
-    private let options = ["全部", "下载中", "做种中", "暂停", "错误"]
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all:
+            return LanguageManager.shared.localized("All")
+        case .downloading:
+            return LanguageManager.shared.localized("Downloading")
+        case .seeding:
+            return LanguageManager.shared.localized("Seeding")
+        case .paused:
+            return LanguageManager.shared.localized("Paused")
+        case .error:
+            return LanguageManager.shared.localized("Error")
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .downloading: return .blue
+        case .seeding: return .green
+        case .paused: return .gray
+        case .error: return .red
+        case .all: return .blue
+        }
+    }
+
+    func matches(_ status: TorrentStatus) -> Bool {
+        switch self {
+        case .all:
+            return true
+        case .downloading:
+            return status == .downloading
+        case .seeding:
+            return status == .seeding
+        case .paused:
+            return status == .paused
+        case .error:
+            return status == .error
+        }
+    }
+}
+
+struct QuickFilterBar: View {
+    @Binding var selectedStatus: TaskStatusFilter
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(options, id: \.self) { status in
+                ForEach(TaskStatusFilter.allCases) { status in
                     FilterCapsule(
-                        text: status,
+                        text: status.title,
                         isSelected: selectedStatus == status,
-                        // Match colors from TorrentStatus where possible
-                        color: color(for: status)
+                        color: status.color
                     ) {
                         withAnimation(.spring()) {
                             selectedStatus = status
@@ -33,16 +79,6 @@ struct QuickFilterBar: View {
             .padding(.vertical, 8)
         }
         .background(Color(uiColor: .systemBackground))
-    }
-
-    private func color(for status: String) -> Color {
-        switch status {
-        case "下载中": return .blue
-        case "做种中": return .green
-        case "暂停": return .gray
-        case "错误": return .red
-        default: return .blue // Default accent for "全部"
-        }
     }
 }
 
@@ -57,6 +93,8 @@ struct FilterCapsule: View {
             Text(text)
                 .font(.subheadline)
                 .fontWeight(isSelected ? .semibold : .medium)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(

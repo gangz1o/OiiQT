@@ -12,6 +12,8 @@ import Kingfisher
 @main
 struct SeedPilotApp: App {
     @AppStorage("appearance") private var appearance: String = "system"
+    @AppStorage("fontSize") private var fontSize: Double = 1.0
+    @StateObject private var languageManager = LanguageManager.shared
 
     init() {
         // Configure Kingfisher Image Cache
@@ -44,6 +46,9 @@ struct SeedPilotApp: App {
         WindowGroup {
             ContentView()
                 .environment(appStateManager)
+                .environment(\.locale, languageManager.currentLocale)
+                .environment(\.dynamicTypeSize, appDynamicTypeSize)
+                .id(languageManager.selectedLanguage.rawValue)
                 .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
                 .onAppear {
                     // 在 App 启动时通过 MainActor 获取 context 并加载数据
@@ -53,5 +58,23 @@ struct SeedPilotApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    private var appDynamicTypeSize: DynamicTypeSize {
+        let clamped = min(max(fontSize, 0.8), 1.4)
+        switch clamped {
+        case ..<0.85:
+            return .xSmall
+        case ..<0.95:
+            return .small
+        case ..<1.05:
+            return .large
+        case ..<1.15:
+            return .xLarge
+        case ..<1.25:
+            return .xxLarge
+        default:
+            return .xxxLarge
+        }
     }
 }

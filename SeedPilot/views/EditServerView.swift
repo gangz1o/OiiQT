@@ -40,8 +40,8 @@ struct EditServerView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("服务器类型") {
-                    Picker("类型", selection: $type) {
+                Section(LanguageManager.shared.localized("Server Type")) {
+                    Picker(LanguageManager.shared.localized("Type"), selection: $type) {
                         ForEach(ServerType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
@@ -49,15 +49,15 @@ struct EditServerView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("服务器信息") {
+                Section(LanguageManager.shared.localized("Server Information")) {
                     HStack {
                         Image(systemName: "tag.fill")
-                        TextField("名称 (例如: 家里的 NAS)", text: $name)
+                        TextField(LanguageManager.shared.localized("Name (e.g. Home NAS)"), text: $name)
                     }
 
                     HStack {
                         Image(systemName: "network")
-                        TextField("IP 地址或域名", text: $address)
+                        TextField(LanguageManager.shared.localized("IP Address or Domain"), text: $address)
                             .keyboardType(.URL)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -65,14 +65,14 @@ struct EditServerView: View {
 
                     HStack {
                         Image(systemName: "number")
-                        TextField("端口", text: $port)
+                        TextField(LanguageManager.shared.localized("Port"), text: $port)
                             .keyboardType(.numberPad)
                     }
 
                     if type == .transmission {
                         HStack {
                             Image(systemName: "folder.fill")
-                            TextField("RPC 路径", text: $rpcPath)
+                            TextField(LanguageManager.shared.localized("RPC Path"), text: $rpcPath)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         }
@@ -85,24 +85,24 @@ struct EditServerView: View {
                     Section {
                         Toggle(isOn: $allowInsecureSSL.animation()) {
                             Label {
-                                Text("忽略 SSL 证书错误")
+                                Text(LanguageManager.shared.localized("Ignore SSL Certificate Errors"))
                             } icon: {
                                 Image(systemName: "shield.slash")
                                     .foregroundStyle(.orange)
                             }
                         }
                     } footer: {
-                        Text("允许连接自签名或无效的 SSL 证书。")
+                        Text(LanguageManager.shared.localized("Allow connections to self-signed or invalid SSL certificates."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Section("认证信息") {
+                Section(LanguageManager.shared.localized("Authentication")) {
                     HStack {
                         Image(systemName: "person.fill")
                             .foregroundStyle(.blue)
-                        TextField("用户名", text: $username)
+                        TextField(LanguageManager.shared.localized("Username"), text: $username)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
@@ -112,11 +112,11 @@ struct EditServerView: View {
                             .foregroundStyle(.blue)
 
                         if isPasswordVisible {
-                            TextField("密码", text: $password)
+                            TextField(LanguageManager.shared.localized("Password"), text: $password)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         } else {
-                            SecureField("密码", text: $password)
+                            SecureField(LanguageManager.shared.localized("Password"), text: $password)
                         }
 
                         Button {
@@ -138,7 +138,7 @@ struct EditServerView: View {
                         } else {
                             HStack {
                                 Spacer()
-                                Text("测试连接")
+                                Text(LanguageManager.shared.localized("Test Connection"))
                                 Spacer()
                             }
                         }
@@ -154,19 +154,24 @@ struct EditServerView: View {
                                 .foregroundStyle(result.color)
                         }
                     }
+                } footer: {
+                    Text(LanguageManager.shared.localized("qBittorrent v4.1.0+ or Transmission v2.9.4+ is recommended for full feature support."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .navigationTitle(serverToEdit == nil ? "添加服务器" : "编辑服务器")
+            .navigationTitle(serverToEdit == nil ? LanguageManager.shared.localized("Add Server") : LanguageManager.shared.localized("Edit Server"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button(LanguageManager.shared.localized("Cancel")) {
                         dismiss()
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button(LanguageManager.shared.localized("Save")) {
                         saveServer()
                     }
                     .disabled(!isFormValid)
@@ -245,14 +250,20 @@ struct EditServerView: View {
             do {
                 try await client.login()
                 let version = try await client.checkConnection()
-                testResult = .success("连接成功: \(type.rawValue) (v\(version))")
+                testResult = .success(
+                    String(format: LanguageManager.shared.localized("Connection succeeded: %@ (v%@)"), type.rawValue, version)
+                )
             } catch {
                 if let urlError = error as? URLError,
                    urlError.code == .serverCertificateUntrusted || urlError.code == .secureConnectionFailed,
                    !allowInsecureSSL {
-                    testResult = .failure("SSL 验证失败。如果您使用的是自签名证书，请开启“忽略 SSL 错误”后重试。")
+                    testResult = .failure(
+                        LanguageManager.shared.localized("SSL verification failed. If you are using a self-signed certificate, enable \"Ignore SSL Certificate Errors\" and try again.")
+                    )
                 } else {
-                    testResult = .failure("连接失败: \(error.localizedDescription)")
+                    testResult = .failure(
+                        String(format: LanguageManager.shared.localized("Connection failed: %@"), error.localizedDescription)
+                    )
                 }
             }
             isTesting = false

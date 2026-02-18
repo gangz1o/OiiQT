@@ -23,17 +23,17 @@ struct EditRSSRuleView: View {
         NavigationStack {
             Form {
                 // Section 0: Source Info (One-Stop Management)
-                Section("订阅源信息") {
+                Section(LanguageManager.shared.localized("Source Information")) {
                     HStack {
-                        Text("名称")
+                        Text(LanguageManager.shared.localized("Name"))
                         Divider()
-                        TextField("给它起个名字", text: $source.name)
+                        TextField(LanguageManager.shared.localized("Give it a name"), text: $source.name)
                     }
 
                     HStack {
-                        Text("URL")
+                        Text(LanguageManager.shared.localized("URL"))
                         Divider()
-                        TextField("http://...", text: $source.url)
+                        TextField(LanguageManager.shared.localized("http://..."), text: $source.url)
                             .keyboardType(.URL)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -41,9 +41,9 @@ struct EditRSSRuleView: View {
                 }
 
                 // Section 1: Routing (Moved to Top)
-                Section(header: Text("路由选择"), footer: Text("指定下载任务推送到的服务器。")) {
-                    Picker("目标服务器", selection: $source.targetServerId) {
-                        Text("默认 (自动选择)").tag(UUID?.none)
+                Section(header: Text(LanguageManager.shared.localized("Routing")), footer: Text(LanguageManager.shared.localized("Specify the server where matching download tasks should be pushed."))) {
+                    Picker(LanguageManager.shared.localized("Target Server"), selection: $source.targetServerId) {
+                        Text(LanguageManager.shared.localized("Default (Auto Select)")).tag(UUID?.none)
 
                         ForEach(appStateManager.servers) { server in
                             Text(server.name).tag(Optional(server.id))
@@ -52,11 +52,11 @@ struct EditRSSRuleView: View {
                 }
 
                 // Section 2: Storage Settings
-                Section("存储设置") {
+                Section(LanguageManager.shared.localized("Storage Settings")) {
                     HStack {
-                        Text("保存路径")
+                        Text(LanguageManager.shared.localized("Save Path"))
                         Spacer()
-                        TextField("/downloads/...", text: $source.savePath)
+                        TextField(LanguageManager.shared.localized("/downloads/..."), text: $source.savePath)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -71,9 +71,9 @@ struct EditRSSRuleView: View {
                     }
 
                     HStack {
-                        Text("分类标签")
+                        Text(LanguageManager.shared.localized("Category"))
                         Spacer()
-                        TextField("Category", text: $source.category)
+                        TextField(LanguageManager.shared.localized("Category"), text: $source.category)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -81,10 +81,10 @@ struct EditRSSRuleView: View {
                 }
 
                 // Section 3: Filters (Keywords + Episode)
-                Section("智能过滤") {
+                Section(LanguageManager.shared.localized("Smart Filters")) {
                     // Include
                     VStack(alignment: .leading) {
-                        Text("包含关键词 (Must Include)")
+                        Text(LanguageManager.shared.localized("Include Keywords (Must Include)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -96,7 +96,7 @@ struct EditRSSRuleView: View {
                                     }
                                 }
                             }
-                            TextField("添加...", text: $newIncludeKeyword)
+                            TextField(LanguageManager.shared.localized("Add..."), text: $newIncludeKeyword)
                                 .font(.subheadline)
                                 .frame(width: 80)
                                 .onSubmit {
@@ -111,7 +111,7 @@ struct EditRSSRuleView: View {
 
                     // Exclude
                     VStack(alignment: .leading) {
-                        Text("排除关键词 (Must Exclude)")
+                        Text(LanguageManager.shared.localized("Exclude Keywords (Must Exclude)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -123,7 +123,7 @@ struct EditRSSRuleView: View {
                                     }
                                 }
                             }
-                            TextField("添加...", text: $newExcludeKeyword)
+                            TextField(LanguageManager.shared.localized("Add..."), text: $newExcludeKeyword)
                                 .font(.subheadline)
                                 .frame(width: 80)
                                 .onSubmit {
@@ -138,10 +138,10 @@ struct EditRSSRuleView: View {
 
                     // Episode Filter
                     VStack(alignment: .leading) {
-                        Text("集数范围 (Episode Filter)")
+                        Text(LanguageManager.shared.localized("Episode Range (Episode Filter)"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("例如: 01-12 或 S01E01-E10", text: $source.episodeFilter)
+                        TextField(LanguageManager.shared.localized("e.g. 01-12 or S01E01-E10"), text: $source.episodeFilter)
                             .font(.subheadline)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.characters)
@@ -157,11 +157,11 @@ struct EditRSSRuleView: View {
                 }
 
                 // Section 4: Size Limits
-                Section("体积限制 (GB)") {
+                Section(LanguageManager.shared.localized("Size Limits (GB)")) {
                     HStack {
-                        Text("最小")
+                        Text(LanguageManager.shared.localized("Min"))
                         Spacer()
-                        TextField("无限制", value: Binding(
+                        TextField(LanguageManager.shared.localized("Unlimited"), value: Binding(
                             get: { source.minSizeGB ?? 0 },
                             set: { source.minSizeGB = $0 == 0 ? nil : $0 }
                         ), format: .number)
@@ -171,9 +171,9 @@ struct EditRSSRuleView: View {
                     }
 
                     HStack {
-                        Text("最大")
+                        Text(LanguageManager.shared.localized("Max"))
                         Spacer()
-                        TextField("无限制", value: Binding(
+                        TextField(LanguageManager.shared.localized("Unlimited"), value: Binding(
                             get: { source.maxSizeGB ?? 0 },
                             set: { source.maxSizeGB = $0 == 0 ? nil : $0 }
                         ), format: .number)
@@ -184,28 +184,28 @@ struct EditRSSRuleView: View {
                 }
 
                 // Section 5: Execution Strategy
-                Section("任务策略") {
-                    Toggle("以暂停状态添加", isOn: $source.addPaused)
+                Section(LanguageManager.shared.localized("Task Strategy")) {
+                    Toggle(LanguageManager.shared.localized("Add in Paused State"), isOn: $source.addPaused)
 
-                    Picker("优先级", selection: $source.priority) {
-                        Text("低").tag(-1)
-                        Text("默认").tag(0)
-                        Text("最高").tag(1)
+                    Picker(LanguageManager.shared.localized("Priority"), selection: $source.priority) {
+                        Text(LanguageManager.shared.localized("Low")).tag(-1)
+                        Text(LanguageManager.shared.localized("Default")).tag(0)
+                        Text(LanguageManager.shared.localized("High")).tag(1)
                     }
                 }
 
                 // Section 6: Testing
-                Section(footer: Text("配置生效后，新发布的合规条目将自动推送到服务器。")) {
-                    Button("测试规则匹配") {
+                Section(footer: Text(LanguageManager.shared.localized("After saving, newly published compliant items will be automatically pushed to the server."))) {
+                    Button(LanguageManager.shared.localized("Test Rule Matching")) {
                         showingMatchPreview = true
                     }
                 }
             }
-            .navigationTitle("编辑规则")
+            .navigationTitle(LanguageManager.shared.localized("Edit Rules"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
+                    Button(LanguageManager.shared.localized("Done")) {
                         dismiss()
                     }
                 }

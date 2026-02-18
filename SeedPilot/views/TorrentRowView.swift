@@ -15,6 +15,7 @@ struct TorrentRowView: View {
 
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var languageManager = LanguageManager.shared
     var appStateManager: AppStateManager
 
     @State private var posterURL: URL?
@@ -62,6 +63,9 @@ struct TorrentRowView: View {
                             Text(task.trackerHost)
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .minimumScaleFactor(0.8)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.blue)
@@ -84,9 +88,11 @@ struct TorrentRowView: View {
                                 Circle()
                                     .fill(statusColor)
                                     .frame(width: 6, height: 6)
-                                Text(task.status.rawValue)
+                                Text(task.status.localizedDisplayName)
                                     .font(.caption2.bold())
                                     .foregroundStyle(statusColor)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                                 Text(task.percentString)
                                     .font(.caption2.monospacedDigit().bold())
                                     .foregroundStyle(statusColor)
@@ -160,13 +166,13 @@ struct TorrentRowView: View {
                     Button {
                         appStateManager.resumeTask(task)
                     } label: {
-                        Label("恢复", systemImage: "play.fill")
+                        Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
                     }
                 } else {
                     Button {
                         appStateManager.pauseTask(task)
                     } label: {
-                        Label("暂停", systemImage: "pause.fill")
+                        Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
                     }
                 }
 
@@ -176,7 +182,7 @@ struct TorrentRowView: View {
                     newName = task.name
                     showingRenameAlert = true
                 } label: {
-                    Label("重命名", systemImage: "pencil")
+                    Label(LanguageManager.shared.localized("Rename"), systemImage: "pencil")
                 }
 
                 Menu {
@@ -185,16 +191,16 @@ struct TorrentRowView: View {
                         Button {
                             appStateManager.recheckTask(task)
                         } label: {
-                            Label("强制重新校验", systemImage: "checkmark.seal")
+                            Label(LanguageManager.shared.localized("Force Recheck"), systemImage: "checkmark.seal")
                         }
 
                         Button {
                             appStateManager.reannounceTask(task)
                         } label: {
-                            Label("强制重新汇报", systemImage: "arrow.clockwise")
+                            Label(LanguageManager.shared.localized("Force Reannounce"), systemImage: "arrow.clockwise")
                         }
                     } label: {
-                        Label("高级工具", systemImage: "gearshape.2")
+                        Label(LanguageManager.shared.localized("Advanced Tools"), systemImage: "gearshape.2")
                     }
 
                     // Download Settings Submenu
@@ -203,20 +209,20 @@ struct TorrentRowView: View {
                             appStateManager.toggleSequentialDownload(task)
                         } label: {
                             let icon = (task.isSequential == true) ? "checkmark" : "arrow.down.to.line"
-                            Label("顺序下载", systemImage: icon)
+                            Label(LanguageManager.shared.localized("Sequential Download"), systemImage: icon)
                         }
 
                         Button {
                             appStateManager.toggleFirstLastPiecePriority(task)
                         } label: {
                             let icon = (task.isFirstLastPiecePriority == true) ? "checkmark" : "arrow.up.arrow.down.square"
-                            Label("首/尾优先", systemImage: icon)
+                            Label(LanguageManager.shared.localized("First/Last Piece Priority"), systemImage: icon)
                         }
                     } label: {
-                        Label("下载设置", systemImage: "slider.horizontal.3")
+                        Label(LanguageManager.shared.localized("Download Settings"), systemImage: "slider.horizontal.3")
                     }
                 } label: {
-                    Label("更多操作", systemImage: "ellipsis.circle")
+                    Label(LanguageManager.shared.localized("More Actions"), systemImage: "ellipsis.circle")
                 }
 
                 Divider()
@@ -224,21 +230,21 @@ struct TorrentRowView: View {
                 Button {
                     appStateManager.forceStartTask(task)
                 } label: {
-                    Label("强制开始", systemImage: "bolt.fill")
+                    Label(LanguageManager.shared.localized("Force Start"), systemImage: "bolt.fill")
                 }
 
                 Button {
                     newLocation = task.savePath
                     showingLocationAlert = true
                 } label: {
-                    Label("设置保存路径", systemImage: "folder.badge.gear")
+                    Label(LanguageManager.shared.localized("Set Save Path"), systemImage: "folder.badge.gear")
                 }
 
                 Button {
                     newTrackers = task.tracker
                     showingTrackersAlert = true
                 } label: {
-                    Label("编辑 Tracker", systemImage: "network.badge.shield.half.filled")
+                    Label(LanguageManager.shared.localized("Edit Tracker"), systemImage: "network.badge.shield.half.filled")
                 }
 
                 Divider()
@@ -246,7 +252,7 @@ struct TorrentRowView: View {
                 Button(role: .destructive) {
                     showingDeleteConfirmation = true
                 } label: {
-                    Label("删除", systemImage: "trash")
+                    Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
                 }
 
                 Divider()
@@ -256,43 +262,43 @@ struct TorrentRowView: View {
                         TMDBService.shared.clearCache(for: task.id)
                         Task { await refreshPosterAsync() }
                     } label: {
-                        Label("重新匹配海报", systemImage: "arrow.triangle.2.circlepath")
+                        Label(LanguageManager.shared.localized("Rematch Poster"), systemImage: "arrow.triangle.2.circlepath")
                     }
 
                     Button {
                         showingManualMatchSheet = true
                     } label: {
-                        Label("手动匹配海报", systemImage: "photo.badge.plus")
+                        Label(LanguageManager.shared.localized("Manual Match Poster"), systemImage: "photo.badge.plus")
                     }
                 }
             }
         }
-        .alert("重命名任务", isPresented: $showingRenameAlert) {
-            TextField("新名称", text: $newName)
-            Button("取消", role: .cancel) { }
-            Button("确定") {
+        .alert(LanguageManager.shared.localized("Rename Task"), isPresented: $showingRenameAlert) {
+            TextField(LanguageManager.shared.localized("New Name"), text: $newName)
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
+            Button(LanguageManager.shared.localized("Confirm")) {
                 appStateManager.renameTask(task, newName: newName)
             }
         } message: {
-            Text("请输入新的任务名称。")
+            Text(LanguageManager.shared.localized("Please enter a new task name."))
         }
-        .alert("设置保存路径", isPresented: $showingLocationAlert) {
-            TextField("路径", text: $newLocation)
-            Button("取消", role: .cancel) { }
-            Button("确定") {
+        .alert(LanguageManager.shared.localized("Set Save Path"), isPresented: $showingLocationAlert) {
+            TextField(LanguageManager.shared.localized("Path"), text: $newLocation)
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
+            Button(LanguageManager.shared.localized("Confirm")) {
                 appStateManager.setLocation(task, newLocation: newLocation)
             }
         } message: {
-            Text("请输入新的绝对路径 (例如 /downloads/movie)。")
+            Text(LanguageManager.shared.localized("Please enter a new absolute path (e.g. /downloads/movie)."))
         }
-        .alert("编辑 Tracker", isPresented: $showingTrackersAlert) {
-            TextField("Tracker URL", text: $newTrackers)
-            Button("取消", role: .cancel) { }
-            Button("确定") {
+        .alert(LanguageManager.shared.localized("Edit Tracker"), isPresented: $showingTrackersAlert) {
+            TextField(LanguageManager.shared.localized("Tracker URL"), text: $newTrackers)
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
+            Button(LanguageManager.shared.localized("Confirm")) {
                 appStateManager.editTrackers(task, newTrackers: newTrackers)
             }
         } message: {
-            Text("请输入 Tracker URL。多个 URL 请尝试用逗号分隔（取决于服务器支持）。")
+            Text(LanguageManager.shared.localized("Please enter Tracker URL. For multiple URLs, try comma separation if supported by your server."))
         }
         .sheet(isPresented: $showingManualMatchSheet) {
             ManualMatchView(taskName: task.name, taskHash: task.id)
@@ -302,18 +308,18 @@ struct TorrentRowView: View {
                     Task { await refreshPosterAsync() }
                 }
         }
-        .confirmationDialog("确认删除", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button("删除任务 (保留数据)", role: .destructive) {
+        .confirmationDialog(LanguageManager.shared.localized("Confirm Deletion"), isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button(LanguageManager.shared.localized("Delete Task (Keep Data)"), role: .destructive) {
                 appStateManager.deleteTask(task, withData: false)
             }
-            Button("删除任务和数据", role: .destructive) {
+            Button(LanguageManager.shared.localized("Delete Task and Data"), role: .destructive) {
                 appStateManager.deleteTask(task, withData: true)
             }
-            Button("取消", role: .cancel) { }
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
         } message: {
-            Text("您确定要删除 \"\(task.name)\" 吗？")
+            Text(String(format: LanguageManager.shared.localized("Are you sure you want to delete this task? %@"), task.name))
         }
-        .task(id: task.name) {
+        .task(id: "\(task.name)-\(languageManager.selectedLanguage.rawValue)") {
             await refreshPosterAsync()
         }
     }
@@ -362,7 +368,7 @@ struct TorrentRowView: View {
                     .font(.caption2)
                 Text(formatBytes(task.uploadSpeed) + "/s")
             } else {
-                Text(task.status.rawValue)
+                Text(task.status.localizedDisplayName)
             }
         }
         .font(.caption.monospacedDigit())
@@ -419,4 +425,3 @@ struct GridRowIconText: View {
         }
     }
 }
-

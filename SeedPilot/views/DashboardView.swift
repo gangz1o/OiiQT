@@ -181,39 +181,39 @@ struct DashboardView: View {
     private func moduleContent(for module: DashboardModuleType) -> some View {
         switch module {
         case .proPosterWall:
-            DashboardSectionBlock(title: "海报墙", spacing: 6) {
+            DashboardSectionBlock(title: LanguageManager.shared.localized("Poster Wall"), spacing: 6) {
                 DashboardProCinemaLayerView(tasks: combinedTorrents)
             }
         case .liveTraffic:
-            DashboardSectionBlock(title: "流量监控") {
+            DashboardSectionBlock(title: LanguageManager.shared.localized("Traffic Monitoring")) {
                 DashboardLiveTrafficModuleView(
                     downloadSpeed: appStateManager.displayedDownloadSpeed,
                     uploadSpeed: appStateManager.displayedUploadSpeed
                 )
             }
         case .globalAssets:
-            DashboardSectionBlock(title: "数据聚合") {
+            DashboardSectionBlock(title: LanguageManager.shared.localized("Data Aggregation")) {
                 DashboardGlobalAssetsModuleView(
                     snapshot: dashboardViewModel.globalSnapshot,
                     isUsingCachedFallback: dashboardViewModel.isUsingCachedFallback
                 )
             }
         case .serverStatus:
-            DashboardSectionBlock(title: "服务器状态") {
+            DashboardSectionBlock(title: LanguageManager.shared.localized("Server Status")) {
                 DashboardServerStatusModuleView(
                     servers: appStateManager.servers,
                     tasks: appStateManager.allTasks
                 )
             }
         case .storageAudit:
-            DashboardSectionBlock(title: "存储审计") {
+            DashboardSectionBlock(title: LanguageManager.shared.localized("Storage Audit")) {
                 DashboardStorageAuditModuleView(
                     servers: appStateManager.servers,
                     snapshot: dashboardViewModel.globalSnapshot
                 )
             }
         case .recentFinished:
-            DashboardSectionBlock(title: "最近完成") {
+            DashboardSectionBlock(title: LanguageManager.shared.localized("Recently Finished")) {
                 DashboardRecentFinishedModuleView(tasks: appStateManager.displayedTasks)
             }
         }
@@ -283,14 +283,22 @@ private struct DashboardModulesDisabledEmptyStateView: View {
                     )
                 )
 
-            Text("当前没有展示任何模块，您可以在设置中开启感兴趣的数据模块。")
+            Text(LanguageManager.shared.localized("Dashboard Is Empty"))
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Text(LanguageManager.shared.localized("Enable modules in Settings to display the data you care about."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
                 .padding(.horizontal, 8)
+                .minimumScaleFactor(0.8)
 
-            Button("前往设置", action: onOpenSettings)
+            Button(LanguageManager.shared.localized("Go to Settings"), action: onOpenSettings)
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
                 .buttonBorderShape(.capsule)
@@ -319,6 +327,8 @@ private struct DashboardSectionBlock<Content: View>: View {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
 
             content()
         }

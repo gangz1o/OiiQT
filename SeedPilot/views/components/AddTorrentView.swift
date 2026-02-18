@@ -13,8 +13,17 @@ struct AddTorrentView: View {
 
     // Mode
     enum InputMode: String, CaseIterable {
-        case link = "链接"
-        case file = "文件"
+        case link
+        case file
+
+        var localizedTitle: String {
+            switch self {
+            case .link:
+                return LanguageManager.shared.localized("Links")
+            case .file:
+                return LanguageManager.shared.localized("File")
+            }
+        }
     }
     @State private var inputMode: InputMode = .link
 
@@ -38,9 +47,9 @@ struct AddTorrentView: View {
             Form {
                 // Section 1: Input Mode
                 Section {
-                    Picker("添加方式", selection: $inputMode) {
+                    Picker(LanguageManager.shared.localized("Input Mode"), selection: $inputMode) {
                         ForEach(InputMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            Text(mode.localizedTitle).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -56,7 +65,7 @@ struct AddTorrentView: View {
                             .overlay(
                                 Group {
                                     if magnetLinks.isEmpty {
-                                        Text("在此粘贴磁力链接、HTTP/HTTPS 链接，每行一个")
+                                        Text(LanguageManager.shared.localized("Paste magnet links or HTTP/HTTPS links here, one per line"))
                                             .foregroundColor(.gray.opacity(0.6))
                                             .padding(.top, 8)
                                             .padding(.leading, 4)
@@ -72,10 +81,10 @@ struct AddTorrentView: View {
                                 Image(systemName: "doc.badge.plus")
                                     .font(.title2)
                                 VStack(alignment: .leading) {
-                                    Text(selectedFileName.isEmpty ? "选择 .torrent 文件" : selectedFileName)
+                                    Text(selectedFileName.isEmpty ? LanguageManager.shared.localized("Select .torrent File") : selectedFileName)
                                         .foregroundStyle(selectedFileName.isEmpty ? .primary : .primary)
                                     if !selectedFileName.isEmpty {
-                                        Text("点击更换")
+                                        Text(LanguageManager.shared.localized("Tap to Replace"))
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -85,33 +94,33 @@ struct AddTorrentView: View {
                         }
                     }
                 } header: {
-                    Text(inputMode == .link ? "链接列表" : "种子文件")
+                    Text(inputMode == .link ? LanguageManager.shared.localized("Link List") : LanguageManager.shared.localized("Torrent File"))
                 }
 
                 // Section 3: Options
-                Section("配置") {
+                Section(LanguageManager.shared.localized("Configuration")) {
                     HStack {
-                        Text("保存路径")
+                        Text(LanguageManager.shared.localized("Save Path"))
                         Spacer()
-                        TextField("默认", text: $options.savePath)
+                        TextField(LanguageManager.shared.localized("Default"), text: $options.savePath)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                     }
 
                     HStack {
-                        Text("分类")
+                        Text(LanguageManager.shared.localized("Category"))
                         Spacer()
-                        TextField("可选", text: $options.category)
+                        TextField(LanguageManager.shared.localized("Optional"), text: $options.category)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                     }
 
                     HStack {
-                        Text("标签")
+                        Text(LanguageManager.shared.localized("Tags"))
                         Spacer()
-                         TextField("用逗号分隔", text: $tagsString)
+                         TextField(LanguageManager.shared.localized("Comma separated"), text: $tagsString)
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -123,23 +132,23 @@ struct AddTorrentView: View {
 
                 // Section 4: Flags
                 Section {
-                    Toggle("自动开始任务", isOn: Binding(
+                    Toggle(LanguageManager.shared.localized("Auto Start"), isOn: Binding(
                         get: { !options.isPaused },
                         set: { options.isPaused = !$0 }
                     ))
 
-                    Toggle("跳过哈希校验", isOn: $options.skipHashCheck)
+                    Toggle(LanguageManager.shared.localized("Skip Hash Check"), isOn: $options.skipHashCheck)
 
-                    Toggle("顺序下载", isOn: $options.isSequential)
+                    Toggle(LanguageManager.shared.localized("Sequential Download"), isOn: $options.isSequential)
                 } header: {
-                    Text("状态")
+                    Text(LanguageManager.shared.localized("Status"))
                 }
             }
-            .navigationTitle("添加任务")
+            .navigationTitle(LanguageManager.shared.localized("Add Task"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(LanguageManager.shared.localized("Cancel")) { dismiss() }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -149,7 +158,7 @@ struct AddTorrentView: View {
                         if isAdding {
                             ProgressView()
                         } else {
-                            Text("添加")
+                            Text(LanguageManager.shared.localized("Add"))
                                 .bold()
                         }
                     }
@@ -180,12 +189,12 @@ struct AddTorrentView: View {
                             selectedFileURL = tempURL
                         } catch {
                             print("File copy error: \(error)")
-                            errorMessage = "读取文件失败: \(error.localizedDescription)"
+                            errorMessage = String(format: LanguageManager.shared.localized("Failed to read file: %@"), error.localizedDescription)
                             showError = true
                         }
                     } else {
                         // Access denied
-                        errorMessage = "无法访问选中的文件"
+                        errorMessage = LanguageManager.shared.localized("Unable to access the selected file")
                         showError = true
                     }
                 case .failure(let error):
@@ -193,10 +202,10 @@ struct AddTorrentView: View {
                     showError = true
                 }
             }
-            .alert("错误", isPresented: $showError) {
-                Button("确定", role: .cancel) { }
+            .alert(LanguageManager.shared.localized("Error"), isPresented: $showError) {
+                Button(LanguageManager.shared.localized("OK"), role: .cancel) { }
             } message: {
-                Text(errorMessage ?? "未知错误")
+                Text(errorMessage ?? LanguageManager.shared.localized("Unknown Error"))
             }
         }
     }
@@ -228,7 +237,7 @@ struct AddTorrentView: View {
             } catch {
                 await MainActor.run {
                     isAdding = false
-                    errorMessage = "添加失败: \(error.localizedDescription)"
+                    errorMessage = String(format: LanguageManager.shared.localized("Add failed: %@"), error.localizedDescription)
                     showError = true
                 }
             }

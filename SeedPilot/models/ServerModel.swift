@@ -25,6 +25,23 @@ enum TorrentStatus: String, Codable, CaseIterable {
         default: return .secondary
         }
     }
+
+    var localizedDisplayName: String {
+        switch self {
+        case .downloading:
+            return LanguageManager.shared.localized("Downloading")
+        case .seeding:
+            return LanguageManager.shared.localized("Seeding")
+        case .paused:
+            return LanguageManager.shared.localized("Paused")
+        case .checking:
+            return LanguageManager.shared.localized("Checking")
+        case .error:
+            return LanguageManager.shared.localized("Error")
+        case .completed:
+            return LanguageManager.shared.localized("Completed")
+        }
+    }
 }
 
 // Helper Formatter
@@ -40,7 +57,10 @@ let torrentByteFormatter: ByteCountFormatter = {
 func formatBytes(_ bytes: Int64) -> String {
     if bytes == 0 { return "0 B" }
     let formatted = torrentByteFormatter.string(fromByteCount: bytes)
-    return formatted.replacingOccurrences(of: "bytes", with: "B")
+    return formatted
+        .replacingOccurrences(of: "bytes", with: "B")
+        .replacingOccurrences(of: "byte", with: "B")
+        .replacingOccurrences(of: "字节", with: "B")
 }
 
 // MARK: - 2. 服务器配置模型
@@ -141,10 +161,26 @@ struct TorrentTask: Identifiable, Hashable {
 
     /// 从 Tracker URL 提取域名，例如 "https://tracker.example.com/announce" → "tracker.example.com"
     var trackerHost: String {
-        guard let url = URL(string: tracker), let host = url.host else {
-            return tracker.isEmpty ? "--" : tracker
+        let normalized = tracker
+            .split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? ""
+
+        guard !normalized.isEmpty else { return "--" }
+
+        if let url = URL(string: normalized), let host = url.host, !host.isEmpty {
+            return host
         }
-        return host
+
+        var sanitized = normalized
+        if let schemeRange = sanitized.range(of: "://") {
+            sanitized = String(sanitized[schemeRange.upperBound...])
+        }
+        if let slashIndex = sanitized.firstIndex(of: "/") {
+            sanitized = String(sanitized[..<slashIndex])
+        }
+
+        return sanitized.isEmpty ? "--" : sanitized
     }
 
     var downloadedString: String {

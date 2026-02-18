@@ -25,19 +25,22 @@ struct RSSEmptyStateView: View {
                 .shadow(color: .blue.opacity(0.3), radius: 10, x: 0, y: 5)
 
             VStack(spacing: 12) {
-                Text("暂无订阅源")
+                Text(LanguageManager.shared.localized("No Sources Yet"))
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
-                Text("添加您的第一个 RSS 订阅源，\n开启自动化下载之旅。")
+                Text(LanguageManager.shared.localized("Add your first RSS source to start your automation workflow."))
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.8)
             }
 
             Button(action: onAddAction) {
-                Text("添加订阅源")
+                Text(LanguageManager.shared.localized("Add Source"))
                     .font(.headline)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 24)

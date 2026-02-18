@@ -16,12 +16,14 @@ struct TransfersView: View {
     @State private var selectedTaskHashes = Set<String>()
 
     // 状态筛选
-    @State private var selectedStatus: String = "全部"
+    @State private var selectedStatus: TaskStatusFilter = .all
     // NEW: Sorting
     @State private var sortOption: SortOption = .dateAdded
     @State private var sortAscending: Bool = false // Default Descending (Newest first)
     // NEW: Tracker Filter
-    @State private var selectedTracker: String = "全部 Tracker"
+    @State private var selectedTracker: String = Self.allTrackersToken
+
+    private static let allTrackersToken = "__ALL_TRACKERS__"
 
     // Batch Action States
     // ... (unchanged)
@@ -34,8 +36,8 @@ struct TransfersView: View {
         var tasks = appStateManager.displayedTasks
 
         // 1. Status Filter
-        if selectedStatus != "全部" {
-            tasks = tasks.filter { $0.status.rawValue == selectedStatus }
+        if selectedStatus != .all {
+            tasks = tasks.filter { selectedStatus.matches($0.status) }
         }
 
         // 2. Search Text
@@ -47,7 +49,7 @@ struct TransfersView: View {
         }
 
         // 3. Tracker Filter
-        if selectedTracker != "全部 Tracker" {
+        if selectedTracker != Self.allTrackersToken {
             tasks = tasks.filter { $0.trackerHost == selectedTracker }
         }
 
@@ -76,14 +78,20 @@ struct TransfersView: View {
     var uniqueTrackers: [String] {
         let hosts = appStateManager.allTasks.map { $0.trackerHost }
         let unique = Set(hosts)
-        return ["全部 Tracker"] + unique.sorted()
+        return [Self.allTrackersToken] + unique.sorted()
     }
 
     private var navigationTitle: String {
         if editMode?.wrappedValue == .active {
-            return selectedTaskHashes.isEmpty ? "请选择项目" : "已选中 \(selectedTaskHashes.count) 项"
+            return selectedTaskHashes.isEmpty
+                ? LanguageManager.shared.localized("Select Items")
+                : String(
+                    format: LanguageManager.shared.localized("Selected Items Count Format"),
+                    locale: .current,
+                    selectedTaskHashes.count
+                )
         } else {
-            return appStateManager.activeServerName ?? "传输任务"
+            return appStateManager.activeServerName ?? LanguageManager.shared.localized("Transfers")
         }
     }
 
@@ -93,7 +101,7 @@ struct TransfersView: View {
 
     // Check if any filter is active for the badge
     private var isFilterActive: Bool {
-        selectedStatus != "全部" || selectedTracker != "全部 Tracker" || sortOption != .dateAdded || sortAscending != false
+        selectedStatus != .all || selectedTracker != Self.allTrackersToken || sortOption != .dateAdded || sortAscending != false
     }
 
     var body: some View {
@@ -122,7 +130,11 @@ struct TransfersView: View {
                         if !searchText.isEmpty {
                              ContentUnavailableView.search(text: searchText)
                         } else {
-                            ContentUnavailableView("无任务", systemImage: "tray", description: Text("当前筛选条件下没有任务"))
+                            ContentUnavailableView(
+                                LanguageManager.shared.localized("No Tasks"),
+                                systemImage: "tray",
+                                description: Text(LanguageManager.shared.localized("No tasks match the current filters"))
+                            )
                         }
                     } else {
                         List {
@@ -144,7 +156,7 @@ struct TransfersView: View {
                                         Button(role: .destructive) {
                                             appStateManager.deleteTask(task, withData: true)
                                         } label: {
-                                            Label("删除", systemImage: "trash")
+                                            Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
                                         }
                                     }
                                 }
@@ -154,14 +166,14 @@ struct TransfersView: View {
                                             Button {
                                                 appStateManager.resumeTask(task)
                                             } label: {
-                                                Label("恢复", systemImage: "play.fill")
+                                                Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
                                             }
                                             .tint(.green)
                                         } else {
                                             Button {
                                                 appStateManager.pauseTask(task)
                                             } label: {
-                                                Label("暂停", systemImage: "pause.fill")
+                                                Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
                                             }
                                             .tint(.orange)
                                         }
@@ -219,7 +231,11 @@ struct TransfersView: View {
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索任务或 Tracker")
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: LanguageManager.shared.localized("Search Torrents or Trackers")
+            )
             .toolbar {
                 // Leading: Server Menu OR Select All
                 ToolbarItem(placement: .topBarLeading) {
@@ -231,7 +247,11 @@ struct TransfersView: View {
                                 selectedTaskHashes = Set(filteredTasks.map { $0.id })
                             }
                         } label: {
-                            Text(selectedTaskHashes.count == filteredTasks.count ? "取消全选" : "全选")
+                            Text(
+                                selectedTaskHashes.count == filteredTasks.count
+                                ? LanguageManager.shared.localized("Deselect All")
+                                : LanguageManager.shared.localized("Select All")
+                            )
                         }
                     } else {
                         Menu {
@@ -240,7 +260,7 @@ struct TransfersView: View {
                                     appStateManager.activeServerId = nil
                                 }
                             } label: {
-                                Label("全部服务器", systemImage: "rectangle.stack.fill")
+                                Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
                             }
 
                             ForEach(appStateManager.servers) { server in
@@ -275,23 +295,30 @@ struct TransfersView: View {
                          if !isEditing {
                             Menu {
                                 // Section 1: Sort
-                                Section("排序") {
-                                    Picker("排序方式", selection: $sortOption) {
+                                Section(LanguageManager.shared.localized("Sort")) {
+                                    Picker(LanguageManager.shared.localized("Sort By"), selection: $sortOption) {
                                         ForEach(SortOption.allCases) { option in
-                                            Text(option.rawValue).tag(option)
+                                            Text(option.localizedDisplayName).tag(option)
                                         }
                                     }
 
                                     Toggle(isOn: $sortAscending) {
-                                        Label("升序排列", systemImage: "arrow.up.arrow.down")
+                                        Label(LanguageManager.shared.localized("Ascending"), systemImage: "arrow.up.arrow.down")
                                     }
                                 }
 
                                 // Section 2: Filter
-                                Section("筛选 Tracker") {
-                                    Picker("Tracker", selection: $selectedTracker) {
+                                Section(LanguageManager.shared.localized("Filter Tracker")) {
+                                    Picker(LanguageManager.shared.localized("Tracker"), selection: $selectedTracker) {
                                         ForEach(uniqueTrackers, id: \.self) { tracker in
-                                            Text(tracker).tag(tracker)
+                                            Text(
+                                                tracker == Self.allTrackersToken
+                                                ? LanguageManager.shared.localized("All Trackers")
+                                                : tracker
+                                            )
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                            .tag(tracker)
                                         }
                                     }
                                 }
@@ -312,7 +339,7 @@ struct TransfersView: View {
                         }
 
                          if isEditing {
-                            Button("完成") {
+                            Button(LanguageManager.shared.localized("Done")) {
                                 withAnimation {
                                     editMode?.wrappedValue = .inactive
                                     selectedTaskHashes.removeAll()
@@ -357,8 +384,10 @@ struct TransfersView: View {
             Image(systemName: "tray")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("暂无任务")
+            Text(LanguageManager.shared.localized("No Tasks"))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

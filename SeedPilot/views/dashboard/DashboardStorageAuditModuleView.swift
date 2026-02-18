@@ -15,13 +15,13 @@ struct DashboardStorageAuditModuleView: View {
         Group {
             if servers.isEmpty {
                 DashboardTile(minHeight: 68) {
-                    Text("未配置服务器")
+                    Text(LanguageManager.shared.localized("No servers configured"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             } else if snapshot.serverStorage.isEmpty {
                 DashboardTile(minHeight: 68) {
-                    Text("正在同步服务器存储信息...")
+                    Text(LanguageManager.shared.localized("Syncing server storage information..."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -63,7 +63,7 @@ private struct DashboardStorageServerTile: View {
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.primary)
                 } else {
-                    Text(entry.statusMessage)
+                    Text(entry.isOnline ? LanguageManager.shared.localized("Online") : LanguageManager.shared.localized("Connection Error"))
                         .font(.caption)
                         .foregroundStyle(.red)
                 }

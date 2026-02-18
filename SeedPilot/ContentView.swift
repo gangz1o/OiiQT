@@ -20,14 +20,14 @@ struct ContentView: View {
             // 仪表盘
             DashboardView()
                 .tabItem {
-                    Label("仪表盘", systemImage: "chart.bar")
+                    Label(LanguageManager.shared.localized("Dashboard"), systemImage: "chart.bar")
                 }
                 .tag(AppTab.dashboard)
 
             // 任务
             TransfersView()
                 .tabItem {
-                    Label("任务", systemImage: "list.bullet")
+                    Label(LanguageManager.shared.localized("Tasks"), systemImage: "list.bullet")
                 }
                 .tag(AppTab.transfers)
                 .badge(appStateManager.allTasks.filter { $0.status == .downloading }.count)
@@ -35,14 +35,14 @@ struct ContentView: View {
             // 自动化
             RSSView()
                 .tabItem {
-                    Label("自动化", systemImage: "dot.radiowaves.up.forward")
+                    Label(LanguageManager.shared.localized("Automation"), systemImage: "dot.radiowaves.up.forward")
                 }
                 .tag(AppTab.rss)
 
             // 管理 (设置)
             SettingsView()
                 .tabItem {
-                    Label("设置", systemImage: "gearshape")
+                    Label(LanguageManager.shared.localized("Settings"), systemImage: "gearshape")
                 }
                 .tag(AppTab.settings)
         }

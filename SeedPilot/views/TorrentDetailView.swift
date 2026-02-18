@@ -14,13 +14,14 @@ struct TorrentDetailView: View {
 
     @AppStorage("showTMDBData") private var tmdbPosterEnabled: Bool = false
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     @State private var tmdbItem: TMDBItem?
     @State private var isLoadingTMDB = false
 
     // Derived properties
     private var serverName: String {
-        appStateManager.servers.first(where: { $0.id == task.serverID })?.name ?? "Unknown Server"
+        appStateManager.servers.first(where: { $0.id == task.serverID })?.name ?? LanguageManager.shared.localized("Unknown Server")
     }
 
     var body: some View {
@@ -76,7 +77,7 @@ struct TorrentDetailView: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(6)
                             } else {
-                                Text("暂无简介")
+                                Text(LanguageManager.shared.localized("No Overview"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -90,9 +91,11 @@ struct TorrentDetailView: View {
                             .font(.headline)
                             .lineLimit(3)
 
-                        Text(task.status.rawValue)
+                        Text(task.status.localizedDisplayName)
                              .font(.subheadline)
                              .foregroundStyle(task.status.color)
+                             .lineLimit(1)
+                             .minimumScaleFactor(0.8)
                     }
                     .padding(.vertical, 4)
                 }
@@ -104,7 +107,7 @@ struct TorrentDetailView: View {
             Section {
                 // 速率 Rate
                 HStack {
-                    Text("速率")
+                    Text(LanguageManager.shared.localized("Rate"))
                         .foregroundStyle(.secondary)
                     Spacer()
                     HStack(spacing: 16) {
@@ -125,7 +128,7 @@ struct TorrentDetailView: View {
 
                 // 流量 Traffic
                 HStack {
-                    Text("流量")
+                    Text(LanguageManager.shared.localized("Traffic"))
                          .foregroundStyle(.secondary)
                     Spacer()
                     Text("↓\(task.downloadedString)  ↑\(task.uploadedString)")
@@ -134,7 +137,7 @@ struct TorrentDetailView: View {
 
                 // 管理 Management (Ratio)
                 HStack {
-                    Text("分享率")
+                    Text(LanguageManager.shared.localized("Ratio"))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(String(format: "%.2f", task.ratio))
@@ -144,7 +147,7 @@ struct TorrentDetailView: View {
 
                 // 存储 Storage (Save Path)
                 HStack {
-                    Text("保存路径")
+                    Text(LanguageManager.shared.localized("Save Path"))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(task.savePath)
@@ -156,14 +159,14 @@ struct TorrentDetailView: View {
                             Button {
                                 UIPasteboard.general.string = task.savePath
                             } label: {
-                                Label("复制路径", systemImage: "doc.on.doc")
+                                Label(LanguageManager.shared.localized("Copy Path"), systemImage: "doc.on.doc")
                             }
                         }
                 }
 
                 // 属性 Attributes
                 HStack {
-                    Text("文件大小")
+                    Text(LanguageManager.shared.localized("File Size"))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(task.sizeString)
@@ -171,29 +174,32 @@ struct TorrentDetailView: View {
                 }
 
                 HStack {
-                    Text("Tracker")
+                    Text(LanguageManager.shared.localized("Tracker"))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(task.trackerHost)
                         .font(.callout.monospacedDigit())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .minimumScaleFactor(0.8)
                 }
 
                 HStack {
-                    Text("服务器")
+                    Text(LanguageManager.shared.localized("Server"))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(serverName)
                         .font(.callout)
                 }
             } header: {
-                Text("数据简报")
+                Text(LanguageManager.shared.localized("Data Brief"))
             }
         }
         .listStyle(.insetGrouped)
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("任务详情")
+        .navigationTitle(LanguageManager.shared.localized("Task Details"))
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: task.id) {
+        .task(id: "\(task.id)-\(languageManager.selectedLanguage.rawValue)") {
             await loadTMDBData()
         }
     }

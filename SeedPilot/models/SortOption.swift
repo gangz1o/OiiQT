@@ -16,4 +16,21 @@ enum SortOption: String, CaseIterable, Identifiable {
     case progress = "进度"
 
     var id: String { rawValue }
+
+    var localizedDisplayName: String {
+        switch self {
+        case .dateAdded:
+            return LanguageManager.shared.localized("Date Added")
+        case .name:
+            return LanguageManager.shared.localized("Name")
+        case .downloadSpeed:
+            return LanguageManager.shared.localized("Download Speed")
+        case .uploadSpeed:
+            return LanguageManager.shared.localized("Upload Speed")
+        case .size:
+            return LanguageManager.shared.localized("Size")
+        case .progress:
+            return LanguageManager.shared.localized("Progress")
+        }
+    }
 }

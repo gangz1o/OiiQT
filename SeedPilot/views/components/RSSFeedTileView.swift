@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct RSSFeedTileView: View {
     let source: RSSFeedSource
@@ -42,17 +43,20 @@ struct RSSFeedTileView: View {
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
-                Text("\(source.lastUpdated, style: .relative) 前更新")
+                Text(lastUpdatedDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             // Badge (Brand Color Tag)
             if source.unreadCount > 0 {
                 HStack {
                     Spacer()
-                    Text("\(source.unreadCount) 条未读")
+                    Text(String(format: LanguageManager.shared.localized("%d unread"), source.unreadCount))
                         .font(.caption2)
                         .fontWeight(.semibold)
                         .foregroundStyle(.white)
@@ -69,15 +73,22 @@ struct RSSFeedTileView: View {
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
         .contextMenu {
             Button(action: onRefresh) {
-                Label("立即刷新", systemImage: "arrow.clockwise")
+                Label(LanguageManager.shared.localized("Refresh Now"), systemImage: "arrow.clockwise")
             }
             Button(action: onEditRules) {
-                Label("编辑规则", systemImage: "slider.horizontal.3")
+                Label(LanguageManager.shared.localized("Edit Rules"), systemImage: "slider.horizontal.3")
             }
             Button(role: .destructive, action: onDelete) {
-                Label("删除", systemImage: "trash")
+                Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
             }
         }
+    }
+
+    private var lastUpdatedDescription: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        let relative = formatter.localizedString(for: source.lastUpdated, relativeTo: Date())
+        return String(format: LanguageManager.shared.localized("Updated %@"), relative)
     }
 }
 

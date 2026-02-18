@@ -47,42 +47,42 @@ struct BatchActionPanel: View {
             LazyVGrid(columns: columns, spacing: 20) {
                 // 1. Resume / Pause
                 if areAllPaused {
-                    ActionButton(icon: "play.fill", text: "继续") {
+                    ActionButton(icon: "play.fill", text: LanguageManager.shared.localized("Resume")) {
                         performAction { appStateManager.resumeTasks(Set(selectedTasks)) }
                     }
                 } else {
-                    ActionButton(icon: "pause.fill", text: "暂停") {
+                    ActionButton(icon: "pause.fill", text: LanguageManager.shared.localized("Pause")) {
                         performAction { appStateManager.pauseTasks(Set(selectedTasks)) }
                     }
                 }
 
                 // 2. Force Resume
-                ActionButton(icon: "forward.fill", text: "强制继续") {
+                ActionButton(icon: "forward.fill", text: LanguageManager.shared.localized("Force Resume")) {
                     performAction { appStateManager.forceStartTasks(Set(selectedTasks)) }
                 }
 
                 // 3. Recheck
-                ActionButton(icon: "checkmark.seal.fill", text: "重新校验") {
+                ActionButton(icon: "checkmark.seal.fill", text: LanguageManager.shared.localized("Recheck")) {
                     performAction { appStateManager.recheckTasks(Set(selectedTasks)) }
                 }
 
                 // 4. Reannounce
-                ActionButton(icon: "arrow.clockwise.circle.fill", text: "重新汇报") {
+                ActionButton(icon: "arrow.clockwise.circle.fill", text: LanguageManager.shared.localized("Reannounce")) {
                     performAction { appStateManager.reannounceTasks(Set(selectedTasks)) }
                 }
 
                 // 5. Set Location
-                ActionButton(icon: "folder.badge.plus", text: "更改位置") {
+                ActionButton(icon: "folder.badge.plus", text: LanguageManager.shared.localized("Change Location")) {
                     showingBatchLocationAlert = true
                 }
 
                 // 6. Edit Trackers
-                ActionButton(icon: "link.badge.plus", text: "修改 Tracker") {
+                ActionButton(icon: "link.badge.plus", text: LanguageManager.shared.localized("Edit Tracker")) {
                     showingBatchTrackerAlert = true
                 }
 
                 // 7. Delete (Red)
-                ActionButton(icon: "trash.fill", text: "删除", color: .red) {
+                ActionButton(icon: "trash.fill", text: LanguageManager.shared.localized("Delete"), color: .red) {
                     showingBatchDeleteConfirmation = true
                 }
             }
@@ -92,48 +92,53 @@ struct BatchActionPanel: View {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: -5)
-        .alert("批量修改保存路径", isPresented: $showingBatchLocationAlert) {
-            TextField("新路径", text: $newBatchLocation)
-            Button("取消", role: .cancel) { }
-            Button("确定") {
+        .alert(LanguageManager.shared.localized("Batch Set Save Path"), isPresented: $showingBatchLocationAlert) {
+            TextField(LanguageManager.shared.localized("New Path"), text: $newBatchLocation)
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
+            Button(LanguageManager.shared.localized("Confirm")) {
                 performAction {
                     appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: newBatchLocation)
                 }
                 newBatchLocation = ""
             }
         } message: {
-            Text("请输入新的绝对路径。此操作将移动所选任务的数据。")
+            Text(LanguageManager.shared.localized("Please enter a new absolute path. This action will move data for selected tasks."))
         }
-        .alert("批量添加 Tracker", isPresented: $showingBatchTrackerAlert) {
-            TextField("Tracker URL", text: $newBatchTrackers)
-            Button("取消", role: .cancel) { }
-            Button("确定") {
+        .alert(LanguageManager.shared.localized("Batch Add Tracker"), isPresented: $showingBatchTrackerAlert) {
+            TextField(LanguageManager.shared.localized("Tracker URL"), text: $newBatchTrackers)
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
+            Button(LanguageManager.shared.localized("Confirm")) {
                 performAction {
                     appStateManager.editTrackersBatch(Set(selectedTasks), newTrackers: newBatchTrackers)
                 }
                 newBatchTrackers = ""
             }
         } message: {
-            Text("请输入 Tracker URL。")
+            Text(LanguageManager.shared.localized("Please enter Tracker URL."))
         }
-        .confirmationDialog("批量删除", isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
-            Button("删除任务 (保留数据)", role: .destructive) {
+        .confirmationDialog(LanguageManager.shared.localized("Batch Delete"), isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
+            Button(LanguageManager.shared.localized("Delete Task (Keep Data)"), role: .destructive) {
                 performAction {
                     for task in selectedTasks {
                         appStateManager.deleteTask(task, withData: false)
                     }
                 }
             }
-            Button("删除任务和数据", role: .destructive) {
+            Button(LanguageManager.shared.localized("Delete Task and Data"), role: .destructive) {
                 performAction {
                     for task in selectedTasks {
                         appStateManager.deleteTask(task, withData: true)
                     }
                 }
             }
-            Button("取消", role: .cancel) { }
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
         } message: {
-            Text("确定要删除选中的 \(selectedTasks.count) 个任务吗？")
+            Text(
+                String(
+                    format: LanguageManager.shared.localized("Are you sure you want to delete %d selected tasks?"),
+                    selectedTasks.count
+                )
+            )
         }
     }
 

@@ -30,13 +30,13 @@ struct ServerListView: View {
                         Button {
                             editingServer = server
                         } label: {
-                            Label("编辑服务器", systemImage: "pencil")
+                            Label(LanguageManager.shared.localized("Edit Server"), systemImage: "pencil")
                         }
 
                         Button(role: .destructive) {
                             modelContext.delete(server)
                         } label: {
-                            Label("删除服务器", systemImage: "trash")
+                            Label(LanguageManager.shared.localized("Delete Server"), systemImage: "trash")
                         }
                     }
                 }
@@ -52,7 +52,7 @@ struct ServerListView: View {
             .padding(16)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("服务器管理")
+        .navigationTitle(LanguageManager.shared.localized("Server Management"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -210,7 +210,7 @@ struct AddServerTile: View {
                 .font(.system(size: 30, weight: .regular))
                 .foregroundStyle(.secondary.opacity(0.6))
 
-            Text("添加服务器")
+            Text(LanguageManager.shared.localized("Add Server"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

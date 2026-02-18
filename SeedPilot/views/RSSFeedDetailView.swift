@@ -40,7 +40,11 @@ struct RSSFeedDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .listRowBackground(Color.clear)
             } else if let error = errorMessage, sortedItems.isEmpty {
-                ContentUnavailableView("无法加载订阅", systemImage: "exclamationmark.triangle", description: Text(error))
+                ContentUnavailableView(
+                    LanguageManager.shared.localized("Unable to Load Feed"),
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(error)
+                )
             } else {
                 ForEach(sortedItems) { item in
                     RSSItemRow(item: item, source: source)
@@ -51,7 +55,7 @@ struct RSSFeedDetailView: View {
                                     await downloadItem(item)
                                 }
                             } label: {
-                                Label("下载", systemImage: "arrow.down.circle")
+                                Label(LanguageManager.shared.localized("Download"), systemImage: "arrow.down.circle")
                             }
                             .tint(.blue)
                         }

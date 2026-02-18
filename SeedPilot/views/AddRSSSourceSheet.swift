@@ -24,7 +24,7 @@ struct AddRSSSourceSheet: View {
             Form {
                 Section {
                     HStack {
-                        TextField("RSS URL", text: $urlString)
+                        TextField(LanguageManager.shared.localized("RSS URL"), text: $urlString)
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
@@ -47,32 +47,32 @@ struct AddRSSSourceSheet: View {
                         .buttonStyle(.borderless)
                     }
 
-                    TextField("名称", text: $nameString)
+                    TextField(LanguageManager.shared.localized("Name"), text: $nameString)
                 } header: {
-                    Text("订阅详情")
+                    Text(LanguageManager.shared.localized("Feed Details"))
                 } footer: {
-                    Text("输入 URL 后，SeedPilot 将自动尝试提取站点名称。")
+                    Text(LanguageManager.shared.localized("After entering URL, SeedPilot will automatically try to extract the site name."))
                 }
 
                 Section {
-                    Toggle("自动下载", isOn: $autoDownload)
+                    Toggle(LanguageManager.shared.localized("Auto Download"), isOn: $autoDownload)
                 } header: {
-                    Text("自动化")
+                    Text(LanguageManager.shared.localized("Automation"))
                 } footer: {
-                    Text("开启后，新发布的合规条目将自动推送到下载器。")
+                    Text(LanguageManager.shared.localized("When enabled, newly published compliant items will be automatically pushed to your downloader."))
                 }
             }
-            .navigationTitle("添加 RSS 源")
+            .navigationTitle(LanguageManager.shared.localized("Add RSS Source"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button(LanguageManager.shared.localized("Cancel")) {
                         dismiss()
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("添加") {
+                    Button(LanguageManager.shared.localized("Add")) {
                         addSource()
                     }
                     .disabled(urlString.isValidURL == false || nameString.isEmpty)

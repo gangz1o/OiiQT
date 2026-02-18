@@ -9,10 +9,19 @@ import SwiftUI
 import SwiftData
 
 enum AutomationViewMode: String, CaseIterable, Identifiable {
-    case sources = "订阅源"
-    case allItems = "全量动态"
+    case sources
+    case allItems
 
     var id: String { rawValue }
+
+    var localizedTitle: String {
+        switch self {
+        case .sources:
+            return LanguageManager.shared.localized("Sources")
+        case .allItems:
+            return LanguageManager.shared.localized("All Items")
+        }
+    }
 }
 
 struct RSSView: View {
@@ -35,9 +44,9 @@ struct RSSView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Segmented Picker
-                Picker("视图模式", selection: $selectedMode) {
+                Picker(LanguageManager.shared.localized("View Mode"), selection: $selectedMode) {
                     ForEach(AutomationViewMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                        Text(mode.localizedTitle).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -84,14 +93,14 @@ struct RSSView: View {
                     } else {
                         // Placeholder for "All Items"
                         ContentUnavailableView(
-                            "全量动态",
+                            LanguageManager.shared.localized("All Items"),
                             systemImage: "list.bullet.rectangle.portrait",
-                            description: Text("查看所有订阅源的最新更新聚合。")
+                            description: Text(LanguageManager.shared.localized("View the latest aggregated updates from all sources."))
                         )
                     }
                 }
             }
-            .navigationTitle("自动化")
+            .navigationTitle(LanguageManager.shared.localized("Automation"))
             .background(Color(.systemGroupedBackground))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

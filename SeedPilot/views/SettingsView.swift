@@ -10,6 +10,7 @@ import Kingfisher
 
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
+    @ObservedObject private var languageManager = LanguageManager.shared
     private let dashboardConfig = DashboardConfig.shared
 
     // 资源管理
@@ -18,7 +19,6 @@ struct SettingsView: View {
 
     // 应用设置
     @AppStorage("appearance") private var appearance: String = "system"
-    @AppStorage("language") private var language: String = "zh-Hans"
     @AppStorage("fontSize") private var fontSize: Double = 1.0
 
     // Pro 功能
@@ -28,7 +28,7 @@ struct SettingsView: View {
     // UI 状态
     @State private var showingClearCacheAlert = false
     @State private var showingSuccessAlert = false
-    @State private var cacheSizeString = "计算中..."
+    @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
 
     var body: some View {
@@ -52,16 +52,16 @@ struct SettingsView: View {
                                 .frame(width: 32)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("升级到 SeedPilot Pro")
+                                Text(LanguageManager.shared.localized("Upgrade to SeedPilot Pro"))
                                     .font(.headline)
-                                Text("解锁 TMDB 海报墙与动态仪表盘")
+                                Text(LanguageManager.shared.localized("Unlock TMDB poster wall and dynamic dashboard"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
 
                             Spacer()
 
-                            Text("查看")
+                            Text(LanguageManager.shared.localized("View"))
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundStyle(.blue)
@@ -75,84 +75,87 @@ struct SettingsView: View {
                     NavigationLink {
                         ServerListView()
                     } label: {
-                        SettingsRowLabel(title: "服务器设置", systemName: "server.rack", tint: .indigo)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Server Settings"), systemName: "server.rack", tint: .indigo)
                     }
 
                     Picker(selection: $refreshRate) {
-                        Text("5秒").tag(5)
-                        Text("15秒").tag(15)
-                        Text("30秒").tag(30)
-                        Text("手动").tag(0)
+                        Text(LanguageManager.shared.localized("5s")).tag(5)
+                        Text(LanguageManager.shared.localized("15s")).tag(15)
+                        Text(LanguageManager.shared.localized("30s")).tag(30)
+                        Text(LanguageManager.shared.localized("Manual")).tag(0)
                     } label: {
-                        SettingsRowLabel(title: "数据刷新频率", systemName: "arrow.clockwise", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Data Refresh Rate"), systemName: "arrow.clockwise", tint: .blue)
                     }
 
                     Picker(selection: $rssRefreshInterval) {
-                        Text("5 分钟").tag(5)
-                        Text("15 分钟").tag(15)
-                        Text("30 分钟").tag(30)
-                        Text("1 小时").tag(60)
-                        Text("2 小时").tag(120)
-                        Text("关闭自动刷新").tag(0)
+                        Text(LanguageManager.shared.localized("5 min")).tag(5)
+                        Text(LanguageManager.shared.localized("15 min")).tag(15)
+                        Text(LanguageManager.shared.localized("30 min")).tag(30)
+                        Text(LanguageManager.shared.localized("1 hour")).tag(60)
+                        Text(LanguageManager.shared.localized("2 hours")).tag(120)
+                        Text(LanguageManager.shared.localized("Auto Refresh Off")).tag(0)
                     } label: {
-                        SettingsRowLabel(title: "RSS 自动刷新", systemName: "antenna.radiowaves.left.and.right", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("RSS Auto Refresh"), systemName: "antenna.radiowaves.left.and.right", tint: .blue)
                     }
                 } header: {
-                    Text("资源管理")
+                    Text(LanguageManager.shared.localized("Resources"))
                 }
 
                 // MARK: - 应用设置
                 Section {
                     Picker(selection: $appearance) {
-                        Text("跟随系统").tag("system")
-                        Text("浅色").tag("light")
-                        Text("深色").tag("dark")
+                        Text(LanguageManager.shared.localized("System")).tag("system")
+                        Text(LanguageManager.shared.localized("Light")).tag("light")
+                        Text(LanguageManager.shared.localized("Dark")).tag("dark")
                     } label: {
-                        SettingsRowLabel(title: "外观主题", systemName: "paintpalette.fill", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Appearance"), systemName: "paintpalette.fill", tint: .blue)
                     }
 
-                    Picker(selection: $language) {
-                        Text("简体中文").tag("zh-Hans")
-                        Text("English").tag("en")
+                    Picker(selection: languageManager.languageCodeBinding) {
+                        Text(LanguageManager.shared.localized("Simplified Chinese")).tag(LanguageManager.SupportedLanguage.simplifiedChinese.rawValue)
+                        Text(LanguageManager.shared.localized("English")).tag(LanguageManager.SupportedLanguage.english.rawValue)
                     } label: {
-                        SettingsRowLabel(title: "应用语言", systemName: "globe", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Language"), systemName: "globe", tint: .blue)
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        SettingsRowLabel(title: "字体大小", systemName: "textformat.size", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Font Size"), systemName: "textformat.size", tint: .blue)
                         HStack {
-                            Image(systemName: "textformat.size.smaller")
+                            Text("A")
+                                .font(.callout.weight(.semibold))
                                 .foregroundStyle(.secondary)
                             Slider(value: $fontSize, in: 0.8...1.4, step: 0.1)
-                            Image(systemName: "textformat.size.larger")
+                                .accessibilityLabel(LanguageManager.shared.localized("Font Size"))
+                            Text("A")
+                                .font(.title3.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
                 } header: {
-                    Text("应用设置")
+                    Text(LanguageManager.shared.localized("App Settings"))
                 }
 
-                Section("仪表盘定制") {
+                Section(LanguageManager.shared.localized("Dashboard Customization")) {
                     NavigationLink {
                         DashboardCustomizationView()
                     } label: {
-                        SettingsRowLabel(title: "模块展示", systemName: "square.grid.2x2", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Module Visibility"), systemName: "square.grid.2x2", tint: .blue)
                     }
                 }
 
                 // MARK: - Pro 功能
                 Section {
                     Toggle(isOn: $showTMDBData) {
-                        SettingsRowLabel(title: "TMDB 海报数据", systemName: "film", tint: .purple)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
                     }
                     Toggle(isOn: $proDashboardBackgroundEnabled) {
-                        SettingsRowLabel(title: "Pro 仪表盘背景", systemName: "photo.artframe", tint: .orange)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
                     }
                 } header: {
-                    Text("Pro 功能")
+                    Text(LanguageManager.shared.localized("Pro Features"))
                 } footer: {
-                    Text("开启后将在种子列表中显示影视海报信息")
+                    Text(LanguageManager.shared.localized("Show movie and TV poster information in the torrent list when enabled."))
                 }
 
                 // MARK: - 存储与维护
@@ -161,25 +164,25 @@ struct SettingsView: View {
                         showingClearCacheAlert = true
                     } label: {
                         HStack {
-                            SettingsRowLabel(title: "清除缓存", systemName: "trash", tint: .red)
+                            SettingsRowLabel(title: LanguageManager.shared.localized("Clear Cache"), systemName: "trash", tint: .red)
                             Spacer()
                             Text(cacheSizeString)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .confirmationDialog("确定要清除所有缓存吗？", isPresented: $showingClearCacheAlert, titleVisibility: .visible) {
-                        Button("清除所有缓存", role: .destructive) {
+                    .confirmationDialog(LanguageManager.shared.localized("Are you sure you want to clear all cache?"), isPresented: $showingClearCacheAlert, titleVisibility: .visible) {
+                        Button(LanguageManager.shared.localized("Clear All Cache"), role: .destructive) {
                             clearCache()
                         }
-                        Button("取消", role: .cancel) { }
+                        Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
                     } message: {
-                        Text("这将删除所有临时文件和图片缓存，不会影响已下载的任务。")
+                        Text(LanguageManager.shared.localized("This will delete all temporary files and image cache, without affecting downloaded tasks."))
                     }
                 } header: {
-                    Text("存储与维护")
+                    Text(LanguageManager.shared.localized("Storage & Maintenance"))
                 }
-                .alert("缓存已清除", isPresented: $showingSuccessAlert) {
-                    Button("好的", role: .cancel) { }
+                .alert(LanguageManager.shared.localized("Cache Cleared"), isPresented: $showingSuccessAlert) {
+                    Button(LanguageManager.shared.localized("OK"), role: .cancel) { }
                 }
 
                 // MARK: - 关于
@@ -194,7 +197,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("SeedPilot")
                                 .font(.headline)
-                            Text("v1.0.0 (Build 1)")
+                            Text(LanguageManager.shared.localized("v1.0.0 (Build 1)"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -203,13 +206,13 @@ struct SettingsView: View {
                     .padding(.vertical, 8)
 
                     Link(destination: URL(string: "https://github.com/gangz1o/SeedPilot")!) {
-                        SettingsRowLabel(title: "GitHub 开源地址", systemName: "link", tint: .gray)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("GitHub Repository"), systemName: "link", tint: .gray)
                     }
                 } header: {
-                    Text("关于")
+                    Text(LanguageManager.shared.localized("About"))
                 }
             }
-            .navigationTitle("设置")
+            .navigationTitle(LanguageManager.shared.localized("Settings"))
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: SettingsRoute.self) { route in
                 switch route {
@@ -284,25 +287,25 @@ private struct DashboardCustomizationView: View {
 
     var body: some View {
         Form {
-            Section("模块开关") {
+            Section(LanguageManager.shared.localized("Module Toggles")) {
                 Toggle(isOn: dashboardConfig.showRecentFinishedBinding) {
-                    SettingsRowLabel(title: "最近完成 (Recent Finished)", systemName: "clock.arrow.circlepath", tint: .teal)
+                    SettingsRowLabel(title: LanguageManager.shared.localized("Recently Finished"), systemName: "clock.arrow.circlepath", tint: .teal)
                 }
                 Toggle(isOn: dashboardConfig.showLiveTrafficBinding) {
-                    SettingsRowLabel(title: "流量监控 (Live Traffic)", systemName: "arrow.left.arrow.right.circle", tint: .blue)
+                    SettingsRowLabel(title: LanguageManager.shared.localized("Traffic Monitoring"), systemName: "arrow.left.arrow.right.circle", tint: .blue)
                 }
                 Toggle(isOn: dashboardConfig.showGlobalAssetsBinding) {
-                    SettingsRowLabel(title: "资产总览 (Global Assets)", systemName: "chart.bar.doc.horizontal", tint: .mint)
+                    SettingsRowLabel(title: LanguageManager.shared.localized("Data Aggregation"), systemName: "chart.bar.doc.horizontal", tint: .mint)
                 }
                 Toggle(isOn: dashboardConfig.showServerStatusBinding) {
-                    SettingsRowLabel(title: "服务器状态 (Server Status)", systemName: "server.rack", tint: .indigo)
+                    SettingsRowLabel(title: LanguageManager.shared.localized("Server Status"), systemName: "server.rack", tint: .indigo)
                 }
                 Toggle(isOn: dashboardConfig.showStorageAuditBinding) {
-                    SettingsRowLabel(title: "存储审计 (Storage Audit)", systemName: "externaldrive", tint: .green)
+                    SettingsRowLabel(title: LanguageManager.shared.localized("Storage Audit"), systemName: "externaldrive", tint: .green)
                 }
             }
         }
-        .navigationTitle("仪表盘定制")
+        .navigationTitle(LanguageManager.shared.localized("Dashboard Customization"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -316,6 +319,8 @@ private struct SettingsRowLabel: View {
         HStack(spacing: 12) {
             SettingsIconBadge(systemName: systemName, tint: tint)
             Text(title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 }

@@ -21,7 +21,7 @@ struct DashboardGlobalAssetsModuleView: View {
                         Image(systemName: "wifi.slash")
                             .font(.title3)
                             .foregroundStyle(.orange)
-                        Text("全部服务器离线，无法汇总统计数据")
+                        Text(LanguageManager.shared.localized("All servers are offline. Unable to aggregate statistics."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -29,20 +29,23 @@ struct DashboardGlobalAssetsModuleView: View {
             } else {
                 LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
                     DashboardStatsTile(
+                        title: LanguageManager.shared.localized("Total Seeding"),
                         value: "\(snapshot.totalSeedingCount)",
-                        unit: "个",
+                        unit: LanguageManager.shared.localized("items"),
                         icon: "leaf.fill",
                         iconColor: .green
                     )
 
                     DashboardStatsTile(
+                        title: LanguageManager.shared.localized("Downloading Now"),
                         value: "\(snapshot.totalDownloadingCount)",
-                        unit: "个",
+                        unit: LanguageManager.shared.localized("items"),
                         icon: "arrow.down.circle.fill",
                         iconColor: .blue
                     )
 
                     DashboardStatsTile(
+                        title: LanguageManager.shared.localized("Realtime Total Bandwidth"),
                         value: formatBytes(snapshot.totalBandwidth),
                         unit: "/s",
                         icon: "arrow.left.arrow.right.circle.fill",
@@ -50,6 +53,7 @@ struct DashboardGlobalAssetsModuleView: View {
                     )
 
                     DashboardStatsTile(
+                        title: LanguageManager.shared.localized("Remaining Space"),
                         value: formatStorageSize(snapshot.totalRemainingSpace),
                         unit: "",
                         icon: "externaldrive.fill",
@@ -62,6 +66,7 @@ struct DashboardGlobalAssetsModuleView: View {
 }
 
 private struct DashboardStatsTile: View {
+    let title: String
     let value: String
     let unit: String
     let icon: String
@@ -85,6 +90,12 @@ private struct DashboardStatsTile: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
     }

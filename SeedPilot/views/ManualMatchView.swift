@@ -32,9 +32,17 @@ struct ManualMatchView: View {
                 // Result List
                 if items.isEmpty && !isLoading {
                     if hasSearched {
-                        ContentUnavailableView("未找到相关影视", systemImage: "magnifyingglass", description: Text("请尝试更换关键词或检查拼写"))
+                        ContentUnavailableView(
+                            LanguageManager.shared.localized("No Related Results Found"),
+                            systemImage: "magnifyingglass",
+                            description: Text(LanguageManager.shared.localized("Try different keywords or check spelling."))
+                        )
                     } else {
-                        ContentUnavailableView("准备搜索", systemImage: "sparkles.tv", description: Text("点击“搜索”按钮开始匹配"))
+                        ContentUnavailableView(
+                            LanguageManager.shared.localized("Ready to Search"),
+                            systemImage: "sparkles.tv",
+                            description: Text(LanguageManager.shared.localized("Tap \"Search\" to start matching."))
+                        )
                     }
                 } else {
                     List {
@@ -60,11 +68,11 @@ struct ManualMatchView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("手动匹配海报")
+            .navigationTitle(LanguageManager.shared.localized("Manual Poster Matching"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(LanguageManager.shared.localized("Cancel")) { dismiss() }
                 }
             }
             .onAppear {
@@ -86,7 +94,7 @@ struct ManualMatchView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索电影或剧集...", text: $searchText)
+                TextField(LanguageManager.shared.localized("Search movies or series..."), text: $searchText)
                     .onSubmit {
                         performSearch()
                     }
@@ -105,7 +113,7 @@ struct ManualMatchView: View {
             .background(Color(.systemGray6))
             .cornerRadius(10)
 
-            Button("搜索") {
+            Button(LanguageManager.shared.localized("Search")) {
                 performSearch()
             }
             .padding(.leading, 8)

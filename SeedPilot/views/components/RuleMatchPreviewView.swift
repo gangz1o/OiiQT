@@ -17,7 +17,7 @@ struct RuleMatchPreviewView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section(footer: Text("这里展示了模拟的 RSS 条目以及它们是否会被当前规则捕获。")) {
+                Section(footer: Text(LanguageManager.shared.localized("This preview shows simulated RSS entries and whether they match the current rules."))) {
                     if mockItems.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -29,11 +29,11 @@ struct RuleMatchPreviewView: View {
                     }
                 }
             }
-            .navigationTitle("规则匹配测试")
+            .navigationTitle(LanguageManager.shared.localized("Rule Match Test"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("关闭") {
+                    Button(LanguageManager.shared.localized("Close")) {
                         dismiss()
                     }
                 }
@@ -93,11 +93,11 @@ struct RuleMatchRow: View {
                     }
 
                     if isMatch {
-                        Text("匹配成功")
+                        Text(LanguageManager.shared.localized("Matched"))
                             .font(.caption2)
                             .foregroundStyle(.green)
                     } else {
-                        Text("已过滤")
+                        Text(LanguageManager.shared.localized("Filtered"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }

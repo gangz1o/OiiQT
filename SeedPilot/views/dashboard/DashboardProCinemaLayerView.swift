@@ -12,6 +12,7 @@ struct DashboardProCinemaLayerView: View {
     let tasks: [TorrentTask]
 
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var languageManager = LanguageManager.shared
     @State private var posterItems: [ProPosterItem] = []
     @State private var showDebugFallback = false
     @State private var trackIndex = 1
@@ -22,7 +23,7 @@ struct DashboardProCinemaLayerView: View {
         combinedTorrents
             .map { "\($0.id)-\($0.completionDate?.timeIntervalSince1970 ?? 0)" }
             .sorted()
-            .joined(separator: "|")
+            .joined(separator: "|") + "::\(languageManager.selectedLanguage.rawValue)"
     }
 
     private var combinedTorrents: [TorrentTask] { tasks }
