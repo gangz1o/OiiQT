@@ -14,6 +14,10 @@ enum AppTab: Int {
     case dashboard, transfers, rss, settings
 }
 
+enum SettingsRoute: Hashable {
+    case dashboardCustomization
+}
+
 struct SpeedPoint: Identifiable {
     let id = UUID()
     let date: Date
@@ -30,6 +34,7 @@ class AppStateManager {
 
     // Navigation
     var selectedTab: AppTab = .dashboard
+    var settingsRoute: SettingsRoute?
 
     // Analytics
     var speedHistory: [SpeedPoint] = []

@@ -9,6 +9,7 @@ import SwiftUI
 import Kingfisher
 
 struct SettingsView: View {
+    @Environment(AppStateManager.self) private var appStateManager
     private let dashboardConfig = DashboardConfig.shared
 
     // 资源管理
@@ -28,9 +29,10 @@ struct SettingsView: View {
     @State private var showingClearCacheAlert = false
     @State private var showingSuccessAlert = false
     @State private var cacheSizeString = "计算中..."
+    @State private var settingsPath: [SettingsRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $settingsPath) {
             Form {
                 // MARK: - Pro 升级
                 Section {
@@ -138,11 +140,11 @@ struct SettingsView: View {
                 }
 
                 Section("仪表盘定制") {
-                    Toggle("最近完成 (Recent Finished)", isOn: dashboardConfig.showRecentFinishedBinding)
-                    Toggle("流量监控 (Live Traffic)", isOn: dashboardConfig.showLiveTrafficBinding)
-                    Toggle("资产总览 (Global Assets)", isOn: dashboardConfig.showGlobalAssetsBinding)
-                    Toggle("服务器状态 (Server Status)", isOn: dashboardConfig.showServerStatusBinding)
-                    Toggle("存储审计 (Storage Audit)", isOn: dashboardConfig.showStorageAuditBinding)
+                    NavigationLink {
+                        DashboardCustomizationView()
+                    } label: {
+                        Label("模块展示", systemImage: "square.grid.2x2")
+                    }
                 }
 
                 // MARK: - Pro 功能
@@ -215,8 +217,22 @@ struct SettingsView: View {
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.large)
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .dashboardCustomization:
+                    DashboardCustomizationView()
+                }
+            }
             .onAppear {
                 updateCacheSize()
+                openPendingSettingsRouteIfNeeded()
+            }
+            .onChange(of: appStateManager.selectedTab) { _, newValue in
+                guard newValue == .settings else { return }
+                openPendingSettingsRouteIfNeeded()
+            }
+            .onChange(of: appStateManager.settingsRoute) { _, _ in
+                openPendingSettingsRouteIfNeeded()
             }
         }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
@@ -259,6 +275,31 @@ struct SettingsView: View {
                 showingSuccessAlert = true
             }
         }
+    }
+
+    private func openPendingSettingsRouteIfNeeded() {
+        guard appStateManager.selectedTab == .settings else { return }
+        guard let route = appStateManager.settingsRoute else { return }
+        settingsPath = [route]
+        appStateManager.settingsRoute = nil
+    }
+}
+
+private struct DashboardCustomizationView: View {
+    private let dashboardConfig = DashboardConfig.shared
+
+    var body: some View {
+        Form {
+            Section("模块开关") {
+                Toggle("最近完成 (Recent Finished)", isOn: dashboardConfig.showRecentFinishedBinding)
+                Toggle("流量监控 (Live Traffic)", isOn: dashboardConfig.showLiveTrafficBinding)
+                Toggle("资产总览 (Global Assets)", isOn: dashboardConfig.showGlobalAssetsBinding)
+                Toggle("服务器状态 (Server Status)", isOn: dashboardConfig.showServerStatusBinding)
+                Toggle("存储审计 (Storage Audit)", isOn: dashboardConfig.showStorageAuditBinding)
+            }
+        }
+        .navigationTitle("仪表盘定制")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

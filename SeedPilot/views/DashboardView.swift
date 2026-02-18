@@ -46,6 +46,15 @@ struct DashboardView: View {
         return modules
     }
 
+    private var allModulesDisabled: Bool {
+        !isProCinemaEnabled &&
+        !showLiveTraffic &&
+        !showGlobalAssets &&
+        !showServerStatus &&
+        !showStorageAudit &&
+        !showRecentFinished
+    }
+
     private var visibleModules: [DashboardModuleType] {
         let enabledSet = Set(enabledModules)
         return dashboardViewModel.moduleOrder.filter { module in
@@ -79,43 +88,54 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                ForEach(visibleModules) { module in
-                    moduleContent(for: module)
-                        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .opacity(draggedModule == module ? 0.6 : 1)
-                        .scaleEffect(draggedModule == module ? 1.01 : 1)
-                        .shadow(
-                            color: .black.opacity(draggedModule == module ? 0.16 : 0.04),
-                            radius: draggedModule == module ? 14 : 8,
-                            x: 0,
-                            y: draggedModule == module ? 8 : 4
-                        )
-                        .overlay {
-                            if highlightedDropTarget == module, draggedModule != module {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(
-                                        Color.gray.opacity(0.45),
-                                        style: StrokeStyle(lineWidth: 1.2, dash: [6, 4])
-                                    )
-                            }
+        Group {
+            if allModulesDisabled {
+                DashboardModulesDisabledEmptyStateView {
+                    appStateManager.selectedTab = .settings
+                    appStateManager.settingsRoute = .dashboardCustomization
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 24)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        ForEach(visibleModules) { module in
+                            moduleContent(for: module)
+                                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .opacity(draggedModule == module ? 0.6 : 1)
+                                .scaleEffect(draggedModule == module ? 1.01 : 1)
+                                .shadow(
+                                    color: .black.opacity(draggedModule == module ? 0.16 : 0.04),
+                                    radius: draggedModule == module ? 14 : 8,
+                                    x: 0,
+                                    y: draggedModule == module ? 8 : 4
+                                )
+                                .overlay {
+                                    if highlightedDropTarget == module, draggedModule != module {
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .stroke(
+                                                Color.gray.opacity(0.45),
+                                                style: StrokeStyle(lineWidth: 1.2, dash: [6, 4])
+                                            )
+                                    }
+                                }
+                                .zIndex(draggedModule == module ? 1000 : 0)
+                                .draggable(module.rawValue)
+                                .onDrag {
+                                    beginDragging(module)
+                                }
+                                .dropDestination(for: String.self) { items, _ in
+                                    handleDrop(items: items, onto: module)
+                                } isTargeted: { isTargeted in
+                                    handleDropTargetChanged(isTargeted: isTargeted, target: module)
+                                }
                         }
-                        .zIndex(draggedModule == module ? 1000 : 0)
-                        .draggable(module.rawValue)
-                        .onDrag {
-                            beginDragging(module)
-                        }
-                        .dropDestination(for: String.self) { items, _ in
-                            handleDrop(items: items, onto: module)
-                        } isTargeted: { isTargeted in
-                            handleDropTargetChanged(isTargeted: isTargeted, target: module)
-                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                    .animation(.spring(response: 0.34, dampingFraction: 0.88), value: layoutAnimationKey)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .animation(.spring(response: 0.34, dampingFraction: 0.88), value: layoutAnimationKey)
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .task(id: "\(globalStatsRefreshKey)|\(needsGlobalStatsData)") {
@@ -161,7 +181,7 @@ struct DashboardView: View {
     private func moduleContent(for module: DashboardModuleType) -> some View {
         switch module {
         case .proPosterWall:
-            DashboardSectionBlock(title: "海报墙") {
+            DashboardSectionBlock(title: "海报墙", spacing: 6) {
                 DashboardProCinemaLayerView(tasks: combinedTorrents)
             }
         case .liveTraffic:
@@ -245,12 +265,57 @@ struct DashboardView: View {
     }
 }
 
-private struct DashboardSectionBlock<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
+private struct DashboardModulesDisabledEmptyStateView: View {
+    let onOpenSettings: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(spacing: 22) {
+            Spacer(minLength: 0)
+
+            Image(systemName: "square.grid.2x2")
+                .symbolRenderingMode(.hierarchical)
+                .font(.system(size: 112, weight: .bold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.95), Color.cyan.opacity(0.85)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Text("当前没有展示任何模块，您可以在设置中开启感兴趣的数据模块。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+                .padding(.horizontal, 8)
+
+            Button("前往设置", action: onOpenSettings)
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .buttonBorderShape(.capsule)
+                .font(.headline)
+                .padding(.top, 4)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct DashboardSectionBlock<Content: View>: View {
+    let title: String
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    init(title: String, spacing: CGFloat = 10, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.spacing = spacing
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.primary)
