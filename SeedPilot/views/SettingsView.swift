@@ -75,7 +75,7 @@ struct SettingsView: View {
                     NavigationLink {
                         ServerListView()
                     } label: {
-                        Label("服务器设置", systemImage: "server.rack")
+                        SettingsRowLabel(title: "服务器设置", systemName: "server.rack", tint: .indigo)
                     }
 
                     Picker(selection: $refreshRate) {
@@ -84,7 +84,7 @@ struct SettingsView: View {
                         Text("30秒").tag(30)
                         Text("手动").tag(0)
                     } label: {
-                        Label("数据刷新频率", systemImage: "arrow.clockwise")
+                        SettingsRowLabel(title: "数据刷新频率", systemName: "arrow.clockwise", tint: .blue)
                     }
 
                     Picker(selection: $rssRefreshInterval) {
@@ -95,16 +95,10 @@ struct SettingsView: View {
                         Text("2 小时").tag(120)
                         Text("关闭自动刷新").tag(0)
                     } label: {
-                        Label("RSS 自动刷新", systemImage: "antenna.radiowaves.left.and.right")
+                        SettingsRowLabel(title: "RSS 自动刷新", systemName: "antenna.radiowaves.left.and.right", tint: .blue)
                     }
                 } header: {
                     Text("资源管理")
-                } footer: {
-                    if rssRefreshInterval > 0 {
-                        Text("每 \(rssRefreshInterval) 分钟自动检查订阅源更新")
-                    } else {
-                        Text("已关闭自动刷新，仅支持手动刷新")
-                    }
                 }
 
                 // MARK: - 应用设置
@@ -114,18 +108,18 @@ struct SettingsView: View {
                         Text("浅色").tag("light")
                         Text("深色").tag("dark")
                     } label: {
-                        Label("外观主题", systemImage: "paintpalette")
+                        SettingsRowLabel(title: "外观主题", systemName: "paintpalette.fill", tint: .blue)
                     }
 
                     Picker(selection: $language) {
                         Text("简体中文").tag("zh-Hans")
                         Text("English").tag("en")
                     } label: {
-                        Label("应用语言", systemImage: "globe")
+                        SettingsRowLabel(title: "应用语言", systemName: "globe", tint: .blue)
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("字体大小", systemImage: "textformat.size")
+                        SettingsRowLabel(title: "字体大小", systemName: "textformat.size", tint: .blue)
                         HStack {
                             Image(systemName: "textformat.size.smaller")
                                 .foregroundStyle(.secondary)
@@ -143,17 +137,17 @@ struct SettingsView: View {
                     NavigationLink {
                         DashboardCustomizationView()
                     } label: {
-                        Label("模块展示", systemImage: "square.grid.2x2")
+                        SettingsRowLabel(title: "模块展示", systemName: "square.grid.2x2", tint: .blue)
                     }
                 }
 
                 // MARK: - Pro 功能
                 Section {
                     Toggle(isOn: $showTMDBData) {
-                        Label("TMDB 海报数据", systemImage: "film")
+                        SettingsRowLabel(title: "TMDB 海报数据", systemName: "film", tint: .purple)
                     }
                     Toggle(isOn: $proDashboardBackgroundEnabled) {
-                        Label("Pro 仪表盘背景", systemImage: "photo.artframe")
+                        SettingsRowLabel(title: "Pro 仪表盘背景", systemName: "photo.artframe", tint: .orange)
                     }
                 } header: {
                     Text("Pro 功能")
@@ -167,7 +161,7 @@ struct SettingsView: View {
                         showingClearCacheAlert = true
                     } label: {
                         HStack {
-                            Label("清除缓存", systemImage: "trash")
+                            SettingsRowLabel(title: "清除缓存", systemName: "trash", tint: .red)
                             Spacer()
                             Text(cacheSizeString)
                                 .foregroundStyle(.secondary)
@@ -209,7 +203,7 @@ struct SettingsView: View {
                     .padding(.vertical, 8)
 
                     Link(destination: URL(string: "https://github.com/gangz1o/SeedPilot")!) {
-                        Label("GitHub 开源地址", systemImage: "link")
+                        SettingsRowLabel(title: "GitHub 开源地址", systemName: "link", tint: .gray)
                     }
                 } header: {
                     Text("关于")
@@ -291,15 +285,67 @@ private struct DashboardCustomizationView: View {
     var body: some View {
         Form {
             Section("模块开关") {
-                Toggle("最近完成 (Recent Finished)", isOn: dashboardConfig.showRecentFinishedBinding)
-                Toggle("流量监控 (Live Traffic)", isOn: dashboardConfig.showLiveTrafficBinding)
-                Toggle("资产总览 (Global Assets)", isOn: dashboardConfig.showGlobalAssetsBinding)
-                Toggle("服务器状态 (Server Status)", isOn: dashboardConfig.showServerStatusBinding)
-                Toggle("存储审计 (Storage Audit)", isOn: dashboardConfig.showStorageAuditBinding)
+                Toggle(isOn: dashboardConfig.showRecentFinishedBinding) {
+                    SettingsRowLabel(title: "最近完成 (Recent Finished)", systemName: "clock.arrow.circlepath", tint: .teal)
+                }
+                Toggle(isOn: dashboardConfig.showLiveTrafficBinding) {
+                    SettingsRowLabel(title: "流量监控 (Live Traffic)", systemName: "arrow.left.arrow.right.circle", tint: .blue)
+                }
+                Toggle(isOn: dashboardConfig.showGlobalAssetsBinding) {
+                    SettingsRowLabel(title: "资产总览 (Global Assets)", systemName: "chart.bar.doc.horizontal", tint: .mint)
+                }
+                Toggle(isOn: dashboardConfig.showServerStatusBinding) {
+                    SettingsRowLabel(title: "服务器状态 (Server Status)", systemName: "server.rack", tint: .indigo)
+                }
+                Toggle(isOn: dashboardConfig.showStorageAuditBinding) {
+                    SettingsRowLabel(title: "存储审计 (Storage Audit)", systemName: "externaldrive", tint: .green)
+                }
             }
         }
         .navigationTitle("仪表盘定制")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SettingsRowLabel: View {
+    let title: String
+    let systemName: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SettingsIconBadge(systemName: systemName, tint: tint)
+            Text(title)
+        }
+    }
+}
+
+private struct SettingsIconBadge: View {
+    let systemName: String
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [tint.opacity(0.96), tint.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .semibold))
+                .symbolVariant(.fill)
+                .foregroundStyle(.white)
+        }
+        .frame(width: 28, height: 28)
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(.white.opacity(0.22), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 }
 

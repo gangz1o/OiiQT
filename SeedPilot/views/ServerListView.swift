@@ -17,67 +17,65 @@ struct ServerListView: View {
     @State private var editingServer: ServerConfig?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(appStateManager.servers) { server in
-                        Button {
-                            selectServer(server)
-                        } label: {
-                            ServerCardView(server: server)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .contextMenu {
-                            Button {
-                                editingServer = server
-                            } label: {
-                                Label("编辑服务器", systemImage: "pencil")
-                            }
-
-                            Button(role: .destructive) {
-                                modelContext.delete(server)
-                            } label: {
-                                Label("删除服务器", systemImage: "trash")
-                            }
-                        }
-                    }
-
-                    // Add Server Tile
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                ForEach(appStateManager.servers) { server in
                     Button {
-                        showingAddServer = true
+                        selectServer(server)
                     } label: {
-                        AddServerTile()
+                        ServerCardView(server: server)
                     }
                     .buttonStyle(PlainButtonStyle())
-                }
-                .padding(16)
-            }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("服务器管理")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddServer = true
-                    } label: {
-                        Image(systemName: "plus")
+                    .contextMenu {
+                        Button {
+                            editingServer = server
+                        } label: {
+                            Label("编辑服务器", systemImage: "pencil")
+                        }
+
+                        Button(role: .destructive) {
+                            modelContext.delete(server)
+                        } label: {
+                            Label("删除服务器", systemImage: "trash")
+                        }
                     }
                 }
+
+                // Add Server Tile
+                Button {
+                    showingAddServer = true
+                } label: {
+                    AddServerTile()
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .sheet(isPresented: $showingAddServer) {
-                EditServerView()
+            .padding(16)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("服务器管理")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingAddServer = true
+                } label: {
+                    Image(systemName: "plus")
+                }
             }
-            .sheet(item: $editingServer) { server in
-                EditServerView(serverToEdit: server)
-            }
-            .onAppear {
-                appStateManager.updateServers(servers)
-                appStateManager.checkServerStatus()
-            }
-            .onChange(of: servers) { _, newServers in
-                appStateManager.updateServers(newServers)
-                appStateManager.checkServerStatus()
-            }
+        }
+        .sheet(isPresented: $showingAddServer) {
+            EditServerView()
+        }
+        .sheet(item: $editingServer) { server in
+            EditServerView(serverToEdit: server)
+        }
+        .onAppear {
+            appStateManager.updateServers(servers)
+            appStateManager.checkServerStatus()
+        }
+        .onChange(of: servers) { _, newServers in
+            appStateManager.updateServers(newServers)
+            appStateManager.checkServerStatus()
         }
     }
 
@@ -226,4 +224,3 @@ struct AddServerTile: View {
         )
     }
 }
-
