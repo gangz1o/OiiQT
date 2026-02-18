@@ -7,12 +7,16 @@
 
 import Foundation
 import Combine
+import SwiftUI
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published private(set) var globalSnapshot = GlobalStatsSnapshot()
     @Published private(set) var isRefreshing = false
     @Published private(set) var isUsingCachedFallback = false
+    @Published private(set) var moduleOrder: [DashboardModuleType] = DashboardModuleType.defaultOrder
+
+    @AppStorage(DashboardConfig.Keys.moduleOrder) private var moduleOrderStorageData: Data = Data()
 
     private let statsManager: GlobalStatsManager
     private var autoRefreshTask: Task<Void, Never>?
@@ -21,10 +25,42 @@ final class DashboardViewModel: ObservableObject {
 
     init(statsManager: GlobalStatsManager) {
         self.statsManager = statsManager
+        hydrateModuleOrderFromStorage()
     }
 
     init() {
         self.statsManager = .shared
+        hydrateModuleOrderFromStorage()
+    }
+
+    func syncModuleOrder(availableModules: [DashboardModuleType]) {
+        let normalized = normalizeModuleOrder(moduleOrder, availableModules: availableModules)
+        guard normalized != moduleOrder else {
+            persistModuleOrderIfNeeded(normalized)
+            return
+        }
+        moduleOrder = normalized
+        persistModuleOrderIfNeeded(normalized)
+    }
+
+    func swapModules(
+        _ source: DashboardModuleType,
+        with target: DashboardModuleType,
+        availableModules: [DashboardModuleType]
+    ) {
+        syncModuleOrder(availableModules: availableModules)
+
+        guard source != target,
+              let sourceIndex = moduleOrder.firstIndex(of: source),
+              let targetIndex = moduleOrder.firstIndex(of: target),
+              sourceIndex != targetIndex else {
+            return
+        }
+
+        var updatedOrder = moduleOrder
+        updatedOrder.swapAt(sourceIndex, targetIndex)
+        moduleOrder = updatedOrder
+        persistModuleOrderIfNeeded(updatedOrder)
     }
 
     func startAutoRefresh(
@@ -220,5 +256,50 @@ final class DashboardViewModel: ObservableObject {
             return rhs.totalRemainingSpace > lhs.totalRemainingSpace ? rhs : lhs
         }
         return rhs
+    }
+
+    private func hydrateModuleOrderFromStorage() {
+        let persistedIDs = (try? JSONDecoder().decode([String].self, from: moduleOrderStorageData)) ?? []
+        let persisted = persistedIDs.compactMap(DashboardModuleType.init(rawValue:))
+
+        let normalized = normalizeModuleOrder(persisted, availableModules: DashboardModuleType.defaultOrder)
+        moduleOrder = normalized
+        persistModuleOrderIfNeeded(normalized)
+    }
+
+    private func normalizeModuleOrder(
+        _ currentOrder: [DashboardModuleType],
+        availableModules: [DashboardModuleType]
+    ) -> [DashboardModuleType] {
+        let availableSet = Set(availableModules)
+        let defaultAvailable = DashboardModuleType.defaultOrder.filter { availableSet.contains($0) }
+        var deduped: [DashboardModuleType] = []
+        var seen = Set<DashboardModuleType>()
+
+        for module in currentOrder where availableSet.contains(module) {
+            if seen.insert(module).inserted {
+                deduped.append(module)
+            }
+        }
+
+        for module in defaultAvailable where !seen.contains(module) {
+            let followingModules = defaultAvailable.drop { $0 != module }.dropFirst()
+            if let anchor = followingModules.first(where: { deduped.contains($0) }),
+               let anchorIndex = deduped.firstIndex(of: anchor) {
+                deduped.insert(module, at: anchorIndex)
+            } else {
+                deduped.append(module)
+            }
+            seen.insert(module)
+        }
+
+        return deduped
+    }
+
+    private func persistModuleOrderIfNeeded(_ modules: [DashboardModuleType]) {
+        let ids = modules.map(\.rawValue)
+        guard let serialized = try? JSONEncoder().encode(ids) else { return }
+        guard moduleOrderStorageData != serialized else { return }
+        moduleOrderStorageData = serialized
     }
 }

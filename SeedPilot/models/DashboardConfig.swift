@@ -15,12 +15,15 @@ final class DashboardConfig {
         static let showLiveTraffic = "dashboard.showLiveTraffic"
         static let showGlobalAssets = "dashboard.showGlobalAssets"
         static let showServerStatus = "dashboard.showServerStatus"
+        static let showStorageAudit = "dashboard.showStorageAudit"
+        static let moduleOrder = "dashboard.moduleOrder"
     }
 
     @AppStorage(Keys.showRecentFinished) var showRecentFinished: Bool = true
     @AppStorage(Keys.showLiveTraffic) var showLiveTraffic: Bool = true
     @AppStorage(Keys.showGlobalAssets) var showGlobalAssets: Bool = true
     @AppStorage(Keys.showServerStatus) var showServerStatus: Bool = true
+    @AppStorage(Keys.showStorageAudit) var showStorageAudit: Bool = true
 
     var showRecentFinishedBinding: Binding<Bool> {
         Binding(
@@ -47,6 +50,13 @@ final class DashboardConfig {
         Binding(
             get: { self.showServerStatus },
             set: { self.showServerStatus = $0 }
+        )
+    }
+
+    var showStorageAuditBinding: Binding<Bool> {
+        Binding(
+            get: { self.showStorageAudit },
+            set: { self.showStorageAudit = $0 }
         )
     }
 }

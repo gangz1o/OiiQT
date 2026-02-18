@@ -142,6 +142,7 @@ struct SettingsView: View {
                     Toggle("流量监控 (Live Traffic)", isOn: dashboardConfig.showLiveTrafficBinding)
                     Toggle("资产总览 (Global Assets)", isOn: dashboardConfig.showGlobalAssetsBinding)
                     Toggle("服务器状态 (Server Status)", isOn: dashboardConfig.showServerStatusBinding)
+                    Toggle("存储审计 (Storage Audit)", isOn: dashboardConfig.showStorageAuditBinding)
                 }
 
                 // MARK: - Pro 功能
