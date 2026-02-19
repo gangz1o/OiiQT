@@ -2067,6 +2067,23 @@
         }
       }
     },
+    "Legal Effective Date" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effective Date: February 19, 2026"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生效日期：2026年2月19日"
+          }
+        }
+      }
+    },
     "Lifetime Purchase" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2747,6 +2764,414 @@
         }
       }
     },
+    "Policy Data Collection Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot is a pure local client tool. We do not collect, upload, or share your server addresses, usernames, passwords, or any download task information. All sensitive information is stored encrypted locally on your device or within the iOS Keychain."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 是一款纯粹的本地客户端工具。我们不收集、不上传、不共享您的服务器地址、用户名、密码或任何下载任务信息。所有敏感信息均加密存储在您设备的本地存储或 iOS 钥匙串（Keychain）中。"
+          }
+        }
+      }
+    },
+    "Policy Data Collection Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Data Collection & Use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 数据收集与使用"
+          }
+        }
+      }
+    },
+    "Policy Data Security Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We utilize iOS system-level security features to protect your configurations. When you delete the application, all locally stored configuration information will be erased simultaneously."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们利用 iOS 的系统级安全特性保护您的配置。当您删除应用时，所有本地存储的相关配置信息将同步被抹除。"
+          }
+        }
+      }
+    },
+    "Policy Data Security Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3. Data Security"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3. 数据安全"
+          }
+        }
+      }
+    },
+    "Policy Section Controls Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can control data processing by editing or deleting server configurations, disabling TMDB features, disabling auto refresh, or clearing cached data in Settings. Because this app runs as a local client, there is no in-app account profile or cloud account center."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您可以通过编辑或删除服务器配置、关闭 TMDB 功能、关闭自动刷新、以及在设置中清理缓存来控制数据处理。由于本应用为本地客户端，不提供应用内账号体系或云端账户中心。"
+          }
+        }
+      }
+    },
+    "Policy Section Controls Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7. User Controls"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7. 用户控制选项"
+          }
+        }
+      }
+    },
+    "Policy Section Data Scope Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot is a local client app. To provide downloader management features, the app may process the information you explicitly provide, including server address, port, username, password, RSS source URL, and task metadata (such as task name, status, tracker host, save path, and speed statistics)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 是一款本地客户端应用。为实现下载器管理功能，应用会处理您主动提供的信息，包括服务器地址、端口、用户名、密码、RSS 源地址，以及任务相关元数据（如任务名称、状态、Tracker 域名、保存路径和速率统计）。"
+          }
+        }
+      }
+    },
+    "Policy Section Data Scope Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Data We Process"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 我们处理的数据"
+          }
+        }
+      }
+    },
+    "Policy Section LocalStorage Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration and cached data are stored locally on your device within app sandbox storage. SeedPilot does not provide cloud sync for this data by default. Deleting the app will remove local app data according to iOS behavior."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置与缓存数据默认保存在您设备本地的应用沙箱中。SeedPilot 默认不提供这类数据的云同步服务。删除应用后，本地应用数据将按 iOS 机制被移除。"
+          }
+        }
+      }
+    },
+    "Policy Section LocalStorage Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4. Local Storage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4. 本地存储"
+          }
+        }
+      }
+    },
+    "Policy Section Minors Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot is not designed for children. If you are a minor, please use this app with guidance from a parent or legal guardian and ensure your use complies with applicable law."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 不是面向未成年人的应用。如您属于未成年人，请在监护人指导下使用，并确保您的使用行为符合适用法律法规。"
+          }
+        }
+      }
+    },
+    "Policy Section Minors Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8. Minors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8. 未成年人说明"
+          }
+        }
+      }
+    },
+    "Policy Section Purpose Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We process this information only for feature delivery, including: connecting to your configured downloader servers, displaying task and server status, applying your RSS automation rules, and rendering optional TMDB poster metadata when enabled by you."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们仅为功能实现目的处理上述信息，包括：连接您配置的下载器服务器、展示任务与服务器状态、执行 RSS 自动化规则，以及在您开启时展示 TMDB 海报元数据。"
+          }
+        }
+      }
+    },
+    "Policy Section Purpose Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. Purpose of Processing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. 处理目的"
+          }
+        }
+      }
+    },
+    "Policy Section Retention Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data is retained on your device for as long as needed to support your use of the app, unless you delete it manually. You may remove server entries, clear caches, or delete the app at any time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相关数据会在您的设备上保留，直至您手动删除或不再需要。您可以随时删除服务器配置、清理缓存或卸载应用。"
+          }
+        }
+      }
+    },
+    "Policy Section Retention Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6. Retention & Deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6. 保留与删除"
+          }
+        }
+      }
+    },
+    "Policy Section SecurityNotice Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot relies on iOS sandbox and system security capabilities to protect local data. If you enable options like \"Ignore SSL Certificate Errors\", connection security may be reduced. Please evaluate network trust settings carefully."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 依赖 iOS 沙箱与系统安全能力保护本地数据。若您开启“忽略 SSL 证书错误”等选项，连接安全性可能下降，请谨慎评估网络信任设置。"
+          }
+        }
+      }
+    },
+    "Policy Section SecurityNotice Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5. Security Notice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5. 安全提示"
+          }
+        }
+      }
+    },
+    "Policy Section ThirdParty Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This app integrates third-party services such as TMDB (for poster/metadata retrieval) and Kingfisher (for image cache handling). When related features are enabled, necessary network requests may be sent to third-party endpoints, and those providers may process your public IP address under their own privacy terms."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用集成了 TMDB（用于海报与元数据检索）和 Kingfisher（用于图片缓存处理）等第三方服务。开启相关功能时，应用会向对应服务发起必要网络请求，服务提供方可能依据其隐私政策处理您的公网 IP 地址。"
+          }
+        }
+      }
+    },
+    "Policy Section ThirdParty Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3. Third-Party Services"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3. 第三方服务"
+          }
+        }
+      }
+    },
+    "Policy Section Updates Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We may update this policy when features, legal requirements, or compliance obligations change. The latest version in the app shall prevail."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们可能因功能更新、法律法规要求或合规义务调整而更新本政策。以应用内展示的最新版本为准。"
+          }
+        }
+      }
+    },
+    "Policy Section Updates Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "9. Policy Updates"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "9. 政策更新"
+          }
+        }
+      }
+    },
+    "Policy Third-Party Services Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To provide a cinematic experience, this app integrates the following services:\n\n• TMDB: Used to retrieve movie posters and metadata.\n• Kingfisher: Used for local image caching and optimization.\n\nThese services may process your public IP address to deliver media assets according to their respective privacy policies."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为了提供丰富的影院级体验，本应用集成以下服务：\n\n• TMDB：用于获取影视海报及元数据。\n• Kingfisher：用于海报图片的本地缓存优化。\n\n这些服务可能会根据其自身的隐私政策处理您的公开 IP 地址以获取媒体资源。"
+          }
+        }
+      }
+    },
+    "Policy Third-Party Services Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. Third-Party Services"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. 第三方服务"
+          }
+        }
+      }
+    },
     "Port" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2794,6 +3219,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "优先级"
+          }
+        }
+      }
+    },
+    "Privacy Policy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy Policy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私政策"
           }
         }
       }
@@ -3343,11 +3785,32 @@
       }
     },
     "SeedPilot" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SeedPilot"
+          }
+        }
+      }
+    },
+    "SeedPilot %@" : {
+
+    },
+    "SeedPilot Privacy Policy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot Privacy Policy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 隐私政策"
           }
         }
       }
@@ -3358,6 +3821,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SeedPilot Pro"
+          }
+        }
+      }
+    },
+    "SeedPilot Terms of Service" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot Terms of Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 服务条款"
           }
         }
       }
@@ -4043,6 +4523,431 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "任务"
+          }
+        }
+      }
+    },
+    "Terms of Service" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terms of Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务条款"
+          }
+        }
+      }
+    },
+    "Terms Section Acceptance Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By downloading or using SeedPilot, you agree to these Terms of Service. If you do not agree, please stop using the app."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当您下载或使用 SeedPilot，即表示您同意本《服务条款》。如您不同意，请停止使用本应用。"
+          }
+        }
+      }
+    },
+    "Terms Section Acceptance Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Acceptance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 条款接受"
+          }
+        }
+      }
+    },
+    "Terms Section Availability Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app is provided on an \"as is\" and \"as available\" basis. We do not guarantee uninterrupted availability, compatibility with all server configurations, or error-free operation at all times."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用按“现状”与“可用”基础提供。我们不保证服务持续不中断、不保证兼容所有服务器配置，也不保证始终无错误运行。"
+          }
+        }
+      }
+    },
+    "Terms Section Availability Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5. Availability & Warranty Disclaimer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5. 可用性与无担保声明"
+          }
+        }
+      }
+    },
+    "Terms Section Compliance Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You agree not to use SeedPilot in restricted jurisdictions or for prohibited purposes under applicable laws, including sanctions, export controls, cybersecurity, and intellectual property regulations."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您承诺不在适用法律禁止的地区或用途下使用 SeedPilot，并遵守包括制裁、出口管制、网络安全与知识产权在内的相关法律法规。"
+          }
+        }
+      }
+    },
+    "Terms Section Compliance Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "11. Compliance Commitment"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "11. 合规承诺"
+          }
+        }
+      }
+    },
+    "Terms Section GoverningLaw Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These terms shall be interpreted and enforced in accordance with applicable law. If any clause is held invalid, the remaining clauses shall remain in effect to the extent permitted by law."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本条款应依据适用法律进行解释与执行。如部分条款被认定无效，不影响其余条款在法律允许范围内继续有效。"
+          }
+        }
+      }
+    },
+    "Terms Section GoverningLaw Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "9. Governing Law"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "9. 适用法律"
+          }
+        }
+      }
+    },
+    "Terms Section Indemnification Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You agree to indemnify and hold harmless the app developer from claims, damages, and expenses arising from your unlawful use, rights infringement, or breach of these terms."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "因您违法使用、侵害他人权利或违反本条款而引发的索赔、损失及费用，您同意承担相应责任，并使开发者免受损害。"
+          }
+        }
+      }
+    },
+    "Terms Section Indemnification Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7. Indemnification"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7. 赔偿责任"
+          }
+        }
+      }
+    },
+    "Terms Section LawfulUse Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You must use SeedPilot in compliance with applicable laws and regulations. You must not use the app for copyright infringement, unauthorized distribution, credential abuse, or any illegal activity."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您应在适用法律法规允许范围内使用 SeedPilot，不得将本应用用于侵权下载、未经授权传播、凭据滥用或任何违法行为。"
+          }
+        }
+      }
+    },
+    "Terms Section LawfulUse Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3. Lawful Use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3. 合法使用"
+          }
+        }
+      }
+    },
+    "Terms Section LiabilityLimit Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To the maximum extent permitted by law, the developer shall not be liable for indirect, incidental, special, consequential, or punitive damages, including data loss, service interruption, or business losses caused by your use or inability to use the app."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在法律允许的最大范围内，开发者不对因您使用或无法使用本应用所导致的任何间接、附带、特殊、后果性或惩罚性损害承担责任，包括但不限于数据丢失、服务中断或经营损失。"
+          }
+        }
+      }
+    },
+    "Terms Section LiabilityLimit Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6. Limitation of Liability"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6. 责任限制"
+          }
+        }
+      }
+    },
+    "Terms Section NoMonitoring Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot is a local client tool and does not actively review, monitor, or verify the legality, authenticity, or completeness of server-side tasks, tracker content, or transmitted data under your control."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 作为本地客户端工具，不对您控制范围内的服务器任务、Tracker 内容或传输数据进行主动审查、监控或合法性核验，也不对其真实性与完整性作出保证。"
+          }
+        }
+      }
+    },
+    "Terms Section NoMonitoring Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10. No Monitoring Obligation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10. 不主动审查义务"
+          }
+        }
+      }
+    },
+    "Terms Section Suspension Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your use violates applicable law or these terms, we may limit related feature availability in future versions or stop providing support, to the extent legally permitted."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若您的使用行为违反适用法律或本条款，我们可在法律允许范围内对相关功能进行限制，或停止后续支持。"
+          }
+        }
+      }
+    },
+    "Terms Section Suspension Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8. Suspension & Termination"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "8. 限制与终止"
+          }
+        }
+      }
+    },
+    "Terms Section ThirdPartyDisclaimer Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot integrates or connects to third-party services and infrastructures (including downloader backends, trackers, and metadata providers). We are not responsible for the legality, accuracy, availability, security, or policy compliance of third-party services or content."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot 集成或连接第三方服务与基础设施（包括下载器后端、Tracker、元数据提供方等）。对于第三方服务或内容的合法性、准确性、可用性、安全性及其合规性，开发者不承担责任。"
+          }
+        }
+      }
+    },
+    "Terms Section ThirdPartyDisclaimer Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4. Third-Party Disclaimer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4. 第三方免责声明"
+          }
+        }
+      }
+    },
+    "Terms Section Updates Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We may update these terms when features, legal requirements, or compliance obligations change. The latest version displayed in the app shall prevail."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们可能因功能更新、法律法规要求或合规义务变更而调整本条款。以应用内展示的最新版本为准。"
+          }
+        }
+      }
+    },
+    "Terms Section Updates Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "12. Terms Updates"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "12. 条款更新"
+          }
+        }
+      }
+    },
+    "Terms Section UserResponsibility Body" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You are solely responsible for all data and content you configure, access, transmit, or download through this app. This includes legality of task sources, tracker content, and server-side operations."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您应对通过本应用配置、访问、传输或下载的全部数据与内容承担全部责任，包括任务来源、Tracker 内容以及服务器侧操作的合法性。"
+          }
+        }
+      }
+    },
+    "Terms Section UserResponsibility Title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. User Content Responsibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2. 用户内容责任"
           }
         }
       }

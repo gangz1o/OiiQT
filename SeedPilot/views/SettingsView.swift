@@ -28,6 +28,8 @@ struct SettingsView: View {
     // UI 状态
     @State private var showingClearCacheAlert = false
     @State private var showingSuccessAlert = false
+    @State private var showingPrivacyPolicySheet = false
+    @State private var showingTermsSheet = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
 
@@ -180,36 +182,11 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text(LanguageManager.shared.localized("Storage & Maintenance"))
+                } footer: {
+                    legalFooterView
                 }
                 .alert(LanguageManager.shared.localized("Cache Cleared"), isPresented: $showingSuccessAlert) {
                     Button(LanguageManager.shared.localized("OK"), role: .cancel) { }
-                }
-
-                // MARK: - 关于
-                Section {
-                    HStack {
-                        Image(uiImage: UIImage(named: "AppIcon") ?? UIImage())
-                            .resizable()
-                            .frame(width: 60, height: 60)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("SeedPilot")
-                                .font(.headline)
-                            Text(LanguageManager.shared.localized("v1.0.0 (Build 1)"))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.leading, 8)
-                    }
-                    .padding(.vertical, 8)
-
-                    Link(destination: URL(string: "https://github.com/gangz1o/SeedPilot")!) {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("GitHub Repository"), systemName: "link", tint: .gray)
-                    }
-                } header: {
-                    Text(LanguageManager.shared.localized("About"))
                 }
             }
             .navigationTitle(LanguageManager.shared.localized("Settings"))
@@ -230,6 +207,12 @@ struct SettingsView: View {
             }
             .onChange(of: appStateManager.settingsRoute) { _, _ in
                 openPendingSettingsRouteIfNeeded()
+            }
+            .sheet(isPresented: $showingPrivacyPolicySheet) {
+                PrivacyPolicySheetView()
+            }
+            .sheet(isPresented: $showingTermsSheet) {
+                TermsOfServiceSheetView()
             }
         }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
@@ -279,6 +262,179 @@ struct SettingsView: View {
         guard let route = appStateManager.settingsRoute else { return }
         settingsPath = [route]
         appStateManager.settingsRoute = nil
+    }
+
+    private var legalFooterView: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                privacyPolicyButton
+                legalSeparator
+                termsButton
+                legalSeparator
+                versionTextInline
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            VStack(spacing: 6) {
+                HStack(spacing: 8) {
+                    privacyPolicyButton
+                    legalSeparator
+                    termsButton
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+                versionTextStacked
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 20)
+    }
+
+    private var privacyPolicyButton: some View {
+        Button {
+            showingPrivacyPolicySheet = true
+        } label: {
+            Text(LanguageManager.shared.localized("Privacy Policy"))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var termsButton: some View {
+        Button {
+            showingTermsSheet = true
+        } label: {
+            Text(LanguageManager.shared.localized("Terms of Service"))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var legalSeparator: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.35))
+            .frame(width: 1, height: 12)
+    }
+
+    private var versionTextInline: some View {
+        Text("SeedPilot \(LanguageManager.shared.localized("v1.0.0 (Build 1)"))")
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var versionTextStacked: some View {
+        Text("SeedPilot \(LanguageManager.shared.localized("v1.0.0 (Build 1)"))")
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .multilineTextAlignment(.center)
+    }
+}
+
+private struct LegalSection: Identifiable {
+    let id: String
+    let titleKey: String
+    let bodyKey: String
+}
+
+private struct LegalDocumentSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    let navigationTitleKey: String
+    let documentTitleKey: String
+    let effectiveDateKey: String
+    let sections: [LegalSection]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(LanguageManager.shared.localized(documentTitleKey))
+                        .font(.headline)
+
+                    Text(LanguageManager.shared.localized(effectiveDateKey))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(sections) { section in
+                        policySection(titleKey: section.titleKey, bodyKey: section.bodyKey)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+            }
+            .navigationTitle(LanguageManager.shared.localized(navigationTitleKey))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(LanguageManager.shared.localized("Done")) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func policySection(titleKey: String, bodyKey: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(LanguageManager.shared.localized(titleKey))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+            Text(LanguageManager.shared.localized(bodyKey))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct PrivacyPolicySheetView: View {
+    private let sections: [LegalSection] = [
+        LegalSection(id: "privacy-1", titleKey: "Policy Section Data Scope Title", bodyKey: "Policy Section Data Scope Body"),
+        LegalSection(id: "privacy-2", titleKey: "Policy Section Purpose Title", bodyKey: "Policy Section Purpose Body"),
+        LegalSection(id: "privacy-3", titleKey: "Policy Section ThirdParty Title", bodyKey: "Policy Section ThirdParty Body"),
+        LegalSection(id: "privacy-4", titleKey: "Policy Section LocalStorage Title", bodyKey: "Policy Section LocalStorage Body"),
+        LegalSection(id: "privacy-5", titleKey: "Policy Section SecurityNotice Title", bodyKey: "Policy Section SecurityNotice Body"),
+        LegalSection(id: "privacy-6", titleKey: "Policy Section Retention Title", bodyKey: "Policy Section Retention Body"),
+        LegalSection(id: "privacy-7", titleKey: "Policy Section Controls Title", bodyKey: "Policy Section Controls Body"),
+        LegalSection(id: "privacy-8", titleKey: "Policy Section Minors Title", bodyKey: "Policy Section Minors Body"),
+        LegalSection(id: "privacy-9", titleKey: "Policy Section Updates Title", bodyKey: "Policy Section Updates Body")
+    ]
+
+    var body: some View {
+        LegalDocumentSheetView(
+            navigationTitleKey: "Privacy Policy",
+            documentTitleKey: "SeedPilot Privacy Policy",
+            effectiveDateKey: "Legal Effective Date",
+            sections: sections
+        )
+    }
+}
+
+private struct TermsOfServiceSheetView: View {
+    private let sections: [LegalSection] = [
+        LegalSection(id: "terms-1", titleKey: "Terms Section Acceptance Title", bodyKey: "Terms Section Acceptance Body"),
+        LegalSection(id: "terms-2", titleKey: "Terms Section UserResponsibility Title", bodyKey: "Terms Section UserResponsibility Body"),
+        LegalSection(id: "terms-3", titleKey: "Terms Section LawfulUse Title", bodyKey: "Terms Section LawfulUse Body"),
+        LegalSection(id: "terms-4", titleKey: "Terms Section ThirdPartyDisclaimer Title", bodyKey: "Terms Section ThirdPartyDisclaimer Body"),
+        LegalSection(id: "terms-5", titleKey: "Terms Section Availability Title", bodyKey: "Terms Section Availability Body"),
+        LegalSection(id: "terms-6", titleKey: "Terms Section LiabilityLimit Title", bodyKey: "Terms Section LiabilityLimit Body"),
+        LegalSection(id: "terms-7", titleKey: "Terms Section Indemnification Title", bodyKey: "Terms Section Indemnification Body"),
+        LegalSection(id: "terms-8", titleKey: "Terms Section Suspension Title", bodyKey: "Terms Section Suspension Body"),
+        LegalSection(id: "terms-9", titleKey: "Terms Section GoverningLaw Title", bodyKey: "Terms Section GoverningLaw Body"),
+        LegalSection(id: "terms-10", titleKey: "Terms Section NoMonitoring Title", bodyKey: "Terms Section NoMonitoring Body"),
+        LegalSection(id: "terms-11", titleKey: "Terms Section Compliance Title", bodyKey: "Terms Section Compliance Body"),
+        LegalSection(id: "terms-12", titleKey: "Terms Section Updates Title", bodyKey: "Terms Section Updates Body")
+    ]
+
+    var body: some View {
+        LegalDocumentSheetView(
+            navigationTitleKey: "Terms of Service",
+            documentTitleKey: "SeedPilot Terms of Service",
+            effectiveDateKey: "Legal Effective Date",
+            sections: sections
+        )
     }
 }
 
