@@ -97,7 +97,7 @@ struct SettingsView: View {
                         Text(LanguageManager.shared.localized("2 hours")).tag(120)
                         Text(LanguageManager.shared.localized("Auto Refresh Off")).tag(0)
                     } label: {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("RSS Auto Refresh"), systemName: "antenna.radiowaves.left.and.right", tint: .blue)
+                        SettingsRowLabel(title: LanguageManager.shared.localized("RSS Auto Refresh"), systemName: "dot.radiowaves.up.forward", tint: .blue)
                     }
                 } header: {
                     Text(LanguageManager.shared.localized("Resources"))

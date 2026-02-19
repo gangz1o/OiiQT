@@ -14,11 +14,16 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query private var rssSources: [RSSFeedSource]
     @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
+    @ObservedObject private var dashboardViewModel: DashboardViewModel
+
+    init(dashboardViewModel: DashboardViewModel) {
+        self.dashboardViewModel = dashboardViewModel
+    }
 
     var body: some View {
         TabView(selection: Bindable(appStateManager).selectedTab) {
             // 仪表盘
-            DashboardView()
+            DashboardView(viewModel: dashboardViewModel)
                 .tabItem {
                     Label(LanguageManager.shared.localized("Dashboard"), systemImage: "chart.bar")
                 }
@@ -55,8 +60,10 @@ struct ContentView: View {
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
 
-            // 加载数据
-            appStateManager.loadServers(context: modelContext)
+            // Splash 启动阶段已完成预加载；仅在独立进入本页时兜底加载
+            if appStateManager.servers.isEmpty && !appStateManager.hasInitialDataLoaded {
+                appStateManager.loadServers(context: modelContext)
+            }
         }
         .onChange(of: rssRefreshInterval) {
             // Restart timer when setting changes
@@ -81,6 +88,17 @@ struct ContentView: View {
     }
 }
 
+@MainActor
+private struct ContentViewPreviewHost: View {
+    @State private var appStateManager = AppStateManager()
+    @StateObject private var dashboardViewModel = DashboardViewModel()
+
+    var body: some View {
+        ContentView(dashboardViewModel: dashboardViewModel)
+            .environment(appStateManager)
+    }
+}
+
 #Preview {
-    ContentView()
+    ContentViewPreviewHost()
 }

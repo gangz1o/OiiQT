@@ -14,6 +14,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var globalSnapshot = GlobalStatsSnapshot()
     @Published private(set) var isRefreshing = false
     @Published private(set) var isUsingCachedFallback = false
+    @Published private(set) var hasLoadedInitialSnapshot = false
     @Published private(set) var moduleOrder: [DashboardModuleType] = DashboardModuleType.defaultOrder
 
     @AppStorage(DashboardConfig.Keys.moduleOrder) private var moduleOrderStorageData: Data = Data()
@@ -96,6 +97,7 @@ final class DashboardViewModel: ObservableObject {
         guard !servers.isEmpty else {
             isRefreshing = false
             isUsingCachedFallback = false
+            hasLoadedInitialSnapshot = true
             globalSnapshot = GlobalStatsSnapshot(
                 totalSeedingCount: 0,
                 totalDownloadingCount: 0,
@@ -139,6 +141,11 @@ final class DashboardViewModel: ObservableObject {
         }
 
         isRefreshing = false
+        hasLoadedInitialSnapshot = true
+    }
+
+    func prefetchForLaunch(servers: [ServerConfig], tasks: [TorrentTask]) async {
+        await refreshGlobalStats(servers: servers, tasks: tasks, force: true)
     }
 
     private func retryGlobalStats(servers: [ServerConfig], retryCount: Int) async -> GlobalStatsSnapshot? {

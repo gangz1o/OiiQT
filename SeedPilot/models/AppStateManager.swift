@@ -29,6 +29,7 @@ struct SpeedPoint: Identifiable {
 class AppStateManager {
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
+    var hasInitialDataLoaded: Bool = false
 
     var activeServerId: UUID?
 
@@ -43,6 +44,7 @@ class AppStateManager {
     private var clients: [UUID: TorrentClient] = [:]
     private var lastKnownServerStatus: [UUID: Bool] = [:]
     private var serverStatusFailureStreak: [UUID: Int] = [:]
+    private var autoRefreshTask: Task<Void, Never>?
 
     // MARK: - Computed Properties
 
@@ -94,10 +96,12 @@ class AppStateManager {
         let descriptor = FetchDescriptor<ServerConfig>(sortBy: [SortDescriptor(\.name)])
         do {
             servers = try context.fetch(descriptor)
+            hasInitialDataLoaded = servers.isEmpty
             // Start auto-refresh
             startAutoRefresh()
         } catch {
             print("Failed to load servers: \(error)")
+            hasInitialDataLoaded = true
         }
     }
 
@@ -112,16 +116,24 @@ class AppStateManager {
 
     /// 启动自动刷新 (每 2 秒)
     func startAutoRefresh() {
-        Task {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = Task { [weak self] in
+            guard let self else { return }
             // Initial fetch
-            await refreshData()
+            await self.refreshData()
 
             // Periodic fetch
-            while true {
+            while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
-                await refreshData()
+                guard !Task.isCancelled else { break }
+                await self.refreshData()
             }
         }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
     }
 
     /// 刷新所有服务器的任务 (对应 User Request: refreshData)
@@ -199,6 +211,7 @@ class AppStateManager {
         let finalTasks = gatheredTasks
         await MainActor.run {
             self.allTasks = finalTasks
+            self.hasInitialDataLoaded = true
 
             // Record History
             let now = Date()

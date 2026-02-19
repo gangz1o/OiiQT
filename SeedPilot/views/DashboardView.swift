@@ -10,7 +10,11 @@ import UIKit
 
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
-    @StateObject private var dashboardViewModel = DashboardViewModel()
+    @ObservedObject private var dashboardViewModel: DashboardViewModel
+
+    init(viewModel: DashboardViewModel) {
+        self.dashboardViewModel = viewModel
+    }
 
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
     @AppStorage(DashboardConfig.Keys.showRecentFinished) private var showRecentFinished: Bool = true
@@ -29,6 +33,18 @@ struct DashboardView: View {
 
     private var needsGlobalStatsData: Bool {
         showGlobalAssets || showStorageAudit
+    }
+
+    private var shouldShowStatsSkeleton: Bool {
+        needsGlobalStatsData &&
+        !appStateManager.servers.isEmpty &&
+        !dashboardViewModel.hasLoadedInitialSnapshot
+    }
+
+    private var shouldShowServerSkeleton: Bool {
+        showServerStatus &&
+        !appStateManager.servers.isEmpty &&
+        !appStateManager.hasInitialDataLoaded
     }
 
     private var combinedTorrents: [TorrentTask] {
@@ -193,24 +209,36 @@ struct DashboardView: View {
             }
         case .globalAssets:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Data Aggregation")) {
-                DashboardGlobalAssetsModuleView(
-                    snapshot: dashboardViewModel.globalSnapshot,
-                    isUsingCachedFallback: dashboardViewModel.isUsingCachedFallback
-                )
+                if shouldShowStatsSkeleton {
+                    DashboardGlobalAssetsSkeletonView()
+                } else {
+                    DashboardGlobalAssetsModuleView(
+                        snapshot: dashboardViewModel.globalSnapshot,
+                        isUsingCachedFallback: dashboardViewModel.isUsingCachedFallback
+                    )
+                }
             }
         case .serverStatus:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Server Status")) {
-                DashboardServerStatusModuleView(
-                    servers: appStateManager.servers,
-                    tasks: appStateManager.allTasks
-                )
+                if shouldShowServerSkeleton {
+                    DashboardServerStatusSkeletonView(serverCount: appStateManager.servers.count)
+                } else {
+                    DashboardServerStatusModuleView(
+                        servers: appStateManager.servers,
+                        tasks: appStateManager.allTasks
+                    )
+                }
             }
         case .storageAudit:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Storage Audit")) {
-                DashboardStorageAuditModuleView(
-                    servers: appStateManager.servers,
-                    snapshot: dashboardViewModel.globalSnapshot
-                )
+                if shouldShowStatsSkeleton {
+                    DashboardStorageAuditSkeletonView(serverCount: appStateManager.servers.count)
+                } else {
+                    DashboardStorageAuditModuleView(
+                        servers: appStateManager.servers,
+                        snapshot: dashboardViewModel.globalSnapshot
+                    )
+                }
             }
         case .recentFinished:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Recently Finished")) {
@@ -262,6 +290,93 @@ struct DashboardView: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
             dashboardViewModel.swapModules(source, with: target, availableModules: enabledModules)
         }
+    }
+}
+
+private struct DashboardGlobalAssetsSkeletonView: View {
+    var body: some View {
+        LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
+            ForEach(0..<4, id: \.self) { _ in
+                DashboardTile {
+                    VStack(alignment: .leading, spacing: 10) {
+                        DashboardSkeletonBlock(width: 18, height: 18, cornerRadius: 6)
+                        DashboardSkeletonBlock(width: 84, height: 18, cornerRadius: 5)
+                        DashboardSkeletonBlock(width: 72, height: 10, cornerRadius: 4)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DashboardServerStatusSkeletonView: View {
+    let serverCount: Int
+
+    var body: some View {
+        LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
+            ForEach(0..<max(serverCount, 2), id: \.self) { _ in
+                DashboardTile(minHeight: 118) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            DashboardSkeletonBlock(width: 22, height: 22, cornerRadius: 6)
+                            Spacer()
+                            DashboardSkeletonBlock(width: 8, height: 8, cornerRadius: 4)
+                        }
+
+                        VStack(spacing: 8) {
+                            HStack {
+                                DashboardSkeletonBlock(width: 64, height: 10, cornerRadius: 4)
+                                Spacer()
+                                DashboardSkeletonBlock(width: 64, height: 10, cornerRadius: 4)
+                            }
+                            HStack {
+                                DashboardSkeletonBlock(width: 64, height: 10, cornerRadius: 4)
+                                Spacer()
+                                DashboardSkeletonBlock(width: 52, height: 10, cornerRadius: 4)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DashboardStorageAuditSkeletonView: View {
+    let serverCount: Int
+
+    var body: some View {
+        LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
+            ForEach(0..<max(serverCount, 2), id: \.self) { _ in
+                DashboardTile(minHeight: 104) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            DashboardSkeletonBlock(width: 8, height: 8, cornerRadius: 4)
+                            DashboardSkeletonBlock(width: 62, height: 12, cornerRadius: 4)
+                        }
+                        DashboardSkeletonBlock(width: 92, height: 10, cornerRadius: 4)
+                        DashboardSkeletonBlock(width: 68, height: 12, cornerRadius: 4)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DashboardSkeletonBlock: View {
+    let width: CGFloat
+    let height: CGFloat
+    let cornerRadius: CGFloat
+
+    @State private var isAnimating = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color(uiColor: .tertiarySystemFill))
+            .frame(width: width, height: height)
+            .opacity(isAnimating ? 0.55 : 0.95)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isAnimating)
+            .onAppear { isAnimating = true }
     }
 }
 

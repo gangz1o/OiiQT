@@ -8,12 +8,15 @@
 import SwiftUI
 import SwiftData
 import Kingfisher
+import UIKit
 
 @main
 struct SeedPilotApp: App {
     @AppStorage("appearance") private var appearance: String = "system"
     @AppStorage("fontSize") private var fontSize: Double = 1.0
     @StateObject private var languageManager = LanguageManager.shared
+    @StateObject private var launchDashboardViewModel = DashboardViewModel()
+    @State private var isAppReady = false
 
     init() {
         // Configure Kingfisher Image Cache
@@ -44,18 +47,15 @@ struct SeedPilotApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppRootView(
+                isAppReady: $isAppReady,
+                dashboardViewModel: launchDashboardViewModel
+            )
                 .environment(appStateManager)
                 .environment(\.locale, languageManager.currentLocale)
                 .environment(\.dynamicTypeSize, appDynamicTypeSize)
                 .id(languageManager.selectedLanguage.rawValue)
                 .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
-                .onAppear {
-                    // 在 App 启动时通过 MainActor 获取 context 并加载数据
-                    // 注意：这里拿不到 View 的 Environment context，
-                    // 所以最好是在 ContentView 或者这里创建一个临时的 context (如果不涉及 UI更新)
-                    // 但最稳妥的是在 ContentView 的 onAppear 中调用 loadServers
-                }
         }
         .modelContainer(sharedModelContainer)
     }
@@ -75,6 +75,115 @@ struct SeedPilotApp: App {
             return .xxLarge
         default:
             return .xxxLarge
+        }
+    }
+}
+
+private struct AppRootView: View {
+    @Binding var isAppReady: Bool
+    @ObservedObject var dashboardViewModel: DashboardViewModel
+    @Environment(AppStateManager.self) private var appStateManager
+    @Environment(\.modelContext) private var modelContext
+    @State private var didStartBootstrap = false
+
+    var body: some View {
+        ZStack {
+            if isAppReady {
+                ContentView(dashboardViewModel: dashboardViewModel)
+                    .transition(.opacity)
+            } else {
+                SplashView()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: isAppReady)
+        .task {
+            await bootstrapIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func bootstrapIfNeeded() async {
+        guard !didStartBootstrap else { return }
+        didStartBootstrap = true
+
+        appStateManager.loadServers(context: modelContext)
+
+        Task { @MainActor in
+            await dashboardViewModel.prefetchForLaunch(
+                servers: appStateManager.servers,
+                tasks: appStateManager.allTasks
+            )
+        }
+
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            if appStateManager.servers.isEmpty || appStateManager.hasInitialDataLoaded {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 120_000_000)
+        }
+
+        Task { @MainActor in
+            await dashboardViewModel.prefetchForLaunch(
+                servers: appStateManager.servers,
+                tasks: appStateManager.allTasks
+            )
+        }
+
+        guard !isAppReady else { return }
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isAppReady = true
+        }
+    }
+}
+
+private struct SplashView: View {
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+
+            VStack {
+                Spacer()
+                appIcon
+                    .frame(width: 112, height: 112)
+                Spacer()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        if let icon = UIImage(named: "AppIcon") {
+            Image(uiImage: icon)
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.black.opacity(0.08), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue.opacity(0.92), .cyan.opacity(0.86)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 7)
         }
     }
 }
