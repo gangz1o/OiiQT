@@ -85,7 +85,7 @@ struct DashboardView: View {
     private var globalStatsRefreshKey: String {
         appStateManager.servers
             .map {
-                "\($0.id.uuidString)|\($0.type.rawValue)|\($0.address)|\($0.port)|\($0.username)|\($0.rpcPath)|\($0.allowInsecureSSL)"
+                "\($0.id.uuidString)|\($0.type.rawValue)|\($0.address)|\($0.port)|\($0.username)|\($0.useHTTPS)|\($0.rpcPath)|\($0.allowInsecureSSL)"
             }
             .sorted()
             .joined(separator: "||")

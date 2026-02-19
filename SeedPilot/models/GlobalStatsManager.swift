@@ -259,7 +259,7 @@ final class GlobalStatsManager {
     private func serverSignature(_ servers: [ServerConfig]) -> String {
         servers
             .map {
-                "\($0.id.uuidString)|\($0.type.rawValue)|\($0.address)|\($0.port)|\($0.username)|\($0.rpcPath)|\($0.allowInsecureSSL)"
+                "\($0.id.uuidString)|\($0.type.rawValue)|\($0.address)|\($0.port)|\($0.username)|\($0.useHTTPS)|\($0.rpcPath)|\($0.allowInsecureSSL)"
             }
             .sorted()
             .joined(separator: "||")
@@ -287,6 +287,7 @@ private struct GlobalStatsServerEndpoint: Sendable {
     let port: Int
     let username: String
     let password: String
+    let useHTTPS: Bool
     let allowInsecureSSL: Bool
     let rpcPath: String
 
@@ -301,6 +302,7 @@ private struct GlobalStatsServerEndpoint: Sendable {
         self.port = server.port
         self.username = server.username
         self.password = server.password
+        self.useHTTPS = server.useHTTPS
         self.allowInsecureSSL = server.allowInsecureSSL
         self.rpcPath = server.rpcPath
     }
@@ -350,7 +352,7 @@ private enum GlobalStatsFetcher {
 
     private static func fetchQBittorrentStats(for endpoint: GlobalStatsServerEndpoint) async throws -> GlobalStatsServerSnapshot {
         let session = makeSession(allowInsecureSSL: endpoint.allowInsecureSSL)
-        let baseURL = normalizedBaseURL(address: endpoint.address, port: endpoint.port)
+        let baseURL = normalizedBaseURL(address: endpoint.address, port: endpoint.port, useHTTPS: endpoint.useHTTPS)
 
         try await qbLogin(endpoint: endpoint, baseURL: baseURL, session: session)
 
@@ -556,27 +558,54 @@ private enum GlobalStatsFetcher {
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }
 
-    private static func normalizedBaseURL(address: String, port: Int) -> String {
-        var normalizedAddress = address
-        if !normalizedAddress.lowercased().hasPrefix("http") {
-            normalizedAddress = "http://\(normalizedAddress)"
-        }
-        if normalizedAddress.hasSuffix("/") {
-            normalizedAddress = String(normalizedAddress.dropLast())
-        }
-        return "\(normalizedAddress):\(port)"
+    private static func normalizedBaseURL(address: String, port: Int, useHTTPS: Bool) -> String {
+        let normalized = normalizedHostAndScheme(address: address, useHTTPS: useHTTPS)
+        return "\(normalized.scheme)://\(normalized.host):\(port)"
     }
 
     private static func transmissionRPCURL(endpoint: GlobalStatsServerEndpoint) -> URL? {
-        var normalizedAddress = endpoint.address
-        if !normalizedAddress.lowercased().hasPrefix("http") {
-            normalizedAddress = "http://\(normalizedAddress)"
-        }
-        if normalizedAddress.hasSuffix("/") {
-            normalizedAddress = String(normalizedAddress.dropLast())
-        }
+        let normalized = normalizedHostAndScheme(address: endpoint.address, useHTTPS: endpoint.useHTTPS)
         let path = endpoint.rpcPath.hasPrefix("/") ? endpoint.rpcPath : "/\(endpoint.rpcPath)"
-        return URL(string: "\(normalizedAddress):\(endpoint.port)\(path)")
+        return URL(string: "\(normalized.scheme)://\(normalized.host):\(endpoint.port)\(path)")
+    }
+
+    private static func normalizedHostAndScheme(address: String, useHTTPS: Bool) -> (host: String, scheme: String) {
+        let raw = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        var trimmed = raw
+        let lower = raw.lowercased()
+
+        let scheme: String
+        if lower.hasPrefix("https://") {
+            scheme = "https"
+            if let url = URL(string: raw), let host = url.host, !host.isEmpty {
+                return (host: host, scheme: scheme)
+            }
+            trimmed = String(raw.dropFirst(8))
+        } else if lower.hasPrefix("http://") {
+            scheme = "http"
+            if let url = URL(string: raw), let host = url.host, !host.isEmpty {
+                return (host: host, scheme: scheme)
+            }
+            trimmed = String(raw.dropFirst(7))
+        } else {
+            scheme = useHTTPS ? "https" : "http"
+        }
+
+        if let slash = trimmed.firstIndex(of: "/") {
+            trimmed = String(trimmed[..<slash])
+        }
+
+        if !trimmed.hasPrefix("["),
+           let colon = trimmed.lastIndex(of: ":"),
+           colon != trimmed.startIndex {
+            let hostPart = String(trimmed[..<colon])
+            let portPart = String(trimmed[trimmed.index(after: colon)...])
+            if Int(portPart) != nil, !hostPart.isEmpty {
+                trimmed = hostPart
+            }
+        }
+
+        return (host: trimmed, scheme: scheme)
     }
 
     private static func basicAuthHeaderValue(username: String, password: String) -> String {

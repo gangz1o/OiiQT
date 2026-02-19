@@ -73,10 +73,21 @@ final class ServerConfig {
     var port: Int = 8080
     var username: String = ""
     var password: String = ""
+    var useHTTPS: Bool = false
     var allowInsecureSSL: Bool = false
     var rpcPath: String = "/transmission/rpc"
 
-    init(name: String, type: ServerType, address: String, port: Int, username: String, password: String, allowInsecureSSL: Bool = false, rpcPath: String = "/transmission/rpc") {
+    init(
+        name: String,
+        type: ServerType,
+        address: String,
+        port: Int,
+        username: String,
+        password: String,
+        useHTTPS: Bool = false,
+        allowInsecureSSL: Bool = false,
+        rpcPath: String = "/transmission/rpc"
+    ) {
         self.id = UUID()
         self.name = name
         self.type = type
@@ -84,6 +95,7 @@ final class ServerConfig {
         self.port = port
         self.username = username
         self.password = password
+        self.useHTTPS = useHTTPS
         self.allowInsecureSSL = allowInsecureSSL
         self.rpcPath = rpcPath
     }
@@ -97,7 +109,50 @@ final class ServerConfig {
     // 计算属性：生成基础 URL
     @Transient
     var baseURL: String {
-        "\(address):\(port)"
+        "\(urlScheme)://\(sanitizedAddress):\(port)"
+    }
+
+    @Transient
+    var sanitizedAddress: String {
+        let raw = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = raw.lowercased()
+
+        if lower.hasPrefix("https://") || lower.hasPrefix("http://") {
+            if let url = URL(string: raw), let host = url.host, !host.isEmpty {
+                return host
+            }
+        }
+
+        var trimmed = raw
+        if lower.hasPrefix("https://") {
+            trimmed = String(raw.dropFirst(8))
+        } else if lower.hasPrefix("http://") {
+            trimmed = String(raw.dropFirst(7))
+        }
+
+        if let slash = trimmed.firstIndex(of: "/") {
+            trimmed = String(trimmed[..<slash])
+        }
+
+        if !trimmed.hasPrefix("["),
+           let colon = trimmed.lastIndex(of: ":"),
+           colon != trimmed.startIndex {
+            let hostPart = String(trimmed[..<colon])
+            let portPart = String(trimmed[trimmed.index(after: colon)...])
+            if Int(portPart) != nil, !hostPart.isEmpty {
+                return hostPart
+            }
+        }
+
+        return trimmed
+    }
+
+    @Transient
+    var urlScheme: String {
+        let lower = address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower.hasPrefix("https://") { return "https" }
+        if lower.hasPrefix("http://") { return "http" }
+        return useHTTPS ? "https" : "http"
     }
 
     /// 在线状态：nil=检测中, true=在线, false=离线

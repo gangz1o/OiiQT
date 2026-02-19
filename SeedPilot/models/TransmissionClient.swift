@@ -25,12 +25,8 @@ class TransmissionClient: NSObject, TorrentClient {
     }
 
     private func getRPCURL() -> URL? {
-        var address = config.address
-        if !address.lowercased().hasPrefix("http") { address = "http://" + address }
-        if address.hasSuffix("/") { address = String(address.dropLast()) }
-
         let path = config.rpcPath.hasPrefix("/") ? config.rpcPath : "/\(config.rpcPath)"
-        return URL(string: "\(address):\(config.port)\(path)")
+        return URL(string: "\(config.baseURL)\(path)")
     }
 
     private func configureRequest(_ request: inout URLRequest) {

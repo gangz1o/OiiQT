@@ -30,18 +30,9 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Auth
 
     func login() async throws {
-        // Ensure address has protocol
-        var address = config.address
-        if !address.lowercased().hasPrefix("http") {
-             address = "http://" + address
-        }
+        let address = config.baseURL
 
-        // Remove trailing slash if present
-        if address.hasSuffix("/") {
-            address = String(address.dropLast())
-        }
-
-        guard let url = URL(string: "\(address):\(config.port)/api/v2/auth/login") else {
+        guard let url = URL(string: "\(address)/api/v2/auth/login") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -80,11 +71,9 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Fetch List
 
     func fetchTorrents() async throws -> [TorrentTask] {
-        var address = config.address
-        if !address.lowercased().hasPrefix("http") { address = "http://" + address }
-        if address.hasSuffix("/") { address = String(address.dropLast()) }
+        let address = config.baseURL
 
-        guard let url = URL(string: "\(address):\(config.port)/api/v2/torrents/info") else {
+        guard let url = URL(string: "\(address)/api/v2/torrents/info") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -143,10 +132,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Actions
 
     private func getBaseURL() -> String {
-        var address = config.address
-        if !address.lowercased().hasPrefix("http") { address = "http://" + address }
-        if address.hasSuffix("/") { address = String(address.dropLast()) }
-        return "\(address):\(config.port)"
+        config.baseURL
     }
 
     private func configureRequest(_ request: inout URLRequest) {

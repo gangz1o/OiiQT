@@ -2424,6 +2424,23 @@
         }
       }
     },
+    "No need to enter http:// or https://, the system handles it automatically." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No need to enter http:// or https://, the system handles it automatically."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无需输入 http:// 或 https://，系统将自动补全。"
+          }
+        }
+      }
+    },
     "No Overview" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5407,6 +5424,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL"
+          }
+        }
+      }
+    },
+    "Use HTTPS" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use HTTPS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 HTTPS"
           }
         }
       }

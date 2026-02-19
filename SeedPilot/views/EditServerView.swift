@@ -20,6 +20,7 @@ struct EditServerView: View {
     @State private var port = "8080"
     @State private var username = ""
     @State private var password = ""
+    @State private var isHttps = false
     @State private var allowInsecureSSL = false
     @State private var rpcPath = "/transmission/rpc"
     @State private var isPasswordVisible = false
@@ -40,16 +41,18 @@ struct EditServerView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(LanguageManager.shared.localized("Server Type")) {
+                Section {
                     Picker(LanguageManager.shared.localized("Type"), selection: $type) {
                         ForEach(ServerType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
                     }
                     .pickerStyle(.segmented)
+                } header: {
+                    Text(LanguageManager.shared.localized("Server Type"))
                 }
 
-                Section(LanguageManager.shared.localized("Server Information")) {
+                Section {
                     HStack {
                         Image(systemName: "tag.fill")
                         TextField(LanguageManager.shared.localized("Name (e.g. Home NAS)"), text: $name)
@@ -77,28 +80,41 @@ struct EditServerView: View {
                                 .autocorrectionDisabled()
                         }
                     }
+                } header: {
+                    Text(LanguageManager.shared.localized("Server Information"))
+                } footer: {
+                    Text(LanguageManager.shared.localized("No need to enter http:// or https://, the system handles it automatically."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 .foregroundStyle(.blue) // Tint icons
 
                 // MARK: - SSL Settings
-                if address.lowercased().hasPrefix("https") || address.lowercased().hasPrefix("http") == false {
-                    Section {
+                Section {
+                    Toggle(isOn: $isHttps.animation()) {
+                        HStack(spacing: 12) {
+                            AppleStyleIcon(backgroundColor: .blue, systemName: "lock.fill")
+                            Text(LanguageManager.shared.localized("Use HTTPS"))
+                        }
+                    }
+
+                    if isHttps {
                         Toggle(isOn: $allowInsecureSSL.animation()) {
-                            Label {
+                            HStack(spacing: 12) {
+                                AppleStyleIcon(backgroundColor: .orange, systemName: "shield.slash")
                                 Text(LanguageManager.shared.localized("Ignore SSL Certificate Errors"))
-                            } icon: {
-                                Image(systemName: "shield.slash")
-                                    .foregroundStyle(.orange)
                             }
                         }
-                    } footer: {
+                    }
+                } footer: {
+                    if isHttps {
                         Text(LanguageManager.shared.localized("Allow connections to self-signed or invalid SSL certificates."))
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Section(LanguageManager.shared.localized("Authentication")) {
+                Section {
                     HStack {
                         Image(systemName: "person.fill")
                             .foregroundStyle(.blue)
@@ -126,6 +142,8 @@ struct EditServerView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                } header: {
+                    Text(LanguageManager.shared.localized("Authentication"))
                 }
 
                 Section {
@@ -181,7 +199,8 @@ struct EditServerView: View {
                 if let server = serverToEdit {
                     name = server.name
                     type = server.type
-                    address = server.address
+                    isHttps = resolvedHTTPSFlag(from: server)
+                    address = sanitizeAddressInput(server.address)
                     port = String(server.port)
                     username = server.username
                     password = server.password
@@ -189,12 +208,19 @@ struct EditServerView: View {
                     rpcPath = server.rpcPath
                 }
             }
+            .onChange(of: address) { _, newValue in
+                handleAddressChanged(newValue)
+            }
+            .onChange(of: isHttps) { _, enabled in
+                if !enabled {
+                    allowInsecureSSL = false
+                }
+            }
         }
     }
 
     private func saveServer() {
-        // 处理地址前缀
-        let formattedAddress = address.trimmingCharacters(in: .whitespaces)
+        let formattedAddress = sanitizeAddressInput(address)
 
         if let server = serverToEdit {
             // Update
@@ -204,6 +230,7 @@ struct EditServerView: View {
             server.port = Int(port) ?? 8080
             server.username = username.trimmingCharacters(in: .whitespaces)
             server.password = password
+            server.useHTTPS = isHttps
             server.allowInsecureSSL = allowInsecureSSL
             server.rpcPath = rpcPath.trimmingCharacters(in: .whitespaces)
         } else {
@@ -215,6 +242,7 @@ struct EditServerView: View {
                 port: Int(port) ?? 8080,
                 username: username.trimmingCharacters(in: .whitespaces),
                 password: password,
+                useHTTPS: isHttps,
                 allowInsecureSSL: allowInsecureSSL,
                 rpcPath: rpcPath.trimmingCharacters(in: .whitespaces)
             )
@@ -230,7 +258,7 @@ struct EditServerView: View {
 
         Task {
             // Construct temp config
-            let formattedAddress = address.trimmingCharacters(in: .whitespaces)
+            let formattedAddress = sanitizeAddressInput(address)
 
             let tempConfig = ServerConfig(
                 name: "Test",
@@ -239,6 +267,7 @@ struct EditServerView: View {
                 port: Int(port) ?? 8080,
                 username: username.trimmingCharacters(in: .whitespaces),
                 password: password,
+                useHTTPS: isHttps,
                 allowInsecureSSL: allowInsecureSSL,
                 rpcPath: rpcPath.trimmingCharacters(in: .whitespaces)
             )
@@ -268,6 +297,91 @@ struct EditServerView: View {
             }
             isTesting = false
         }
+    }
+
+    private func handleAddressChanged(_ rawValue: String) {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+
+        if lower.hasPrefix("https://") {
+            isHttps = true
+        } else if lower.hasPrefix("http://") {
+            isHttps = false
+        }
+
+        let sanitized = sanitizeAddressInput(trimmed)
+        if sanitized != rawValue {
+            address = sanitized
+        }
+    }
+
+    private func sanitizeAddressInput(_ rawValue: String) -> String {
+        var value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = value.lowercased()
+
+        if lower.hasPrefix("https://") {
+            if let url = URL(string: value), let host = url.host, !host.isEmpty {
+                return host
+            }
+            value = String(value.dropFirst(8))
+        } else if lower.hasPrefix("http://") {
+            if let url = URL(string: value), let host = url.host, !host.isEmpty {
+                return host
+            }
+            value = String(value.dropFirst(7))
+        }
+
+        if let slash = value.firstIndex(of: "/") {
+            value = String(value[..<slash])
+        }
+
+        if !value.hasPrefix("["),
+           let colon = value.lastIndex(of: ":"),
+           colon != value.startIndex {
+            let hostPart = String(value[..<colon])
+            let portPart = String(value[value.index(after: colon)...])
+            if Int(portPart) != nil, !hostPart.isEmpty {
+                value = hostPart
+            }
+        }
+
+        return value
+    }
+
+    private func resolvedHTTPSFlag(from server: ServerConfig) -> Bool {
+        let lower = server.address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower.hasPrefix("https://") { return true }
+        if lower.hasPrefix("http://") { return false }
+        return server.useHTTPS
+    }
+}
+
+private struct AppleStyleIcon: View {
+    let backgroundColor: Color
+    let systemName: String
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [backgroundColor.opacity(0.96), backgroundColor.opacity(0.82)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .semibold))
+                .symbolVariant(.fill)
+                .foregroundStyle(.white)
+        }
+        .frame(width: 28, height: 28)
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(.white.opacity(0.22), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 }
 

@@ -18,6 +18,7 @@ struct DashboardProCinemaLayerView: View {
     @State private var trackIndex = 1
     @State private var autoPlayResetToken = UUID()
     @State private var dragOffset: CGFloat = 0
+    @State private var wrapResetTask: Task<Void, Never>?
 
     private var refreshKey: String {
         combinedTorrents
@@ -53,6 +54,8 @@ struct DashboardProCinemaLayerView: View {
                     let spacing: CGFloat = 14
                     let step = cardWidth + spacing
                     let threshold: CGFloat = 40
+                    let slideDuration: Double = 0.32
+                    let slideAnimation: Animation = .easeInOut(duration: slideDuration)
                     let centeredBaseOffset = (geo.size.width - cardWidth) / 2
                     let safeTrackIndex = min(max(trackIndex, 0), max(loopItems.count - 1, 0))
                     let trackOffset = centeredBaseOffset - (CGFloat(safeTrackIndex) * step) + dragOffset
@@ -66,7 +69,6 @@ struct DashboardProCinemaLayerView: View {
                         }
                     }
                     .offset(x: trackOffset)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.88), value: safeTrackIndex)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 8)
@@ -95,7 +97,7 @@ struct DashboardProCinemaLayerView: View {
                                 }
                                 nextIndex = min(max(nextIndex, 0), max(loopItems.count - 1, 0))
 
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                                withAnimation(slideAnimation) {
                                     trackIndex = nextIndex
                                     dragOffset = 0
                                 }
@@ -112,7 +114,7 @@ struct DashboardProCinemaLayerView: View {
                         while !Task.isCancelled {
                             try? await Task.sleep(nanoseconds: 5_000_000_000)
                             guard !Task.isCancelled else { return }
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                            withAnimation(slideAnimation) {
                                 trackIndex += 1
                             }
                         }
@@ -120,17 +122,29 @@ struct DashboardProCinemaLayerView: View {
                     .onChange(of: trackIndex) { _, newValue in
                         let displayCount = displayItems.count
                         guard displayCount > 1 else { return }
+                        wrapResetTask?.cancel()
+
                         if newValue == 0 {
-                            Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: 380_000_000)
+                            wrapResetTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: UInt64(slideDuration * 1_000_000_000))
+                                guard !Task.isCancelled else { return }
                                 guard trackIndex == 0 else { return }
-                                withAnimation(.none) { trackIndex = displayCount }
+                                var transaction = Transaction(animation: nil)
+                                transaction.disablesAnimations = true
+                                withTransaction(transaction) {
+                                    trackIndex = displayCount
+                                }
                             }
                         } else if newValue == displayCount + 1 {
-                            Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: 380_000_000)
+                            wrapResetTask = Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: UInt64(slideDuration * 1_000_000_000))
+                                guard !Task.isCancelled else { return }
                                 guard trackIndex == displayCount + 1 else { return }
-                                withAnimation(.none) { trackIndex = 1 }
+                                var transaction = Transaction(animation: nil)
+                                transaction.disablesAnimations = true
+                                withTransaction(transaction) {
+                                    trackIndex = 1
+                                }
                             }
                         }
                     }
@@ -145,6 +159,10 @@ struct DashboardProCinemaLayerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
             print("Dashboard: Pro cinema layer mounted, candidateTasks=\(candidateTasks.count)")
+        }
+        .onDisappear {
+            wrapResetTask?.cancel()
+            wrapResetTask = nil
         }
         .task(id: refreshKey) {
             await refreshPosters()
@@ -253,8 +271,9 @@ private struct DashboardProPosterCard: View {
                     }
             } else {
                 SimpleCachedImage(url: item.posterURL)
-                    .scaledToFit()
+                    .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                     .background(Color(uiColor: .secondarySystemGroupedBackground))
             }
         }
