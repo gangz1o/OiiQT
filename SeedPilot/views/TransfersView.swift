@@ -148,7 +148,7 @@ struct TransfersView: View {
                                     },
                                     appStateManager: appStateManager
                                 )
-                                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)) // Wider spacing
+                                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                                 .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
