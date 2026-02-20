@@ -15,6 +15,9 @@ class TransmissionClient: NSObject, TorrentClient {
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.httpCookieStorage = HTTPCookieStorage.shared
         sessionConfig.httpCookieAcceptPolicy = .always
+        sessionConfig.waitsForConnectivity = true
+        sessionConfig.timeoutIntervalForRequest = 20
+        sessionConfig.timeoutIntervalForResource = 40
         let delegate = NetworkManager(allowInsecureSSL: config.allowInsecureSSL)
         return URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     }()
@@ -45,46 +48,68 @@ class TransmissionClient: NSObject, TorrentClient {
     private func performRequest<T: Decodable>(_ method: String, arguments: [String: Any]?, responseType: T.Type) async throws -> T {
         guard let url = getRPCURL() else { throw TorrentClientError.invalidURL }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        for attempt in 0..<2 {
+            do {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
 
-        let body: [String: Any] = [
-            "method": method,
-            "arguments": arguments ?? [:]
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        configureRequest(&request)
+                let body: [String: Any] = [
+                    "method": method,
+                    "arguments": arguments ?? [:]
+                ]
+                request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+                configureRequest(&request)
 
-        var (data, response) = try await session.data(for: request)
+                var (data, response) = try await session.data(for: request)
 
-        // Handle CSRF 409
-        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 409 {
-            if let newSID = httpResponse.value(forHTTPHeaderField: "X-Transmission-Session-Id") {
-                self.sessionID = newSID
-                // Retry once
-                configureRequest(&request) // Update with new SID
-                (data, response) = try await session.data(for: request)
-            } else {
-                 throw TorrentClientError.apiError("Transmission: 409 Conflict but no Session ID returned")
+                // Handle CSRF 409
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 409 {
+                    if let newSID = httpResponse.value(forHTTPHeaderField: "X-Transmission-Session-Id") {
+                        self.sessionID = newSID
+                        // Retry once with new session id
+                        configureRequest(&request)
+                        (data, response) = try await session.data(for: request)
+                    } else {
+                        throw TorrentClientError.apiError("Transmission: 409 Conflict but no Session ID returned")
+                    }
+                }
+
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    throw TorrentClientError.apiError("Transmission API Error: \(response)")
+                }
+
+                let decoder = JSONDecoder()
+                let rpcResponse = try decoder.decode(TransmissionRPCResponse<T>.self, from: data)
+
+                if rpcResponse.result != "success" {
+                    throw TorrentClientError.apiError("Transmission RPC Error: \(rpcResponse.result)")
+                }
+
+                guard let args = rpcResponse.arguments else {
+                    throw TorrentClientError.apiError("Transmission RPC: No arguments in response")
+                }
+
+                return args
+            } catch {
+                if attempt == 0, shouldRetryTransientNetworkError(error) {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    continue
+                }
+                throw error
             }
         }
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-             throw TorrentClientError.apiError("Transmission API Error: \(response)")
+        throw TorrentClientError.apiError("Transmission request retry exhausted")
+    }
+
+    private func shouldRetryTransientNetworkError(_ error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .networkConnectionLost, .timedOut, .cannotConnectToHost, .dnsLookupFailed:
+            return true
+        default:
+            return false
         }
-
-        let decoder = JSONDecoder()
-        let rpcResponse = try decoder.decode(TransmissionRPCResponse<T>.self, from: data)
-
-        if rpcResponse.result != "success" {
-            throw TorrentClientError.apiError("Transmission RPC Error: \(rpcResponse.result)")
-        }
-
-        guard let args = rpcResponse.arguments else {
-             throw TorrentClientError.apiError("Transmission RPC: No arguments in response")
-        }
-
-        return args
     }
 
     // MARK: - Protocol Implementation

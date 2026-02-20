@@ -1557,6 +1557,23 @@
         }
       }
     },
+    "Duration Day Hour Minute Format" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$dd %2$dh %3$dm"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d天%2$d小时%3$d分"
+          }
+        }
+      }
+    },
     "e.g. 01-12 or S01E01-E10" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2186,6 +2203,23 @@
         }
       }
     },
+    "iCloud Sync" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同步"
+          }
+        }
+      }
+    },
     "Ignore SSL Certificate Errors" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2301,6 +2335,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "应用语言"
+          }
+        }
+      }
+    },
+    "Last synced: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last synced: %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近同步：%1$@"
           }
         }
       }
@@ -2848,6 +2899,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无 Tracker 别名"
+          }
+        }
+      }
+    },
+    "Not synced yet" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not synced yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未同步"
           }
         }
       }
@@ -4808,6 +4876,74 @@
         }
       }
     },
+    "Sync failed: iCloud account unavailable." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync failed: iCloud account unavailable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步失败：iCloud 账户不可用。"
+          }
+        }
+      }
+    },
+    "Sync failed: iCloud storage quota exceeded." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync failed: iCloud storage quota exceeded."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步失败：iCloud 存储空间已满。"
+          }
+        }
+      }
+    },
+    "Sync failed. Please try again later." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync failed. Please try again later."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步失败，请稍后重试。"
+          }
+        }
+      }
+    },
+    "Sync lightweight preferences across your devices via iCloud." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync lightweight preferences across your devices via iCloud."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 iCloud 在设备间同步轻量偏好设置。"
+          }
+        }
+      }
+    },
     "Syncing server storage information..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4821,6 +4957,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在同步服务器存储信息..."
+          }
+        }
+      }
+    },
+    "Syncing..." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Syncing..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在同步..."
           }
         }
       }

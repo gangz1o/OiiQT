@@ -107,9 +107,8 @@ struct RSSView: View {
                     Button {
                         showingAddSheet = true
                     } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
-                            .font(.system(size: 22))
+                        Image(systemName: "plus")
+                            .font(.system(size: 19, weight: .semibold))
                     }
                 }
             }

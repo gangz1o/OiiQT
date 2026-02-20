@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Kingfisher
+import UIKit
 
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -24,6 +25,7 @@ struct SettingsView: View {
     // Pro 功能
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
 
     // UI 状态
     @State private var showingClearCacheAlert = false
@@ -32,6 +34,7 @@ struct SettingsView: View {
     @State private var showingTermsSheet = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
+    @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
 
     var body: some View {
         NavigationStack(path: $settingsPath) {
@@ -159,10 +162,28 @@ struct SettingsView: View {
                     } label: {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
                     }
+                    Toggle(isOn: $iCloudSyncEnabled) {
+                        HStack(spacing: 12) {
+                            AppleStyleIcon(backgroundColor: .cyan, systemName: "icloud.fill")
+                            Text(LanguageManager.shared.localized("iCloud Sync"))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                    }
+                    if iCloudSyncEnabled {
+                        HStack(spacing: 8) {
+                            Image(systemName: iCloudSyncStatusIcon)
+                                .font(.caption)
+                                .foregroundStyle(iCloudSyncStatusColor)
+                            Text(iCloudSyncStatusText)
+                                .font(.footnote)
+                                .foregroundStyle(iCloudSyncStatusColor)
+                                .lineLimit(2)
+                        }
+                        .padding(.vertical, 2)
+                    }
                 } header: {
                     Text(LanguageManager.shared.localized("Pro Features"))
-                } footer: {
-                    Text(LanguageManager.shared.localized("Show movie and TV poster information in the torrent list when enabled."))
                 }
 
                 // MARK: - 存储与维护
@@ -205,6 +226,7 @@ struct SettingsView: View {
             .onAppear {
                 updateCacheSize()
                 openPendingSettingsRouteIfNeeded()
+                iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
             }
             .onChange(of: appStateManager.selectedTab) { _, newValue in
                 guard newValue == .settings else { return }
@@ -212,6 +234,14 @@ struct SettingsView: View {
             }
             .onChange(of: appStateManager.settingsRoute) { _, _ in
                 openPendingSettingsRouteIfNeeded()
+            }
+            .onChange(of: iCloudSyncEnabled) { _, isEnabled in
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                iCloudSyncManager.shared.setSyncEnabled(isEnabled)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .iCloudSyncStatusDidChange)) { _ in
+                iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
             }
             .sheet(isPresented: $showingPrivacyPolicySheet) {
                 PrivacyPolicySheetView()
@@ -334,6 +364,46 @@ struct SettingsView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .multilineTextAlignment(.center)
+    }
+
+    private var iCloudSyncStatusText: String {
+        if iCloudSyncStatus.isSyncing {
+            return LanguageManager.shared.localized("Syncing...")
+        }
+
+        if let errorCode = iCloudSyncStatus.lastErrorCode {
+            switch errorCode {
+            case .accountUnavailable:
+                return LanguageManager.shared.localized("Sync failed: iCloud account unavailable.")
+            case .quotaExceeded:
+                return LanguageManager.shared.localized("Sync failed: iCloud storage quota exceeded.")
+            case .unknown:
+                return LanguageManager.shared.localized("Sync failed. Please try again later.")
+            }
+        }
+
+        guard let lastTime = iCloudSyncStatus.lastSuccessfulSync else {
+            return LanguageManager.shared.localized("Not synced yet")
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return String(format: LanguageManager.shared.localized("Last synced: %@"), formatter.string(from: lastTime))
+    }
+
+    private var iCloudSyncStatusColor: Color {
+        iCloudSyncStatus.lastErrorCode == nil ? .secondary : .red
+    }
+
+    private var iCloudSyncStatusIcon: String {
+        if iCloudSyncStatus.isSyncing {
+            return "arrow.triangle.2.circlepath"
+        }
+        if iCloudSyncStatus.lastErrorCode != nil {
+            return "exclamationmark.circle.fill"
+        }
+        return "checkmark.circle.fill"
     }
 }
 

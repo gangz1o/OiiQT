@@ -24,6 +24,8 @@ struct SeedPilotApp: App {
         cache.memoryStorage.config.totalCostLimit = 100 * 1024 * 1024   // 100 MB memory
         cache.diskStorage.config.sizeLimit = 500 * 1024 * 1024          // 500 MB disk
         cache.diskStorage.config.expiration = .days(7)                  // 7-day expiry
+
+        iCloudSyncManager.shared.start()
     }
 
     var sharedModelContainer: ModelContainer = {
@@ -141,13 +143,13 @@ private struct AppRootView: View {
 private struct SplashView: View {
     var body: some View {
         ZStack {
-            Color(uiColor: .systemBackground)
+            Color.white
                 .ignoresSafeArea()
 
             VStack {
                 Spacer()
                 appIcon
-                    .frame(width: 112, height: 112)
+                    .frame(width: 220, height: 220)
                 Spacer()
             }
         }
@@ -155,16 +157,10 @@ private struct SplashView: View {
 
     @ViewBuilder
     private var appIcon: some View {
-        if let icon = UIImage(named: "AppIcon") {
+        if let icon = UIImage(named: "SplashLogo") {
             Image(uiImage: icon)
                 .resizable()
                 .scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.black.opacity(0.08), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
         } else {
             ZStack {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)

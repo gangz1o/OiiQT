@@ -297,7 +297,12 @@ class AppStateManager {
 
     // MARK: - Actions
 
-    func addTorrents(_ urls: [String], options: AddTorrentOptions, to targetServerID: UUID? = nil) async throws {
+    func addTorrents(
+        _ urls: [String],
+        options: AddTorrentOptions,
+        to targetServerID: UUID? = nil,
+        enforcePausedFallback: Bool = false
+    ) async throws {
         // Determine target server
         let finalServerID = targetServerID ?? activeServerId
 
@@ -305,7 +310,18 @@ class AppStateManager {
             // Default to first server if none selected and no active
              if let first = servers.first {
                  let client = getClient(for: first)
+                 let beforeHashes = await captureTaskHashesIfNeeded(
+                    client: client,
+                    options: options,
+                    enforcePausedFallback: enforcePausedFallback
+                 )
                  try await addTorrentsWithRetry(client: client, urls: urls, options: options)
+                 await pauseNewlyAddedTorrentsIfNeeded(
+                    client: client,
+                    beforeHashes: beforeHashes,
+                    options: options,
+                    enforcePausedFallback: enforcePausedFallback
+                 )
                  try await Task.sleep(nanoseconds: 500_000_000)
                  await refreshData()
                  return
@@ -314,7 +330,18 @@ class AppStateManager {
         }
 
         let client = getClient(for: server)
+        let beforeHashes = await captureTaskHashesIfNeeded(
+            client: client,
+            options: options,
+            enforcePausedFallback: enforcePausedFallback
+        )
         try await addTorrentsWithRetry(client: client, urls: urls, options: options)
+        await pauseNewlyAddedTorrentsIfNeeded(
+            client: client,
+            beforeHashes: beforeHashes,
+            options: options,
+            enforcePausedFallback: enforcePausedFallback
+        )
 
         // Refresh after short delay to let qBittorrent process the add
         try await Task.sleep(nanoseconds: 1_500_000_000)
@@ -335,6 +362,35 @@ class AppStateManager {
             } else {
                 throw error
             }
+        }
+    }
+
+    private func captureTaskHashesIfNeeded(
+        client: TorrentClient,
+        options: AddTorrentOptions,
+        enforcePausedFallback: Bool
+    ) async -> Set<String>? {
+        guard enforcePausedFallback, options.isPaused else { return nil }
+        guard let tasks = try? await client.fetchTorrents() else { return nil }
+        return Set(tasks.map(\.id))
+    }
+
+    private func pauseNewlyAddedTorrentsIfNeeded(
+        client: TorrentClient,
+        beforeHashes: Set<String>?,
+        options: AddTorrentOptions,
+        enforcePausedFallback: Bool
+    ) async {
+        guard enforcePausedFallback, options.isPaused, let beforeHashes else { return }
+        try? await Task.sleep(nanoseconds: 700_000_000)
+
+        guard let tasks = try? await client.fetchTorrents() else { return }
+        let newlyAddedHashes = tasks
+            .map(\.id)
+            .filter { !beforeHashes.contains($0) }
+
+        for hash in newlyAddedHashes {
+            try? await client.pauseTask(hash: hash)
         }
     }
 

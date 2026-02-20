@@ -142,7 +142,12 @@ class RSSMonitor {
                                 isFirstLastPiecePriority: source.priority > 0
                             )
                             do {
-                                try await asm.addTorrents([item.link], options: options, to: source.targetServerId)
+                                try await asm.addTorrents(
+                                    [item.link],
+                                    options: options,
+                                    to: source.targetServerId,
+                                    enforcePausedFallback: source.addPaused
+                                )
                                 item.isDownloaded = true
                                 print("[RSSMonitor] Auto-download success: \(item.title)")
                             } catch {

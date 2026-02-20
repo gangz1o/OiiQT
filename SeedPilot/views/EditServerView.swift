@@ -356,7 +356,7 @@ struct EditServerView: View {
     }
 }
 
-private struct AppleStyleIcon: View {
+struct AppleStyleIcon: View {
     let backgroundColor: Color
     let systemName: String
 

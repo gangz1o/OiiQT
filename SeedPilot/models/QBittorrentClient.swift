@@ -158,6 +158,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         var params: [String: String] = [
             "urls": urls.joined(separator: "\n"),
             "paused": options.isPaused ? "true" : "false",
+            "stopped": options.isPaused ? "true" : "false",
             "skip_checking": options.skipHashCheck ? "true" : "false",
             "sequentialDownload": options.isSequential ? "true" : "false",
             "firstLastPiecePrio": options.isFirstLastPiecePriority ? "true" : "false"
@@ -217,6 +218,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             "category": options.category,
             "tags": options.tags.joined(separator: ","),
             "paused": options.isPaused ? "true" : "false",
+            "stopped": options.isPaused ? "true" : "false",
             "skip_checking": options.skipHashCheck ? "true" : "false",
             "sequentialDownload": options.isSequential ? "true" : "false",
              "firstLastPiecePrio": options.isFirstLastPiecePriority ? "true" : "false"

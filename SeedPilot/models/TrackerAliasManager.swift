@@ -60,6 +60,10 @@ final class TrackerAliasManager: ObservableObject {
         persist()
     }
 
+    func reloadFromStorageForExternalChange() {
+        loadFromStorage()
+    }
+
     func normalizeTrackerDomain(_ raw: String) -> String {
         var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return "" }

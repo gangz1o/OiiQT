@@ -266,11 +266,18 @@ struct TorrentTask: Identifiable, Hashable {
 }
 
 func formatDuration(_ seconds: TimeInterval) -> String {
-    let formatter = DateComponentsFormatter()
-    formatter.allowedUnits = [.hour, .minute, .second]
-    formatter.unitsStyle = .positional // HH:mm:ss
-    formatter.zeroFormattingBehavior = .pad
-    return formatter.string(from: seconds) ?? "00:00:00"
+    let totalMinutes = max(0, Int(seconds) / 60)
+    let days = totalMinutes / (24 * 60)
+    let hours = (totalMinutes % (24 * 60)) / 60
+    let minutes = totalMinutes % 60
+
+    return String(
+        format: LanguageManager.shared.localized("Duration Day Hour Minute Format"),
+        locale: .current,
+        days,
+        hours,
+        minutes
+    )
 }
 
 // MARK: - 4. 抽象客户端协议
