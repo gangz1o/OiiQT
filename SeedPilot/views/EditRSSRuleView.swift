@@ -185,6 +185,8 @@ struct EditRSSRuleView: View {
 
                 // Section 5: Execution Strategy
                 Section(LanguageManager.shared.localized("Task Strategy")) {
+                    Toggle(LanguageManager.shared.localized("Auto Download"), isOn: $source.autoDownload)
+
                     Toggle(LanguageManager.shared.localized("Add in Paused State"), isOn: $source.addPaused)
 
                     Picker(LanguageManager.shared.localized("Priority"), selection: $source.priority) {
@@ -197,6 +199,7 @@ struct EditRSSRuleView: View {
                 // Section 6: Testing
                 Section(footer: Text(LanguageManager.shared.localized("After saving, newly published compliant items will be automatically pushed to the server."))) {
                     Button(LanguageManager.shared.localized("Test Rule Matching")) {
+                        applyPendingKeywordInputs()
                         showingMatchPreview = true
                     }
                 }
@@ -206,6 +209,7 @@ struct EditRSSRuleView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(LanguageManager.shared.localized("Done")) {
+                        applyPendingKeywordInputs()
                         dismiss()
                     }
                 }
@@ -214,6 +218,20 @@ struct EditRSSRuleView: View {
                 RuleMatchPreviewView(source: source)
                     .presentationDetents([.medium, .large])
             }
+        }
+    }
+
+    private func applyPendingKeywordInputs() {
+        let include = newIncludeKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !include.isEmpty {
+            source.includeKeywords.append(include)
+            newIncludeKeyword = ""
+        }
+
+        let exclude = newExcludeKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !exclude.isEmpty {
+            source.excludeKeywords.append(exclude)
+            newExcludeKeyword = ""
         }
     }
 }

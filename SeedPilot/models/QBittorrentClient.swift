@@ -271,11 +271,21 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     func pauseTask(hash: String) async throws {
-        try await performAction(endpoint: "pause", hashes: hash)
+        do {
+            try await performAction(endpoint: "pause", hashes: hash)
+        } catch {
+            // Compatibility fallback for some qB API variants/proxies.
+            try await performAction(endpoint: "stop", hashes: hash)
+        }
     }
 
     func resumeTask(hash: String) async throws {
-        try await performAction(endpoint: "resume", hashes: hash)
+        do {
+            try await performAction(endpoint: "resume", hashes: hash)
+        } catch {
+            // Compatibility fallback for some qB API variants/proxies.
+            try await performAction(endpoint: "start", hashes: hash)
+        }
     }
 
     func deleteTask(hash: String, withData: Bool) async throws {
@@ -404,35 +414,79 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     private func performAction(endpoint: String, hashes: String, extraParams: [String: String] = [:]) async throws {
-        guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/\(endpoint)") else {
-            throw TorrentClientError.invalidURL
+        let normalizedHashes = normalizeHashes(hashes)
+
+        func makeRequest() throws -> URLRequest {
+            guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/\(endpoint)") else {
+                throw TorrentClientError.invalidURL
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            configureRequest(&request)
+
+            var params = ["hashes": normalizedHashes]
+            for (key, value) in extraParams {
+                params[key] = value
+            }
+
+            let bodyString = params.map { key, value in
+                let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+                var allowed = CharacterSet.alphanumerics
+                allowed.insert(charactersIn: "-_.~")
+                let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+                return "\(encodedKey)=\(encodedValue)"
+            }.joined(separator: "&")
+
+            request.httpBody = bodyString.data(using: .utf8)
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            return request
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        var request = try makeRequest()
+        let (firstData, firstResponse) = try await session.data(for: request)
 
-        var params = ["hashes": hashes]
-        for (key, value) in extraParams {
-            params[key] = value
+        guard let firstHTTP = firstResponse as? HTTPURLResponse else {
+            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
         }
 
-        let bodyString = params.map { key, value in
-            let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-            // Start with alphanumeric + simple punctuation
-            var allowed = CharacterSet.alphanumerics
-            allowed.insert(charactersIn: "-_.~")
-            // Encoding user input (like paths, urls) requires strict encoding to avoid body breakage
-            let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
-            return "\(encodedKey)=\(encodedValue)"
-        }.joined(separator: "&")
-
-        request.httpBody = bodyString.data(using: .utf8)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw TorrentClientError.apiError("\(endpoint) failed")
+        if firstHTTP.statusCode == 403 {
+            try await login()
+            request = try makeRequest()
+            let (retryData, retryResponse) = try await session.data(for: request)
+            guard let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
+                let status = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
+                let body = String(data: retryData, encoding: .utf8) ?? ""
+                throw TorrentClientError.apiError("\(endpoint) failed: HTTP \(status) \(body)")
+            }
+            let retryBody = String(data: retryData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if retryBody == "Fails." {
+                throw TorrentClientError.apiError("\(endpoint) failed: \(retryBody)")
+            }
+            return
         }
+
+        guard firstHTTP.statusCode == 200 else {
+            let body = String(data: firstData, encoding: .utf8) ?? ""
+            throw TorrentClientError.apiError("\(endpoint) failed: HTTP \(firstHTTP.statusCode) \(body)")
+        }
+
+        let firstBody = String(data: firstData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if firstBody == "Fails." {
+            throw TorrentClientError.apiError("\(endpoint) failed: \(firstBody)")
+        }
+    }
+
+    private func normalizeHashes(_ hashes: String) -> String {
+        if hashes == "all" {
+            return hashes
+        }
+        return hashes
+            .split(separator: "|")
+            .map { String($0).lowercased() }
+            .joined(separator: "|")
     }
 
     // MARK: - Heartbeat

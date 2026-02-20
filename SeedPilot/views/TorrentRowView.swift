@@ -16,6 +16,7 @@ struct TorrentRowView: View {
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
+    @ObservedObject private var trackerAliasManager = TrackerAliasManager.shared
     var appStateManager: AppStateManager
 
     @State private var posterURL: URL?
@@ -60,11 +61,11 @@ struct TorrentRowView: View {
                         // Feature 1: Top Status Bar
                         HStack {
                             // Tracker
-                            Text(task.trackerHost)
+                            Text(displayedTracker)
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
-                                .truncationMode(.middle)
+                                .truncationMode(.tail)
                                 .minimumScaleFactor(0.8)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -387,6 +388,12 @@ struct TorrentRowView: View {
         case .error: return .red
         default: return Color.gray.opacity(0.8)
         }
+    }
+}
+
+private extension TorrentRowView {
+    var displayedTracker: String {
+        trackerAliasManager.getAlias(for: task.trackerHost)
     }
 }
 

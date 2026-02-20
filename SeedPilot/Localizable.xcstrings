@@ -282,6 +282,40 @@
         }
       }
     },
+    "Add Alias" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Alias"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加别名"
+          }
+        }
+      }
+    },
+    "Add an alias to shorten long tracker domains in torrent cards." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add an alias to shorten long tracker domains in torrent cards."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加别名以缩短种子卡片中的长 Tracker 域名。"
+          }
+        }
+      }
+    },
     "Add failed: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -465,6 +499,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配置生效后，新发布的合规条目将自动推送到服务器。"
+          }
+        }
+      }
+    },
+    "Alias" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alias"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "别名"
           }
         }
       }
@@ -1519,6 +1570,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "例如: 01-12 或 S01E01-E10"
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑"
+          }
+        }
+      }
+    },
+    "Edit Alias" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Alias"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑别名"
           }
         }
       }
@@ -2679,6 +2764,9 @@
         }
       }
     },
+    "No RSS items" : {
+
+    },
     "No servers configured" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2747,6 +2835,23 @@
         }
       }
     },
+    "No Tracker Aliases" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Tracker Aliases"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无 Tracker 别名"
+          }
+        }
+      }
+    },
     "OK" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2794,6 +2899,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可选"
+          }
+        }
+      }
+    },
+    "Original Domain" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original Domain"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原始域名"
           }
         }
       }
@@ -5424,6 +5546,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tracker"
+          }
+        }
+      }
+    },
+    "Tracker Aliases" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker Aliases"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker 别名"
           }
         }
       }

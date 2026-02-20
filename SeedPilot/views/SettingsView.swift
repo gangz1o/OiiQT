@@ -154,6 +154,11 @@ struct SettingsView: View {
                     Toggle(isOn: $proDashboardBackgroundEnabled) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
                     }
+                    NavigationLink {
+                        TrackerAliasListView()
+                    } label: {
+                        SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
+                    }
                 } header: {
                     Text(LanguageManager.shared.localized("Pro Features"))
                 } footer: {

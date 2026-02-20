@@ -12,18 +12,32 @@ struct RuleMatchPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     let source: RSSFeedSource
 
-    @State private var mockItems: [RSSItem] = []
+    @State private var items: [RSSItem] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             List {
-                Section(footer: Text(LanguageManager.shared.localized("This preview shows simulated RSS entries and whether they match the current rules."))) {
-                    if mockItems.isEmpty {
+                Section {
+                    if isLoading && items.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity, alignment: .center)
                             .listRowBackground(Color.clear)
+                    } else if let error = errorMessage, items.isEmpty {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .listRowBackground(Color.clear)
+                    } else if items.isEmpty {
+                        Text("No RSS items")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .listRowBackground(Color.clear)
                     } else {
-                        ForEach(mockItems) { item in
+                        ForEach(items) { item in
                             RuleMatchRow(item: item, source: source)
                         }
                     }
@@ -39,23 +53,30 @@ struct RuleMatchPreviewView: View {
                 }
             }
             .task {
-                generateMockItems()
+                await loadItems()
             }
         }
     }
 
-    private func generateMockItems() {
-        // Simulate a delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.mockItems = [
-                RSSItem(title: "[NGB] Shang hai Tan (1980) 1080p x265 AAC-Mandarin", link: "1", pubDate: Date(), isDownloaded: false, sourceName: source.name, fileSize: "12.5 GB", tmdbPosterUrl: nil),
-                RSSItem(title: "[Hares] The Matrix (1999) 4K REMUX HDR TrueHD", link: "2", pubDate: Date(), isDownloaded: false, sourceName: source.name, fileSize: "60.2 GB", tmdbPosterUrl: nil),
-                RSSItem(title: "[Erai-raws] One Piece - 1080 [1080p].mkv", link: "3", pubDate: Date(), isDownloaded: false, sourceName: source.name, fileSize: "1.4 GB", tmdbPosterUrl: nil),
-                RSSItem(title: "[SubsPlease] Jujutsu Kaisen - 25 (720p) [A3F12].mkv", link: "4", pubDate: Date(), isDownloaded: false, sourceName: source.name, fileSize: "500 MB", tmdbPosterUrl: nil),
-                RSSItem(title: "My.Neighbor.Totoro.1988.1080p.BluRay.x264-Wiki", link: "5", pubDate: Date(), isDownloaded: false, sourceName: source.name, fileSize: "8.1 GB", tmdbPosterUrl: nil),
-                RSSItem(title: "[HorribleSubs] Boruto - Naruto Next Generations - 120 [480p].mkv", link: "6", pubDate: Date(), isDownloaded: false, sourceName: source.name, fileSize: "150 MB", tmdbPosterUrl: nil)
-            ]
+    @MainActor
+    private func loadItems() async {
+        isLoading = true
+        errorMessage = nil
+
+        let cachedItems = source.items.sorted { $0.pubDate > $1.pubDate }
+
+        do {
+            let fetched = try await RSSManager.shared.fetchRSS(source: source)
+            let sortedFetched = fetched.sorted { $0.pubDate > $1.pubDate }
+            self.items = sortedFetched.isEmpty ? cachedItems : sortedFetched
+        } catch {
+            self.items = cachedItems
+            if cachedItems.isEmpty {
+                self.errorMessage = error.localizedDescription
+            }
         }
+
+        isLoading = false
     }
 }
 
