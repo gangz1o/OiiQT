@@ -9,6 +9,7 @@ import SwiftUI
 
 enum TaskStatusFilter: String, CaseIterable, Identifiable {
     case all
+    case active
     case downloading
     case seeding
     case paused
@@ -20,6 +21,8 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable {
         switch self {
         case .all:
             return LanguageManager.shared.localized("All")
+        case .active:
+            return LanguageManager.shared.localized("Active")
         case .downloading:
             return LanguageManager.shared.localized("Downloading")
         case .seeding:
@@ -33,6 +36,7 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
+        case .active: return .mint
         case .downloading: return .blue
         case .seeding: return .green
         case .paused: return .gray
@@ -45,6 +49,8 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable {
         switch self {
         case .all:
             return true
+        case .active:
+            return status == .downloading || status == .seeding
         case .downloading:
             return status == .downloading
         case .seeding:
@@ -53,6 +59,15 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable {
             return status == .paused
         case .error:
             return status == .error
+        }
+    }
+
+    func matches(_ task: TorrentTask) -> Bool {
+        switch self {
+        case .active:
+            return task.downloadSpeed > 0 || task.uploadSpeed > 0
+        default:
+            return matches(task.status)
         }
     }
 }

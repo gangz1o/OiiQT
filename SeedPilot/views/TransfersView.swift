@@ -37,7 +37,7 @@ struct TransfersView: View {
 
         // 1. Status Filter
         if selectedStatus != .all {
-            tasks = tasks.filter { selectedStatus.matches($0.status) }
+            tasks = tasks.filter { selectedStatus.matches($0) }
         }
 
         // 2. Search Text
