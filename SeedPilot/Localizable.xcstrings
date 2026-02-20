@@ -571,6 +571,23 @@
         }
       }
     },
+    "Alternative Rate Limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alternative Rate Limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备用限速"
+          }
+        }
+      }
+    },
     "App Settings" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1557,6 +1574,23 @@
         }
       }
     },
+    "Enable Alternative Limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Alternative Limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用备用限速"
+          }
+        }
+      }
+    },
     "Enable modules in Settings to display the data you care about." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1570,6 +1604,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在设置中开启模块以展示你关心的数据。"
+          }
+        }
+      }
+    },
+    "Enable Scheduled Alternative Limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Scheduled Alternative Limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用定时备用限速"
+          }
+        }
+      }
+    },
+    "End Time" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End Time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "结束时间"
           }
         }
       }
@@ -1659,6 +1727,23 @@
         }
       }
     },
+    "Failed to load rate limit settings: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load rate limit settings: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载限速设置失败：%@"
+          }
+        }
+      }
+    },
     "Failed to read file: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1672,6 +1757,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "读取文件失败: %@"
+          }
+        }
+      }
+    },
+    "Failed to save rate limit settings: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save rate limit settings: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存限速设置失败：%@"
           }
         }
       }
@@ -1863,6 +1965,23 @@
         }
       }
     },
+    "Fri" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fri"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "五"
+          }
+        }
+      }
+    },
     "GitHub Repository" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1893,6 +2012,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "给它起个名字"
+          }
+        }
+      }
+    },
+    "Global Speed Limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global Speed Limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全局限速"
           }
         }
       }
@@ -2050,6 +2186,23 @@
         }
       }
     },
+    "KB/s" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KB/s"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KB/s"
+          }
+        }
+      }
+    },
     "Language" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2118,6 +2271,23 @@
         }
       }
     },
+    "Limited by qB permissions: only global upload/download limits are available." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limited by qB permissions: only global upload/download limits are available."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前 qB 权限受限，仅支持全局上传/下载限速。"
+          }
+        }
+      }
+    },
     "Link List" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2148,6 +2318,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "链接"
+          }
+        }
+      }
+    },
+    "Loading..." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载中..."
           }
         }
       }
@@ -2301,6 +2488,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模块展示"
+          }
+        }
+      }
+    },
+    "Mon" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一"
           }
         }
       }
@@ -3359,6 +3563,23 @@
         }
       }
     },
+    "Rate Limit Settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate Limit Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限速设置"
+          }
+        }
+      }
+    },
     "Ratio" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3699,6 +3920,23 @@
         }
       }
     },
+    "Sat" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "六"
+          }
+        }
+      }
+    },
     "Save" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3729,6 +3967,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存路径"
+          }
+        }
+      }
+    },
+    "Scheduled Alternative Limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scheduled Alternative Limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定时启用"
           }
         }
       }
@@ -4295,6 +4550,23 @@
         }
       }
     },
+    "Start Time" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始时间"
+          }
+        }
+      }
+    },
     "Status" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4376,6 +4648,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立即订阅 (%@)"
+          }
+        }
+      }
+    },
+    "Sun" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sun"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日"
           }
         }
       }
@@ -5037,6 +5326,23 @@
         }
       }
     },
+    "Thu" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "四"
+          }
+        }
+      }
+    },
     "TMDB Poster Data" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5203,6 +5509,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请尝试更换关键词或检查拼写。"
+          }
+        }
+      }
+    },
+    "Tue" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "二"
           }
         }
       }
@@ -5526,6 +5849,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看所有订阅源的最新更新聚合。"
+          }
+        }
+      }
+    },
+    "Wed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三"
+          }
+        }
+      }
+    },
+    "Weekdays" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekdays"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "星期"
           }
         }
       }

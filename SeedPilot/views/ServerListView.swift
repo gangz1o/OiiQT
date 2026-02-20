@@ -15,6 +15,7 @@ struct ServerListView: View {
 
     @State private var showingAddServer = false
     @State private var editingServer: ServerConfig?
+    @State private var rateLimitServer: ServerConfig?
 
     var body: some View {
         ScrollView {
@@ -31,6 +32,12 @@ struct ServerListView: View {
                             editingServer = server
                         } label: {
                             Label(LanguageManager.shared.localized("Edit Server"), systemImage: "pencil")
+                        }
+
+                        Button {
+                            rateLimitServer = server
+                        } label: {
+                            Label(LanguageManager.shared.localized("Rate Limit Settings"), systemImage: "speedometer")
                         }
 
                         Button(role: .destructive) {
@@ -68,6 +75,9 @@ struct ServerListView: View {
         }
         .sheet(item: $editingServer) { server in
             EditServerView(serverToEdit: server)
+        }
+        .sheet(item: $rateLimitServer) { server in
+            ServerRateLimitView(server: server)
         }
         .onAppear {
             appStateManager.updateServers(servers)
