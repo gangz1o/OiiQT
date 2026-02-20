@@ -23,12 +23,18 @@ struct TorrentRowView: View {
     @State private var showingRenameAlert = false
     @State private var newName = ""
     @State private var showingLocationAlert = false
+    @State private var showingPresetLocationPicker = false
     @State private var newLocation = ""
     @State private var showingTrackersAlert = false
     @State private var newTrackers = ""
     @State private var showingDeleteConfirmation = false
     @State private var isLoadingPoster = false
     @State private var showingManualMatchSheet = false
+    @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
+
+    private var presetSavePaths: [String] {
+        PresetSavePathsCodec.decode(presetSavePathsRaw)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -285,12 +291,33 @@ struct TorrentRowView: View {
         }
         .alert(LanguageManager.shared.localized("Set Save Path"), isPresented: $showingLocationAlert) {
             TextField(LanguageManager.shared.localized("Path"), text: $newLocation)
+            Button(LanguageManager.shared.localized("Choose Preset Path")) {
+                showingPresetLocationPicker = true
+            }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
             Button(LanguageManager.shared.localized("Confirm")) {
                 appStateManager.setLocation(task, newLocation: newLocation)
             }
         } message: {
             Text(LanguageManager.shared.localized("Please enter a new absolute path (e.g. /downloads/movie)."))
+        }
+        .confirmationDialog(
+            LanguageManager.shared.localized("Preset Save Paths"),
+            isPresented: $showingPresetLocationPicker,
+            titleVisibility: .visible
+        ) {
+            if presetSavePaths.isEmpty {
+                Button(LanguageManager.shared.localized("No Preset Save Paths")) {}
+                    .disabled(true)
+            } else {
+                ForEach(presetSavePaths, id: \.self) { path in
+                    Button(path) {
+                        newLocation = path
+                        appStateManager.setLocation(task, newLocation: path)
+                    }
+                }
+            }
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
         }
         .alert(LanguageManager.shared.localized("Edit Tracker"), isPresented: $showingTrackersAlert) {
             TextField(LanguageManager.shared.localized("Tracker URL"), text: $newTrackers)

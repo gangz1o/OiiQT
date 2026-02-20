@@ -367,6 +367,40 @@
         }
       }
     },
+    "Add Path" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加路径"
+          }
+        }
+      }
+    },
+    "Add preset paths to quickly fill save directories." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add preset paths to quickly fill save directories."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加预设路径后可在填写保存目录时快速选择。"
+          }
+        }
+      }
+    },
     "Add RSS Source" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1009,6 +1043,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "校验中"
+          }
+        }
+      }
+    },
+    "Choose Preset Path" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Preset Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从预设选择"
           }
         }
       }
@@ -2815,6 +2866,23 @@
         }
       }
     },
+    "No Preset Save Paths" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Preset Save Paths"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无预设目录"
+          }
+        }
+      }
+    },
     "No Related Results Found" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3630,6 +3698,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "海报墙"
+          }
+        }
+      }
+    },
+    "Preset Save Paths" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset Save Paths"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预设下载目录"
           }
         }
       }

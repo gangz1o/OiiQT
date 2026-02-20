@@ -35,12 +35,17 @@ struct AddTorrentView: View {
     // Options
     @State private var options = AddTorrentOptions()
     @State private var tagsString: String = "" // For binding to comma-separated text
+    @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
 
     // State
     @State private var isAdding = false
     @State private var showFileImporter = false
     @State private var errorMessage: String?
     @State private var showError = false
+
+    private var presetSavePaths: [String] {
+        PresetSavePathsCodec.decode(presetSavePathsRaw)
+    }
 
     var body: some View {
         NavigationStack {
@@ -102,10 +107,27 @@ struct AddTorrentView: View {
                     HStack {
                         Text(LanguageManager.shared.localized("Save Path"))
                         Spacer()
-                        TextField(LanguageManager.shared.localized("Default"), text: $options.savePath)
-                            .multilineTextAlignment(.trailing)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
+                        HStack(spacing: 8) {
+                            TextField(LanguageManager.shared.localized("Default"), text: $options.savePath)
+                                .multilineTextAlignment(.trailing)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+
+                            Menu {
+                                if presetSavePaths.isEmpty {
+                                    Text(LanguageManager.shared.localized("No Preset Save Paths"))
+                                } else {
+                                    ForEach(presetSavePaths, id: \.self) { path in
+                                        Button(path) {
+                                            options.savePath = path
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "folder.badge.plus")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
                     }
 
                     HStack {

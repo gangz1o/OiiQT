@@ -14,10 +14,12 @@ struct BatchActionPanel: View {
 
     // Alert States
     @State private var showingBatchLocationAlert = false
+    @State private var showingBatchPresetLocationPicker = false
     @State private var newBatchLocation = ""
     @State private var showingBatchTrackerAlert = false
     @State private var newBatchTrackers = ""
     @State private var showingBatchDeleteConfirmation = false
+    @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
 
     // Grid Setup
     let columns = [
@@ -33,6 +35,10 @@ struct BatchActionPanel: View {
 
     var areAllPaused: Bool {
         !selectedTasks.isEmpty && selectedTasks.allSatisfy { $0.status == .paused }
+    }
+
+    private var presetSavePaths: [String] {
+        PresetSavePathsCodec.decode(presetSavePathsRaw)
     }
 
     var body: some View {
@@ -94,6 +100,9 @@ struct BatchActionPanel: View {
         .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: -5)
         .alert(LanguageManager.shared.localized("Batch Set Save Path"), isPresented: $showingBatchLocationAlert) {
             TextField(LanguageManager.shared.localized("New Path"), text: $newBatchLocation)
+            Button(LanguageManager.shared.localized("Choose Preset Path")) {
+                showingBatchPresetLocationPicker = true
+            }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
             Button(LanguageManager.shared.localized("Confirm")) {
                 performAction {
@@ -103,6 +112,26 @@ struct BatchActionPanel: View {
             }
         } message: {
             Text(LanguageManager.shared.localized("Please enter a new absolute path. This action will move data for selected tasks."))
+        }
+        .confirmationDialog(
+            LanguageManager.shared.localized("Preset Save Paths"),
+            isPresented: $showingBatchPresetLocationPicker,
+            titleVisibility: .visible
+        ) {
+            if presetSavePaths.isEmpty {
+                Button(LanguageManager.shared.localized("No Preset Save Paths")) {}
+                    .disabled(true)
+            } else {
+                ForEach(presetSavePaths, id: \.self) { path in
+                    Button(path) {
+                        newBatchLocation = path
+                        performAction {
+                            appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: path)
+                        }
+                    }
+                }
+            }
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
         }
         .alert(LanguageManager.shared.localized("Batch Add Tracker"), isPresented: $showingBatchTrackerAlert) {
             TextField(LanguageManager.shared.localized("Tracker URL"), text: $newBatchTrackers)

@@ -16,8 +16,13 @@ struct EditRSSRuleView: View {
 
     @State private var newIncludeKeyword: String = ""
     @State private var newExcludeKeyword: String = ""
+    @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
 
     @State private var showingMatchPreview = false
+
+    private var presetSavePaths: [String] {
+        PresetSavePathsCodec.decode(presetSavePathsRaw)
+    }
 
     var body: some View {
         NavigationStack {
@@ -56,10 +61,27 @@ struct EditRSSRuleView: View {
                     HStack {
                         Text(LanguageManager.shared.localized("Save Path"))
                         Spacer()
-                        TextField(LanguageManager.shared.localized("/downloads/..."), text: $source.savePath)
-                            .multilineTextAlignment(.trailing)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
+                        HStack(spacing: 8) {
+                            TextField(LanguageManager.shared.localized("/downloads/..."), text: $source.savePath)
+                                .multilineTextAlignment(.trailing)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+
+                            Menu {
+                                if presetSavePaths.isEmpty {
+                                    Text(LanguageManager.shared.localized("No Preset Save Paths"))
+                                } else {
+                                    ForEach(presetSavePaths, id: \.self) { path in
+                                        Button(path) {
+                                            source.savePath = path
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "folder.badge.plus")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
 
                         if !source.savePath.isEmpty {
                             Button(action: { source.savePath = "" }) {

@@ -25,6 +25,7 @@ final class iCloudSyncManager {
         "rssRefreshInterval",
         "localRssFeeds",
         "rssBackgroundFetchEnabled",
+        "presetSavePaths",
         "dashboardModuleOrder",
         "showTraffic",
         "showAggregation",

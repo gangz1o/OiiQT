@@ -83,6 +83,17 @@ struct SettingsView: View {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Server Settings"), systemName: "server.rack", tint: .indigo)
                     }
 
+                    NavigationLink {
+                        PresetPathsView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            AppleStyleIcon(backgroundColor: .yellow, systemName: "folder.fill")
+                            Text(LanguageManager.shared.localized("Preset Save Paths"))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                    }
+
                     Picker(selection: $refreshRate) {
                         Text(LanguageManager.shared.localized("5s")).tag(5)
                         Text(LanguageManager.shared.localized("15s")).tag(15)
