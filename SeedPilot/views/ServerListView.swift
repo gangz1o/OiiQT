@@ -31,7 +31,7 @@ struct ServerListView: View {
                         Button {
                             editingServer = server
                         } label: {
-                            Label(LanguageManager.shared.localized("Edit Server"), systemImage: "pencil")
+                            Label(LanguageManager.shared.localized("Edit Server"), systemImage: "square.and.pencil")
                         }
 
                         Button {

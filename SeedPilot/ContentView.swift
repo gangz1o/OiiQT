@@ -81,8 +81,8 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
-                // Restart monitor when app returns to foreground (triggers overdue check)
-                RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+                // Only check if overdue — do NOT restart the timer (would reset the countdown)
+                RSSMonitor.shared.checkIfOverdue(context: modelContext, appStateManager: appStateManager)
             }
         }
     }

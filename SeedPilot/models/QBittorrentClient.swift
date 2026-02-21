@@ -313,7 +313,12 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     func renameTask(hash: String, newName: String) async throws {
-        try await performAction(endpoint: "rename", hashes: hash, extraParams: ["name": newName])
+        try await performAction(
+            endpoint: "rename",
+            hashes: hash,
+            hashParameterKey: "hash",
+            extraParams: ["name": newName]
+        )
     }
 
     // MARK: - Core Control Logic
@@ -415,7 +420,12 @@ class QBittorrentClient: NSObject, TorrentClient {
          try await performAction(endpoint: "addTrackers", hashes: hash, extraParams: ["urls": newTrackers])
     }
 
-    private func performAction(endpoint: String, hashes: String, extraParams: [String: String] = [:]) async throws {
+    private func performAction(
+        endpoint: String,
+        hashes: String,
+        hashParameterKey: String = "hashes",
+        extraParams: [String: String] = [:]
+    ) async throws {
         let normalizedHashes = normalizeHashes(hashes)
 
         func makeRequest() throws -> URLRequest {
@@ -427,7 +437,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             request.httpMethod = "POST"
             configureRequest(&request)
 
-            var params = ["hashes": normalizedHashes]
+            var params = [hashParameterKey: normalizedHashes]
             for (key, value) in extraParams {
                 params[key] = value
             }

@@ -4,6 +4,7 @@ struct PresetPathsView: View {
     @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
 
     @State private var showingAddAlert = false
+    @State private var editingOriginalPath: String?
     @State private var newPath = ""
 
     private var presetSavePaths: [String] {
@@ -12,6 +13,10 @@ struct PresetPathsView: View {
 
     private var canAddNewPath: Bool {
         !newPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var isEditingPath: Bool {
+        editingOriginalPath != nil
     }
 
     var body: some View {
@@ -29,8 +34,23 @@ struct PresetPathsView: View {
                             .font(.body.monospaced())
                             .lineLimit(1)
                             .truncationMode(.middle)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    editingOriginalPath = path
+                                    newPath = path
+                                    showingAddAlert = true
+                                } label: {
+                                    Image(systemName: "square.and.pencil")
+                                }
+                                .tint(.blue)
+
+                                Button(role: .destructive) {
+                                    deletePath(path)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                            }
                     }
-                    .onDelete(perform: deletePaths)
                 }
                 .listStyle(.insetGrouped)
             }
@@ -40,6 +60,8 @@ struct PresetPathsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    editingOriginalPath = nil
+                    newPath = ""
                     showingAddAlert = true
                 } label: {
                     Image(systemName: "plus")
@@ -47,32 +69,41 @@ struct PresetPathsView: View {
                 .accessibilityLabel(LanguageManager.shared.localized("Add Path"))
             }
         }
-        .alert(LanguageManager.shared.localized("Add Path"), isPresented: $showingAddAlert) {
+        .alert(
+            LanguageManager.shared.localized(isEditingPath ? "Edit" : "Add Path"),
+            isPresented: $showingAddAlert
+        ) {
             TextField(LanguageManager.shared.localized("Path"), text: $newPath)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {
                 newPath = ""
+                editingOriginalPath = nil
             }
             Button(LanguageManager.shared.localized("Save")) {
-                addPath()
+                savePath()
             }
             .disabled(!canAddNewPath)
         }
     }
 
-    private func addPath() {
+    private func savePath() {
         let trimmed = newPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         var updated = presetSavePaths
-        updated.append(trimmed)
+        if let original = editingOriginalPath, let index = updated.firstIndex(of: original) {
+            updated[index] = trimmed
+        } else {
+            updated.append(trimmed)
+        }
         presetSavePathsRaw = PresetSavePathsCodec.encode(updated)
         newPath = ""
+        editingOriginalPath = nil
     }
 
-    private func deletePaths(at offsets: IndexSet) {
+    private func deletePath(_ path: String) {
         var updated = presetSavePaths
-        updated.remove(atOffsets: offsets)
+        updated.removeAll { $0 == path }
         presetSavePathsRaw = PresetSavePathsCodec.encode(updated)
     }
 }

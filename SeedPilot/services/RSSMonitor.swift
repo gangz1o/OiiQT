@@ -77,6 +77,29 @@ class RSSMonitor {
         timer = nil
     }
 
+    /// Only check if overdue and fetch — does NOT reset the running timer.
+    /// Call this when app returns to foreground.
+    func checkIfOverdue(context: ModelContext, appStateManager: AppStateManager?) {
+        let intervalMinutes = UserDefaults.standard.integer(forKey: "rssRefreshInterval")
+        guard intervalMinutes > 0 else { return }
+
+        let intervalSeconds = TimeInterval(intervalMinutes * 60)
+        let isOverdue: Bool
+        if let lastCheck = lastCheckTime {
+            let elapsed = Date().timeIntervalSince(lastCheck)
+            isOverdue = elapsed >= intervalSeconds
+            print("[RSSMonitor] Foreground check: elapsed=\(Int(elapsed))s, overdue=\(isOverdue)")
+        } else {
+            isOverdue = true
+        }
+
+        guard isOverdue else { return }
+        print("[RSSMonitor] Overdue on foreground — checking immediately (timer NOT reset)")
+        Task { @MainActor in
+            await self.checkFeeds(context: context, appStateManager: appStateManager)
+        }
+    }
+
     // MARK: - Feed Check
 
     /// Fetch all enabled RSS sources, deduplicate items, and auto-download if rules match.

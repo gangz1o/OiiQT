@@ -105,8 +105,10 @@ struct BatchActionPanel: View {
             }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
             Button(LanguageManager.shared.localized("Confirm")) {
+                let trimmed = newBatchLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
                 performAction {
-                    appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: newBatchLocation)
+                    appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: trimmed)
                 }
                 newBatchLocation = ""
             }
@@ -125,8 +127,9 @@ struct BatchActionPanel: View {
                 ForEach(presetSavePaths, id: \.self) { path in
                     Button(path) {
                         newBatchLocation = path
-                        performAction {
-                            appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: path)
+                        // Let users confirm explicitly in the main alert before sending the request.
+                        DispatchQueue.main.async {
+                            showingBatchLocationAlert = true
                         }
                     }
                 }

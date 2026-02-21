@@ -490,7 +490,10 @@ class AppStateManager {
     }
 
     func renameTask(_ task: TorrentTask, newName: String) {
-        performTaskAction(task) { client, id in try await client.renameTask(hash: id, newName: newName) }
+        performTaskAction(task) { client, id in
+            try await client.renameTask(hash: id, newName: newName)
+            await self.refreshData()
+        }
     }
 
     func forceStartTask(_ task: TorrentTask) {

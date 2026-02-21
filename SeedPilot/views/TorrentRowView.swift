@@ -20,21 +20,8 @@ struct TorrentRowView: View {
     var appStateManager: AppStateManager
 
     @State private var posterURL: URL?
-    @State private var showingRenameAlert = false
-    @State private var newName = ""
-    @State private var showingLocationAlert = false
-    @State private var showingPresetLocationPicker = false
-    @State private var newLocation = ""
-    @State private var showingTrackersAlert = false
-    @State private var newTrackers = ""
-    @State private var showingDeleteConfirmation = false
     @State private var isLoadingPoster = false
-    @State private var showingManualMatchSheet = false
-    @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
-
-    private var presetSavePaths: [String] {
-        PresetSavePathsCodec.decode(presetSavePathsRaw)
-    }
+    @State private var selectedTorrentForAction: TorrentTask?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -167,185 +154,26 @@ struct TorrentRowView: View {
                 impact.impactOccurred()
             } : nil
         )
-        .contextMenu {
-            if !isEditing {
-                if task.status == .paused {
-                    Button {
-                        appStateManager.resumeTask(task)
-                    } label: {
-                        Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
-                    }
-                } else {
-                    Button {
-                        appStateManager.pauseTask(task)
-                    } label: {
-                        Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
-                    }
-                }
-
-                Divider()
-
-                Button {
-                    newName = task.name
-                    showingRenameAlert = true
-                } label: {
-                    Label(LanguageManager.shared.localized("Rename"), systemImage: "pencil")
-                }
-
-                Menu {
-                    // Advanced Tools Submenu
-                    Menu {
-                        Button {
-                            appStateManager.recheckTask(task)
-                        } label: {
-                            Label(LanguageManager.shared.localized("Force Recheck"), systemImage: "checkmark.seal")
-                        }
-
-                        Button {
-                            appStateManager.reannounceTask(task)
-                        } label: {
-                            Label(LanguageManager.shared.localized("Force Reannounce"), systemImage: "arrow.clockwise")
-                        }
-                    } label: {
-                        Label(LanguageManager.shared.localized("Advanced Tools"), systemImage: "gearshape.2")
-                    }
-
-                    // Download Settings Submenu
-                    Menu {
-                        Button {
-                            appStateManager.toggleSequentialDownload(task)
-                        } label: {
-                            let icon = (task.isSequential == true) ? "checkmark" : "arrow.down.to.line"
-                            Label(LanguageManager.shared.localized("Sequential Download"), systemImage: icon)
-                        }
-
-                        Button {
-                            appStateManager.toggleFirstLastPiecePriority(task)
-                        } label: {
-                            let icon = (task.isFirstLastPiecePriority == true) ? "checkmark" : "arrow.up.arrow.down.square"
-                            Label(LanguageManager.shared.localized("First/Last Piece Priority"), systemImage: icon)
-                        }
-                    } label: {
-                        Label(LanguageManager.shared.localized("Download Settings"), systemImage: "slider.horizontal.3")
-                    }
-                } label: {
-                    Label(LanguageManager.shared.localized("More Actions"), systemImage: "ellipsis.circle")
-                }
-
-                Divider()
-
-                Button {
-                    appStateManager.forceStartTask(task)
-                } label: {
-                    Label(LanguageManager.shared.localized("Force Start"), systemImage: "bolt.fill")
-                }
-
-                Button {
-                    newLocation = task.savePath
-                    showingLocationAlert = true
-                } label: {
-                    Label(LanguageManager.shared.localized("Set Save Path"), systemImage: "folder.badge.gear")
-                }
-
-                Button {
-                    newTrackers = task.tracker
-                    showingTrackersAlert = true
-                } label: {
-                    Label(LanguageManager.shared.localized("Edit Tracker"), systemImage: "network.badge.shield.half.filled")
-                }
-
-                Divider()
-
-                Button(role: .destructive) {
-                    showingDeleteConfirmation = true
-                } label: {
-                    Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
-                }
-
-                Divider()
-
-                if showTMDBData {
-                    Button {
-                        TMDBService.shared.clearCache(for: task.id)
-                        Task { await refreshPosterAsync() }
-                    } label: {
-                        Label(LanguageManager.shared.localized("Rematch Poster"), systemImage: "arrow.triangle.2.circlepath")
-                    }
-
-                    Button {
-                        showingManualMatchSheet = true
-                    } label: {
-                        Label(LanguageManager.shared.localized("Manual Match Poster"), systemImage: "photo.badge.plus")
-                    }
-                }
+        .highPriorityGesture(
+            LongPressGesture(minimumDuration: 0.35).onEnded { _ in
+                guard !isEditing else { return }
+                selectedTorrentForAction = task
+                let impact = UIImpactFeedbackGenerator(style: .medium)
+                impact.impactOccurred()
             }
-        }
-        .alert(LanguageManager.shared.localized("Rename Task"), isPresented: $showingRenameAlert) {
-            TextField(LanguageManager.shared.localized("New Name"), text: $newName)
-            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
-            Button(LanguageManager.shared.localized("Confirm")) {
-                appStateManager.renameTask(task, newName: newName)
-            }
-        } message: {
-            Text(LanguageManager.shared.localized("Please enter a new task name."))
-        }
-        .alert(LanguageManager.shared.localized("Set Save Path"), isPresented: $showingLocationAlert) {
-            TextField(LanguageManager.shared.localized("Path"), text: $newLocation)
-            Button(LanguageManager.shared.localized("Choose Preset Path")) {
-                showingPresetLocationPicker = true
-            }
-            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
-            Button(LanguageManager.shared.localized("Confirm")) {
-                appStateManager.setLocation(task, newLocation: newLocation)
-            }
-        } message: {
-            Text(LanguageManager.shared.localized("Please enter a new absolute path (e.g. /downloads/movie)."))
-        }
-        .confirmationDialog(
-            LanguageManager.shared.localized("Preset Save Paths"),
-            isPresented: $showingPresetLocationPicker,
-            titleVisibility: .visible
-        ) {
-            if presetSavePaths.isEmpty {
-                Button(LanguageManager.shared.localized("No Preset Save Paths")) {}
-                    .disabled(true)
-            } else {
-                ForEach(presetSavePaths, id: \.self) { path in
-                    Button(path) {
-                        newLocation = path
-                        appStateManager.setLocation(task, newLocation: path)
-                    }
-                }
-            }
-            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
-        }
-        .alert(LanguageManager.shared.localized("Edit Tracker"), isPresented: $showingTrackersAlert) {
-            TextField(LanguageManager.shared.localized("Tracker URL"), text: $newTrackers)
-            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
-            Button(LanguageManager.shared.localized("Confirm")) {
-                appStateManager.editTrackers(task, newTrackers: newTrackers)
-            }
-        } message: {
-            Text(LanguageManager.shared.localized("Please enter Tracker URL. For multiple URLs, try comma separation if supported by your server."))
-        }
-        .sheet(isPresented: $showingManualMatchSheet) {
-            ManualMatchView(taskName: task.name, taskHash: task.id)
-                .presentationDetents([.medium, .large])
-                .onDisappear {
-                    TMDBService.shared.clearCache(for: task.id)
+        )
+        .sheet(item: $selectedTorrentForAction) { selectedTask in
+            TorrentActionSheetView(
+                task: selectedTask,
+                posterURL: posterURL,
+                appStateManager: appStateManager,
+                onPosterChanged: {
+                    TMDBService.shared.clearCache(for: selectedTask.id)
                     Task { await refreshPosterAsync() }
                 }
-        }
-        .confirmationDialog(LanguageManager.shared.localized("Confirm Deletion"), isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-            Button(LanguageManager.shared.localized("Delete Task (Keep Data)"), role: .destructive) {
-                appStateManager.deleteTask(task, withData: false)
-            }
-            Button(LanguageManager.shared.localized("Delete Task and Data"), role: .destructive) {
-                appStateManager.deleteTask(task, withData: true)
-            }
-            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
-        } message: {
-            Text(String(format: LanguageManager.shared.localized("Are you sure you want to delete this task? %@"), task.name))
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .task(id: "\(task.name)-\(languageManager.selectedLanguage.rawValue)") {
             await refreshPosterAsync()
