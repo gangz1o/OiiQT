@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage("fontSize") private var fontSize: Double = 1.0
 
     // Pro 功能
+    @AppStorage("isProUser") private var isProUser: Bool = false
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
@@ -32,6 +33,9 @@ struct SettingsView: View {
     @State private var showingSuccessAlert = false
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
+    @State private var showingProRequiredDialog = false
+    @State private var showingProPaywallSheet = false
+    @State private var showingTrackerAliasList = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
@@ -45,11 +49,11 @@ struct SettingsView: View {
                         ProView()
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "sparkles")
+                            Image(systemName: isProUser ? "checkmark.seal.fill" : "sparkles")
                                 .font(.title2)
                                 .foregroundStyle(
                                     LinearGradient(
-                                        colors: [.purple, .orange],
+                                        colors: isProUser ? [.green, .mint] : [.purple, .orange],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
@@ -57,9 +61,17 @@ struct SettingsView: View {
                                 .frame(width: 32)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(LanguageManager.shared.localized("Upgrade to SeedPilot Pro"))
+                                Text(
+                                    isProUser
+                                    ? LanguageManager.shared.localized("SeedPilot Pro Active")
+                                    : LanguageManager.shared.localized("Upgrade to SeedPilot Pro")
+                                )
                                     .font(.headline)
-                                Text(LanguageManager.shared.localized("Unlock TMDB poster wall and dynamic dashboard"))
+                                Text(
+                                    isProUser
+                                    ? LanguageManager.shared.localized("All Pro features unlocked")
+                                    : LanguageManager.shared.localized("Unlock TMDB poster wall and dynamic dashboard")
+                                )
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -162,18 +174,28 @@ struct SettingsView: View {
 
                 // MARK: - Pro 功能
                 Section {
-                    Toggle(isOn: $showTMDBData) {
+                    Toggle(isOn: tmdbProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
                     }
-                    Toggle(isOn: $proDashboardBackgroundEnabled) {
+                    Toggle(isOn: proDashboardProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
                     }
-                    NavigationLink {
-                        TrackerAliasListView()
+                    Button {
+                        guardProAccess {
+                            showingTrackerAliasList = true
+                        }
                     } label: {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
+                        HStack {
+                            SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
+                            Spacer()
+                            Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
                     }
-                    Toggle(isOn: $iCloudSyncEnabled) {
+                    .buttonStyle(.plain)
+
+                    Toggle(isOn: iCloudProBinding) {
                         HStack(spacing: 12) {
                             AppleStyleIcon(backgroundColor: .cyan, systemName: "icloud.fill")
                             Text(LanguageManager.shared.localized("iCloud Sync"))
@@ -234,6 +256,9 @@ struct SettingsView: View {
                     DashboardCustomizationView()
                 }
             }
+            .navigationDestination(isPresented: $showingTrackerAliasList) {
+                TrackerAliasListView()
+            }
             .onAppear {
                 updateCacheSize()
                 openPendingSettingsRouteIfNeeded()
@@ -254,17 +279,88 @@ struct SettingsView: View {
             .onReceive(NotificationCenter.default.publisher(for: .iCloudSyncStatusDidChange)) { _ in
                 iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
             }
+            .alert(
+                LanguageManager.shared.localized("Pro Required"),
+                isPresented: $showingProRequiredDialog,
+            ) {
+                Button(LanguageManager.shared.localized("Upgrade to SeedPilot Pro")) {
+                    showingProPaywallSheet = true
+                }
+                Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
+            } message: {
+                Text(LanguageManager.shared.localized("This feature requires SeedPilot Pro."))
+            }
             .sheet(isPresented: $showingPrivacyPolicySheet) {
                 PrivacyPolicySheetView()
             }
             .sheet(isPresented: $showingTermsSheet) {
                 TermsOfServiceSheetView()
             }
+            .sheet(isPresented: $showingProPaywallSheet) {
+                NavigationStack {
+                    ProView()
+                }
+            }
         }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
     }
 
     // MARK: - Actions
+
+    private var tmdbProBinding: Binding<Bool> {
+        Binding(
+            get: { showTMDBData },
+            set: { newValue in
+                if !newValue {
+                    showTMDBData = false
+                    return
+                }
+                guardProAccess {
+                    showTMDBData = true
+                }
+            }
+        )
+    }
+
+    private var proDashboardProBinding: Binding<Bool> {
+        Binding(
+            get: { proDashboardBackgroundEnabled },
+            set: { newValue in
+                if !newValue {
+                    proDashboardBackgroundEnabled = false
+                    return
+                }
+                guardProAccess {
+                    proDashboardBackgroundEnabled = true
+                }
+            }
+        )
+    }
+
+    private var iCloudProBinding: Binding<Bool> {
+        Binding(
+            get: { iCloudSyncEnabled },
+            set: { newValue in
+                if !newValue {
+                    iCloudSyncEnabled = false
+                    return
+                }
+                guardProAccess {
+                    iCloudSyncEnabled = true
+                }
+            }
+        )
+    }
+
+    private func guardProAccess(_ action: () -> Void) {
+        if isProUser {
+            action()
+            return
+        }
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.warning)
+        showingProRequiredDialog = true
+    }
 
     private func updateCacheSize() {
         ImageCache.default.calculateDiskStorageSize { result in
@@ -475,7 +571,7 @@ private struct LegalDocumentSheetView: View {
     }
 }
 
-private struct PrivacyPolicySheetView: View {
+struct PrivacyPolicySheetView: View {
     private let sections: [LegalSection] = [
         LegalSection(id: "privacy-1", titleKey: "Policy Section Data Scope Title", bodyKey: "Policy Section Data Scope Body"),
         LegalSection(id: "privacy-2", titleKey: "Policy Section Purpose Title", bodyKey: "Policy Section Purpose Body"),
@@ -498,7 +594,7 @@ private struct PrivacyPolicySheetView: View {
     }
 }
 
-private struct TermsOfServiceSheetView: View {
+struct TermsOfServiceSheetView: View {
     private let sections: [LegalSection] = [
         LegalSection(id: "terms-1", titleKey: "Terms Section Acceptance Title", bodyKey: "Terms Section Acceptance Body"),
         LegalSection(id: "terms-2", titleKey: "Terms Section UserResponsibility Title", bodyKey: "Terms Section UserResponsibility Body"),

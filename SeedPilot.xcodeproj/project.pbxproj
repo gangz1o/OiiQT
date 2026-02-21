@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		319DE1DE2F437A6D00F45C11 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 5FAA00022F42000000000002 /* Kingfisher */; };
+		319DE3E12F49F3E100F45C11 /* SeedPilotPro.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 319DE3E02F49F3E100F45C11 /* SeedPilotPro.storekit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		319DE3E02F49F3E100F45C11 /* SeedPilotPro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SeedPilotPro.storekit; sourceTree = "<group>"; };
 		5F3638F42F3F5F1B00896C60 /* SeedPilot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SeedPilot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -37,6 +39,7 @@
 		5F3638EB2F3F5F1B00896C60 = {
 			isa = PBXGroup;
 			children = (
+				319DE3E02F49F3E100F45C11 /* SeedPilotPro.storekit */,
 				5F3638F62F3F5F1B00896C60 /* SeedPilot */,
 				5F3638F52F3F5F1B00896C60 /* Products */,
 			);
@@ -119,6 +122,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				319DE3E12F49F3E100F45C11 /* SeedPilotPro.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

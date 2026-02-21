@@ -13,167 +13,131 @@ struct DashboardProCinemaLayerView: View {
 
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
-    @State private var posterItems: [ProPosterItem] = []
+    @State private var posterItems: [PosterModel] = []
     @State private var showDebugFallback = false
-    @State private var trackIndex = 1
-    @State private var autoPlayResetToken = UUID()
+    @State private var trackIndex = 0
     @State private var dragOffset: CGFloat = 0
-    @State private var wrapResetTask: Task<Void, Never>?
+
+    private let slideDuration: Double = 0.32
+    private let cardWidth: CGFloat = 120
+    private let cardSpacing: CGFloat = 14
+    private let dragThreshold: CGFloat = 40
+
+    private var step: CGFloat { cardWidth + cardSpacing }
 
     private var refreshKey: String {
-        combinedTorrents
+        tasks
             .map { "\($0.id)-\($0.completionDate?.timeIntervalSince1970 ?? 0)" }
             .sorted()
             .joined(separator: "|") + "::\(languageManager.selectedLanguage.rawValue)"
     }
 
-    private var combinedTorrents: [TorrentTask] { tasks }
-
-    private var candidateTasks: [TorrentTask] {
-        combinedTorrents
-            .filter { task in
-                !task.name.hasKnownNonMediaExtension
-            }
-            .sorted {
-                let lhsDate = $0.completionDate ?? $0.addedTime
-                let rhsDate = $1.completionDate ?? $1.addedTime
-                return lhsDate > rhsDate
-            }
-            .prefix(40)
-            .map { $0 }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !posterItems.isEmpty || showDebugFallback {
+                let displayItems = showDebugFallback ? PosterModel.debugPlaceholders : posterItems
+                let loopItems = loopedItems(for: displayItems)
+
                 GeometryReader { geo in
-                    let displayItems = showDebugFallback ? ProPosterItem.debugPlaceholders : posterItems
-                    let loopItems = loopedItems(for: displayItems)
                     let idsKey = loopItems.map(\.id).joined(separator: "|")
-                    let cardWidth: CGFloat = 120
-                    let spacing: CGFloat = 14
-                    let step = cardWidth + spacing
-                    let threshold: CGFloat = 40
-                    let slideDuration: Double = 0.32
-                    let slideAnimation: Animation = .easeInOut(duration: slideDuration)
-                    let centeredBaseOffset = (geo.size.width - cardWidth) / 2
-                    let safeTrackIndex = min(max(trackIndex, 0), max(loopItems.count - 1, 0))
-                    let trackOffset = centeredBaseOffset - (CGFloat(safeTrackIndex) * step) + dragOffset
+                    let safeIndex = trackIndex.clamped(to: 0...(max(loopItems.count - 1, 0)))
+                    let baseOffset = (geo.size.width - cardWidth) / 2
+                    let trackOffset = baseOffset - CGFloat(safeIndex) * step + dragOffset
 
-                    HStack(spacing: spacing) {
-                        ForEach(Array(loopItems.enumerated()), id: \.element.id) { index, loopItem in
-                            DashboardProPosterCard(item: loopItem.item)
-                                .frame(width: cardWidth, height: 180)
-                                .scaleEffect(index == safeTrackIndex ? 1.04 : 0.96)
-                                .opacity(index == safeTrackIndex ? 1 : 0.9)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: cardSpacing) {
+                            ForEach(Array(loopItems.enumerated()), id: \.element.id) { index, loopItem in
+                                DashboardProPosterCard(item: loopItem.item)
+                                    .frame(width: cardWidth, height: 180)
+                                    .scaleEffect(index == safeIndex ? 1.08 : 0.94)
+                                    .opacity(index == safeIndex ? 1.0 : 0.9)
+                            }
                         }
+                        .offset(x: trackOffset)
+                        .contentShape(Rectangle())
                     }
-                    .offset(x: trackOffset)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 8)
-                            .onChanged { value in
-                                dragOffset = value.translation.width
-                            }
-                            .onEnded { value in
-                                guard !displayItems.isEmpty else {
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-                                        dragOffset = 0
-                                    }
-                                    return
-                                }
-                                guard displayItems.count > 1 else {
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
-                                        dragOffset = 0
-                                    }
-                                    return
-                                }
-
-                                var nextIndex = safeTrackIndex
-                                if value.translation.width <= -threshold {
-                                    nextIndex += 1
-                                } else if value.translation.width >= threshold {
-                                    nextIndex -= 1
-                                }
-                                nextIndex = min(max(nextIndex, 0), max(loopItems.count - 1, 0))
-
-                                withAnimation(slideAnimation) {
-                                    trackIndex = nextIndex
-                                    dragOffset = 0
-                                }
-                                autoPlayResetToken = UUID()
-                            }
-                    )
-                    .task(id: "\(idsKey)-\(autoPlayResetToken.uuidString)") {
+                    .scrollDisabled(true)
+                    .gesture(dragGesture(displayItems: displayItems, loopItems: loopItems))
+                    .task(id: idsKey) {
                         guard !displayItems.isEmpty else { return }
-                        trackIndex = displayItems.count > 1
-                            ? min(max(trackIndex, 1), displayItems.count)
-                            : 0
+                        trackIndex = displayItems.count > 1 ? 1 : 0
+                        dragOffset = 0
                         guard displayItems.count > 1 else { return }
+                        let count = displayItems.count
 
                         while !Task.isCancelled {
                             try? await Task.sleep(nanoseconds: 5_000_000_000)
                             guard !Task.isCancelled else { return }
-                            withAnimation(slideAnimation) {
+                            // Use animation completion to snap seamlessly — no Task.sleep guessing
+                            withAnimation(.easeInOut(duration: slideDuration)) {
                                 trackIndex += 1
-                            }
-                        }
-                    }
-                    .onChange(of: trackIndex) { _, newValue in
-                        let displayCount = displayItems.count
-                        guard displayCount > 1 else { return }
-                        wrapResetTask?.cancel()
-
-                        if newValue == 0 {
-                            wrapResetTask = Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: UInt64(slideDuration * 1_000_000_000))
-                                guard !Task.isCancelled else { return }
-                                guard trackIndex == 0 else { return }
-                                var transaction = Transaction(animation: nil)
-                                transaction.disablesAnimations = true
-                                withTransaction(transaction) {
-                                    trackIndex = displayCount
-                                }
-                            }
-                        } else if newValue == displayCount + 1 {
-                            wrapResetTask = Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: UInt64(slideDuration * 1_000_000_000))
-                                guard !Task.isCancelled else { return }
-                                guard trackIndex == displayCount + 1 else { return }
-                                var transaction = Transaction(animation: nil)
-                                transaction.disablesAnimations = true
-                                withTransaction(transaction) {
-                                    trackIndex = 1
-                                }
+                            } completion: {
+                                snapIfNeeded(displayCount: count)
                             }
                         }
                     }
                     .onChange(of: idsKey) { _, _ in
                         trackIndex = displayItems.count > 1 ? 1 : 0
-                        autoPlayResetToken = UUID()
+                        dragOffset = 0
                     }
                 }
-                .frame(height: 220)
+                .frame(height: 188)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear {
-            print("Dashboard: Pro cinema layer mounted, candidateTasks=\(candidateTasks.count)")
-        }
-        .onDisappear {
-            wrapResetTask?.cancel()
-            wrapResetTask = nil
-        }
         .task(id: refreshKey) {
             await refreshPosters()
         }
     }
 
+    // MARK: - Carousel helpers
+
+    private func dragGesture(displayItems: [PosterModel], loopItems: [LoopPosterItem]) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                dragOffset = value.translation.width
+            }
+            .onEnded { value in
+                guard displayItems.count > 1 else {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { dragOffset = 0 }
+                    return
+                }
+
+                let safeIndex = trackIndex.clamped(to: 0...(max(loopItems.count - 1, 0)))
+                var next = safeIndex
+                if value.translation.width <= -dragThreshold      { next += 1 }
+                else if value.translation.width >= dragThreshold  { next -= 1 }
+                next = next.clamped(to: 0...(max(loopItems.count - 1, 0)))
+
+                let count = displayItems.count
+                withAnimation(.easeInOut(duration: slideDuration)) {
+                    trackIndex = next
+                    dragOffset = 0
+                } completion: {
+                    snapIfNeeded(displayCount: count)
+                }
+            }
+    }
+
+    /// Instantly teleport from ghost-copy boundary back to the real item.
+    /// Called in `withAnimation completion:` so it fires only after the slide fully finishes.
+    @MainActor
+    private func snapIfNeeded(displayCount: Int) {
+        guard displayCount > 1 else { return }
+        guard trackIndex == 0 || trackIndex == displayCount + 1 else { return }
+        var t = Transaction(animation: nil)
+        t.disablesAnimations = true
+        withTransaction(t) {
+            trackIndex = trackIndex == 0 ? displayCount : 1
+        }
+    }
+
     @MainActor
     private func refreshPosters() async {
-        var resolved: [ProPosterItem] = []
+        let latestTorrents = latestOrderedTorrents(from: tasks)
         showDebugFallback = false
-        guard !candidateTasks.isEmpty else {
+
+        guard !latestTorrents.isEmpty else {
             posterItems = []
             print("Dashboard: No movie torrents with poster found")
             #if DEBUG
@@ -182,20 +146,9 @@ struct DashboardProCinemaLayerView: View {
             return
         }
 
-        for task in candidateTasks {
-            guard !Task.isCancelled else { return }
-            if let posterURL = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext) {
-                guard isValidTMDBPosterURL(posterURL) else { continue }
-                if !resolved.contains(where: { $0.id == task.id }) {
-                    resolved.append(ProPosterItem(id: task.id, posterURL: posterURL))
-                    // Render immediately once we have a valid poster to avoid waiting for full scan.
-                    posterItems = resolved
-                }
-            }
-            if resolved.count == 7 { break }
-        }
-
+        let resolved = await getLatestUniquePosters(from: latestTorrents)
         posterItems = resolved
+
         if resolved.isEmpty {
             print("Dashboard: No movie torrents with poster found")
             #if DEBUG
@@ -204,12 +157,61 @@ struct DashboardProCinemaLayerView: View {
         }
     }
 
+    private func latestOrderedTorrents(from torrents: [TorrentTask]) -> [TorrentTask] {
+        torrents.sorted {
+            let lhsDate = $0.completionDate ?? $0.addedTime
+            let rhsDate = $1.completionDate ?? $1.addedTime
+            return lhsDate > rhsDate
+        }
+    }
+
+    // Input torrents must already be ordered by latest-added/latest-active.
+    private func getLatestUniquePosters(from torrents: [TorrentTask]) async -> [PosterModel] {
+        var result: [PosterModel] = []
+        var seenIdentifiers = Set<String>()
+        result.reserveCapacity(7)
+        seenIdentifiers.reserveCapacity(7)
+
+        for torrent in torrents {
+            guard !Task.isCancelled else { return result }
+
+            // Fast pre-filter for obvious non-media files.
+            if torrent.name.hasKnownNonMediaExtension { continue }
+
+            guard let posterURL = await TMDBService.shared.fetchPoster(
+                hash: torrent.id,
+                name: torrent.name,
+                context: modelContext
+            ) else {
+                continue
+            }
+
+            guard isValidTMDBPosterURL(posterURL) else { continue }
+
+            let identifier = posterURL.absoluteString.lowercased()
+            if seenIdentifiers.contains(identifier) { continue }
+
+            seenIdentifiers.insert(identifier)
+            result.append(
+                PosterModel(
+                    id: identifier,
+                    sourceTaskID: torrent.id,
+                    posterURL: posterURL
+                )
+            )
+
+            if result.count == 7 { break }
+        }
+
+        return result
+    }
+
     private func isValidTMDBPosterURL(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         return host.contains("image.tmdb.org")
     }
 
-    private func loopedItems(for items: [ProPosterItem]) -> [LoopPosterItem] {
+    private func loopedItems(for items: [PosterModel]) -> [LoopPosterItem] {
         guard items.count > 1, let first = items.first, let last = items.last else {
             return items.map { LoopPosterItem(id: $0.id, item: $0) }
         }
@@ -221,26 +223,34 @@ struct DashboardProCinemaLayerView: View {
         result.append(LoopPosterItem(id: "loop-tail-\(first.id)", item: first))
         return result
     }
+
 }
 
-private struct ProPosterItem: Identifiable {
+private struct PosterModel: Identifiable {
     let id: String
+    let sourceTaskID: String
     let posterURL: URL?
 
-    static let debugPlaceholders: [ProPosterItem] = [
-        ProPosterItem(id: "debug-1", posterURL: nil),
-        ProPosterItem(id: "debug-2", posterURL: nil),
-        ProPosterItem(id: "debug-3", posterURL: nil)
+    static let debugPlaceholders: [PosterModel] = [
+        PosterModel(id: "debug-1", sourceTaskID: "debug-1", posterURL: nil),
+        PosterModel(id: "debug-2", sourceTaskID: "debug-2", posterURL: nil),
+        PosterModel(id: "debug-3", sourceTaskID: "debug-3", posterURL: nil)
     ]
 }
 
-private extension ProPosterItem {
+private extension PosterModel {
     var isDebugPlaceholder: Bool { posterURL == nil }
 }
 
 private struct LoopPosterItem: Identifiable {
     let id: String
-    let item: ProPosterItem
+    let item: PosterModel
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
 }
 
 private extension String {
@@ -258,7 +268,7 @@ private extension String {
 }
 
 private struct DashboardProPosterCard: View {
-    let item: ProPosterItem
+    let item: PosterModel
 
     var body: some View {
         ZStack {
@@ -272,9 +282,8 @@ private struct DashboardProPosterCard: View {
             } else {
                 SimpleCachedImage(url: item.posterURL)
                     .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: 120, height: 180)
                     .clipped()
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

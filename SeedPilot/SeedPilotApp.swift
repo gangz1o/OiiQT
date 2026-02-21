@@ -12,6 +12,7 @@ import UIKit
 
 @main
 struct SeedPilotApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("appearance") private var appearance: String = "system"
     @AppStorage("fontSize") private var fontSize: Double = 1.0
     @StateObject private var languageManager = LanguageManager.shared
@@ -58,6 +59,12 @@ struct SeedPilotApp: App {
                 .environment(\.dynamicTypeSize, appDynamicTypeSize)
                 .id(languageManager.selectedLanguage.rawValue)
                 .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .active else { return }
+                    Task {
+                        await StoreManager.shared.updateCustomerProductStatus()
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
     }

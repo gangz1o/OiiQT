@@ -23,78 +23,50 @@ class RSSMonitor {
 
     // MARK: - Auto Refresh Timer
 
-    /// Start or restart the auto-refresh timer based on user setting.
-    /// Call this on app launch and whenever the setting changes.
+    /// Start the 60-second polling timer.
+    /// Refresh timing is based on physical elapsed time (lastCheckTime), not on when this is called.
+    /// Safe to call multiple times — existing timer is replaced without affecting refresh schedule.
     func startAutoRefresh(sources: [RSSFeedSource], context: ModelContext, appStateManager: AppStateManager?) {
         stopAutoRefresh()
-        
+
         let intervalMinutes = UserDefaults.standard.integer(forKey: "rssRefreshInterval")
         guard intervalMinutes > 0 else {
             print("[RSSMonitor] Auto-refresh disabled (interval = 0)")
             return
         }
-        
-        let intervalSeconds = TimeInterval(intervalMinutes * 60)
-        print("[RSSMonitor] Auto-refresh starting: every \(intervalMinutes) min")
-        
-        // Immediate overdue check
-        let isOverdue: Bool
-        if let lastCheck = lastCheckTime {
-            let elapsed = Date().timeIntervalSince(lastCheck)
-            isOverdue = elapsed >= intervalSeconds
-            print("[RSSMonitor] Last check \(Int(elapsed))s ago, overdue=\(isOverdue)")
-        } else {
-            isOverdue = true
-            print("[RSSMonitor] Never checked before, overdue=true")
+
+        print("[RSSMonitor] Auto-refresh started: poll every 60s, target=\(intervalMinutes)min")
+
+        // Check immediately on start (handles first launch and app-reopen)
+        checkIfOverdue(context: context, appStateManager: appStateManager)
+
+        // Poll every 60s — actual refresh decision based on physical elapsed time
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.checkIfOverdue(context: context, appStateManager: appStateManager)
         }
-        
-        if isOverdue {
-            Task { @MainActor in
-                await self.checkFeeds(context: context, appStateManager: appStateManager)
-            }
-        }
-        
-        // Foundation Timer on main RunLoop — most reliable timer on iOS
-        timer = Timer.scheduledTimer(withTimeInterval: intervalSeconds, repeats: true) { [weak self] _ in
-            print("[RSSMonitor] ⏰ Timer fired at \(Date())")
-            Task { @MainActor in
-                await self?.checkFeeds(context: context, appStateManager: appStateManager)
-            }
-        }
-        // Ensure timer fires even during scroll/tracking
         if let timer {
             RunLoop.main.add(timer, forMode: .common)
         }
-        
-        print("[RSSMonitor] ✅ Timer scheduled on main RunLoop, interval=\(Int(intervalSeconds))s")
     }
-    
+
     func stopAutoRefresh() {
-        if timer != nil {
-            print("[RSSMonitor] Stopping previous timer")
-        }
         timer?.invalidate()
         timer = nil
     }
 
-    /// Only check if overdue and fetch — does NOT reset the running timer.
-    /// Call this when app returns to foreground.
+    /// Check if enough physical time has elapsed since last check.
+    /// If overdue, triggers a feed check. Never resets the polling timer.
     func checkIfOverdue(context: ModelContext, appStateManager: AppStateManager?) {
         let intervalMinutes = UserDefaults.standard.integer(forKey: "rssRefreshInterval")
         guard intervalMinutes > 0 else { return }
 
         let intervalSeconds = TimeInterval(intervalMinutes * 60)
-        let isOverdue: Bool
-        if let lastCheck = lastCheckTime {
-            let elapsed = Date().timeIntervalSince(lastCheck)
-            isOverdue = elapsed >= intervalSeconds
-            print("[RSSMonitor] Foreground check: elapsed=\(Int(elapsed))s, overdue=\(isOverdue)")
-        } else {
-            isOverdue = true
-        }
+        let elapsed = lastCheckTime.map { Date().timeIntervalSince($0) } ?? intervalSeconds
+        let isOverdue = elapsed >= intervalSeconds
 
+        print("[RSSMonitor] Poll: \(Int(elapsed))s elapsed / \(Int(intervalSeconds))s target, overdue=\(isOverdue)")
         guard isOverdue else { return }
-        print("[RSSMonitor] Overdue on foreground — checking immediately (timer NOT reset)")
+
         Task { @MainActor in
             await self.checkFeeds(context: context, appStateManager: appStateManager)
         }

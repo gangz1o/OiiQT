@@ -75,6 +75,9 @@
         }
       }
     },
+    "|" : {
+
+    },
     "¥6.00 / month" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -105,6 +108,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "¥58.00 / 年"
+          }
+        }
+      }
+    },
+    "¥72.00 / year" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥72.00 / year"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥72.00 / 年"
           }
         }
       }
@@ -605,6 +625,40 @@
         }
       }
     },
+    "All premium features are permanently unlocked" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All premium features are permanently unlocked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已永久解锁全部高级功能"
+          }
+        }
+      }
+    },
+    "All Pro features unlocked" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Pro features unlocked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已解锁全部 Pro 功能"
+          }
+        }
+      }
+    },
     "All Servers" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -941,6 +995,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批量修改保存路径"
+          }
+        }
+      }
+    },
+    "Benefits expire on %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benefits expire on %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "权益将于 %@ 到期"
           }
         }
       }
@@ -1659,6 +1729,23 @@
         }
       }
     },
+    "Early bird special, pay once and unlock forever" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Early bird special, pay once and unlock forever"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早鸟特惠，一次付费永久解锁"
+          }
+        }
+      }
+    },
     "Edit" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1859,6 +1946,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "相当于 ¥4.83 / 月"
+          }
+        }
+      }
+    },
+    "Equivalent to ¥6.00 / month" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Equivalent to ¥6.00 / month"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "折合 ¥6.00 / 月"
           }
         }
       }
@@ -2441,6 +2545,23 @@
         }
       }
     },
+    "Lifetime Pro Benefits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lifetime Pro Benefits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终身 Pro 权益"
+          }
+        }
+      }
+    },
     "Lifetime Purchase" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2488,6 +2609,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前 qB 权限受限，仅支持全局上传/下载限速。"
+          }
+        }
+      }
+    },
+    "Limited Early Bird" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limited Early Bird"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限时早鸟"
           }
         }
       }
@@ -2556,6 +2694,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "低"
+          }
+        }
+      }
+    },
+    "Manage Subscription" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage Subscription"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理订阅"
           }
         }
       }
@@ -3753,6 +3908,23 @@
         }
       }
     },
+    "Pro Benefits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro Benefits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 权益"
+          }
+        }
+      }
+    },
     "Pro Dashboard Background" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3800,6 +3972,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pro 功能"
+          }
+        }
+      }
+    },
+    "Pro Required" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro Required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Pro"
+          }
+        }
+      }
+    },
+    "Pro Subscription Active" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro Subscription Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 订阅生效中"
           }
         }
       }
@@ -4385,6 +4591,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SeedPilot Pro"
+          }
+        }
+      }
+    },
+    "SeedPilot Pro Active" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot Pro Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot Pro 已激活"
+          }
+        }
+      }
+    },
+    "SeedPilot Pro has been activated." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot Pro has been activated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SeedPilot Pro 已激活。"
           }
         }
       }
@@ -5227,6 +5467,23 @@
         }
       }
     },
+    "Terms of Use" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terms of Use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用条款"
+          }
+        }
+      }
+    },
     "Terms Section Acceptance Body" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5669,6 +5926,74 @@
         }
       }
     },
+    "Thank you for your long-term support" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thank you for your long-term support"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感谢您的长期支持"
+          }
+        }
+      }
+    },
+    "Thank you for your subscription" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thank you for your subscription"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感谢您的订阅"
+          }
+        }
+      }
+    },
+    "Thank You!" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thank You!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感谢支持！"
+          }
+        }
+      }
+    },
+    "This feature requires SeedPilot Pro." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This feature requires SeedPilot Pro."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此功能需要 SeedPilot Pro。"
+          }
+        }
+      }
+    },
     "This preview shows simulated RSS entries and whether they match the current rules." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6060,6 +6385,23 @@
         }
       }
     },
+    "Unlock Now" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock Now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即解锁"
+          }
+        }
+      }
+    },
     "Unlock TMDB poster wall and dynamic dashboard" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6192,6 +6534,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "v1.0.0 (Build 1)"
+          }
+        }
+      }
+    },
+    "Verifying subscription status..." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifying subscription status..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在验证订阅状态..."
           }
         }
       }
