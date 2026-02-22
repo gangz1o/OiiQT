@@ -22,7 +22,7 @@ struct RSSFeedTileView: View {
                 SimpleCachedImage(url: URL(string: source.faviconUrl ?? ""))
                     .scaledToFit()
                     .frame(width: 44, height: 44)
-                    .background(Color.white)
+                    .background(Color(uiColor: .systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
 
@@ -68,8 +68,12 @@ struct RSSFeedTileView: View {
             }
         }
         .padding(16)
-        .background(Color.white)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
         .contextMenu {
             Button(action: onRefresh) {
