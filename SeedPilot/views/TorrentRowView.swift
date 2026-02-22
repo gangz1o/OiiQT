@@ -210,6 +210,11 @@ struct TorrentRowView: View {
             }
         }
         .frame(width: 65, height: 97.5)
+        .overlay(alignment: .topLeading) {
+            if let resolutionInfo = ResolutionExtractor.extractResolution(from: task.name) {
+                DiagonalRibbonView(text: resolutionInfo.text, color: resolutionInfo.color)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 

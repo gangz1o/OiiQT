@@ -196,6 +196,7 @@ struct DashboardProCinemaLayerView: View {
                 PosterModel(
                     id: identifier,
                     sourceTaskID: torrent.id,
+                    taskName: torrent.name,
                     posterURL: posterURL
                 )
             )
@@ -229,12 +230,13 @@ struct DashboardProCinemaLayerView: View {
 private struct PosterModel: Identifiable {
     let id: String
     let sourceTaskID: String
+    let taskName: String
     let posterURL: URL?
 
     static let debugPlaceholders: [PosterModel] = [
-        PosterModel(id: "debug-1", sourceTaskID: "debug-1", posterURL: nil),
-        PosterModel(id: "debug-2", sourceTaskID: "debug-2", posterURL: nil),
-        PosterModel(id: "debug-3", sourceTaskID: "debug-3", posterURL: nil)
+        PosterModel(id: "debug-1", sourceTaskID: "debug-1", taskName: "", posterURL: nil),
+        PosterModel(id: "debug-2", sourceTaskID: "debug-2", taskName: "", posterURL: nil),
+        PosterModel(id: "debug-3", sourceTaskID: "debug-3", taskName: "", posterURL: nil)
     ]
 }
 
