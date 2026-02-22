@@ -293,49 +293,14 @@ struct TransfersView: View {
                     HStack(spacing: 16) {
                         // Unified Sort & Filter Menu
                          if !isEditing {
-                            Menu {
-                                // Section 1: Sort
-                                Section(LanguageManager.shared.localized("Sort")) {
-                                    Picker(LanguageManager.shared.localized("Sort By"), selection: $sortOption) {
-                                        ForEach(SortOption.allCases) { option in
-                                            Text(option.localizedDisplayName).tag(option)
-                                        }
-                                    }
-
-                                    Toggle(isOn: $sortAscending) {
-                                        Label(LanguageManager.shared.localized("Ascending"), systemImage: "arrow.up.arrow.down")
-                                    }
-                                }
-
-                                // Section 2: Filter
-                                Section(LanguageManager.shared.localized("Filter Tracker")) {
-                                    Picker(LanguageManager.shared.localized("Tracker"), selection: $selectedTracker) {
-                                        ForEach(uniqueTrackers, id: \.self) { tracker in
-                                            Text(
-                                                tracker == Self.allTrackersToken
-                                                ? LanguageManager.shared.localized("All Trackers")
-                                                : tracker
-                                            )
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.8)
-                                            .tag(tracker)
-                                        }
-                                    }
-                                }
-
-                            } label: {
-                                ZStack(alignment: .topTrailing) {
-                                    Image(systemName: "line.3.horizontal.decrease.circle")
-                                        .font(.system(size: 17, weight: .semibold))
-
-                                    if isFilterActive {
-                                        Circle()
-                                            .fill(.red)
-                                            .frame(width: 8, height: 8)
-                                            .offset(x: 2, y: -2)
-                                    }
-                                }
-                            }
+                            FilterMenuView(
+                                sortOption: $sortOption,
+                                sortAscending: $sortAscending,
+                                selectedTracker: $selectedTracker,
+                                uniqueTrackers: uniqueTrackers,
+                                isFilterActive: isFilterActive,
+                                allTrackersToken: Self.allTrackersToken
+                            )
                         }
 
                          if isEditing {
@@ -392,6 +357,62 @@ struct TransfersView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
+    }
+}
+
+// MARK: - Filter Menu Component
+struct FilterMenuView: View {
+    @Binding var sortOption: SortOption
+    @Binding var sortAscending: Bool
+    @Binding var selectedTracker: String
+    let uniqueTrackers: [String]
+    let isFilterActive: Bool
+    let allTrackersToken: String
+
+    var body: some View {
+        Menu {
+            // Section 1: Sort
+            Section(LanguageManager.shared.localized("Sort")) {
+                Picker(LanguageManager.shared.localized("Sort By"), selection: $sortOption) {
+                    ForEach(SortOption.allCases) { option in
+                        Text(option.localizedDisplayName).tag(option)
+                    }
+                }
+
+                Toggle(isOn: $sortAscending) {
+                    Label(LanguageManager.shared.localized("Ascending"), systemImage: "arrow.up.arrow.down")
+                }
+            }
+
+            // Section 2: Filter
+            Section(LanguageManager.shared.localized("Filter Tracker")) {
+                Picker(LanguageManager.shared.localized("Tracker"), selection: $selectedTracker) {
+                    ForEach(uniqueTrackers, id: \.self) { tracker in
+                        Text(
+                            tracker == allTrackersToken
+                            ? LanguageManager.shared.localized("All Trackers")
+                            : tracker
+                        )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .tag(tracker)
+                    }
+                }
+            }
+
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 17, weight: .semibold))
+
+                if isFilterActive {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 8, height: 8)
+                        .offset(x: 2, y: -2)
+                }
+            }
+        }
     }
 }
 
