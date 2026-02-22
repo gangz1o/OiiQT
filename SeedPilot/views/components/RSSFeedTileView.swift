@@ -28,9 +28,15 @@ struct RSSFeedTileView: View {
 
                 Spacer()
                 
-                if isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(source.autoDownload ? Color.green : Color.gray)
+                        .frame(width: 10, height: 10)
+
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
                 }
             }
 

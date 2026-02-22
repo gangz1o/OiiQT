@@ -6164,6 +6164,22 @@
         }
       }
     },
+    "Tracker 别名" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker Aliases"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker 别名"
+          }
+        }
+      }
+    },
     "Traffic" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6670,6 +6686,150 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按年订阅"
+          }
+        }
+      }
+    },
+    "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assign concise custom names to long tracker domains for a cleaner layout."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。"
+          }
+        }
+      }
+    },
+    "全局任务聚合" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global Task Aggregation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全局任务聚合"
+          }
+        }
+      }
+    },
+    "动态海报墙" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dynamic Poster Wall"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "动态海报墙"
+          }
+        }
+      }
+    },
+    "助力 SeedPilot 持续迭代更新，解锁未来所有专属功能。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support SeedPilot's continuous evolution and unlock future exclusive features."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "助力 SeedPilot 持续迭代更新，解锁未来所有专属功能。"
+          }
+        }
+      }
+    },
+    "在仪表盘以精美轮播图展示您最近添加的影视收藏。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show your recently added movie and TV collection in a refined dashboard carousel."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在仪表盘以精美轮播图展示您最近添加的影视收藏。"
+          }
+        }
+      }
+    },
+    "在同一列表中集中展示并管理所有服务器的种子任务。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View and manage torrent tasks from all servers in one unified list."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在同一列表中集中展示并管理所有服务器的种子任务。"
+          }
+        }
+      }
+    },
+    "影视海报与元数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poster & Metadata"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影视海报与元数据"
+          }
+        }
+      }
+    },
+    "支持独立开发" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support Independent Development"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持独立开发"
+          }
+        }
+      }
+    },
+    "自动匹配高清海报与剧情简介，无缝适配您的系统语言。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-match high-resolution posters and synopses, aligned with your system language."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动匹配高清海报与剧情简介，无缝适配您的系统语言。"
           }
         }
       }

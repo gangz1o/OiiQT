@@ -10,14 +10,24 @@ import StoreKit
 import UIKit
 
 struct ProView: View {
+    struct ProFeature: Identifiable {
+        let id = UUID()
+        let icon: String
+        let color: Color
+        let title: LocalizedStringKey
+        let subtitle: LocalizedStringKey
+    }
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
     @State var selectedOption: Int = 0
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var isPurchasing = false
     @State private var purchaseErrorMessage: String?
     @State private var showingPurchaseError = false
     @State private var showSuccessFeedback = false
+    @State private var isAnimating = false
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
     @AppStorage("isProUser") private var isProUser = false
@@ -28,45 +38,91 @@ struct ProView: View {
         "com.seedpilot.pro.monthly"
     ]
 
+    private let proFeatures: [ProFeature] = [
+        ProFeature(
+            icon: "film.fill",
+            color: .pink,
+            title: "影视海报与元数据",
+            subtitle: "自动匹配高清海报与剧情简介，无缝适配您的系统语言。"
+        ),
+        ProFeature(
+            icon: "photo.stack.fill",
+            color: .blue,
+            title: "动态海报墙",
+            subtitle: "在仪表盘以精美轮播图展示您最近添加的影视收藏。"
+        ),
+        ProFeature(
+            icon: "server.rack",
+            color: .teal,
+            title: "全局任务聚合",
+            subtitle: "在同一列表中集中展示并管理所有服务器的种子任务。"
+        ),
+        ProFeature(
+            icon: "tag.fill",
+            color: .purple,
+            title: "Tracker 别名",
+            subtitle: "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。"
+        ),
+        ProFeature(
+            icon: "heart.fill",
+            color: .red,
+            title: "支持独立开发",
+            subtitle: "助力 SeedPilot 持续迭代更新，解锁未来所有专属功能。"
+        )
+    ]
+
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(spacing: 32) {
-                    // 1. Hero Header
-                    headerSection
+        GeometryReader { _ in
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
 
-                    // 2. Features List
-                    featuresSection
+                auroraBackground
 
-                    // 3. Pricing Tiers
-                    if isProUser {
-                        proStatusSection
-                    } else {
-                        pricingSection
-                        inlineUnlockButton
+                ScrollView {
+                    VStack(spacing: 32) {
+                        // 1. Hero Header
+                        headerSection
+
+                        // 2. Features List
+                        featuresSection
+
+                        // 3. Pricing Tiers
+                        if isProUser {
+                            proStatusSection
+                        } else {
+                            pricingSection
+                            inlineUnlockButton
+                        }
+
+                        // 4. Compliance Footer
+                        complianceFooterSection
+
+                        Spacer().frame(height: 24)
                     }
-
-                    // 4. Compliance Footer
-                    complianceFooterSection
-
-                    Spacer().frame(height: 24)
+                    .padding(.bottom, 20)
                 }
-                .padding(.bottom, 20)
-            }
 
-            if showSuccessFeedback {
-                Color.black.opacity(0.3).ignoresSafeArea()
-                    .zIndex(1)
+                if showSuccessFeedback {
+                    Color.black.opacity(0.3).ignoresSafeArea()
+                        .zIndex(1)
 
-                successOverlay
-                    .frame(maxHeight: .infinity, alignment: .center)
-                    .zIndex(2)
+                    successOverlay
+                        .frame(maxHeight: .infinity, alignment: .center)
+                        .zIndex(2)
+                }
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await storeManager.fetchProducts()
+        }
+        .onAppear {
+            guard !isAnimating else { return }
+            withAnimation(.easeInOut(duration: 5).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
         }
         .alert(LanguageManager.shared.localized("Error"), isPresented: $showingPurchaseError) {
             Button(LanguageManager.shared.localized("OK"), role: .cancel) { }
@@ -82,6 +138,72 @@ struct ProView: View {
     }
 
     // MARK: - Sections
+
+    private var auroraBackground: some View {
+        GeometryReader { proxy in
+            ZStack {
+                LinearGradient(
+                    colors: auroraLinearColors,
+                    startPoint: isAnimating ? .topTrailing : .topLeading,
+                    endPoint: isAnimating ? .bottomLeading : .bottomTrailing
+                )
+
+                AngularGradient(
+                    colors: auroraAngularColors,
+                    center: .center,
+                    angle: .degrees(isAnimating ? 220 : 40)
+                )
+                .blendMode(.screen)
+                .opacity(colorScheme == .dark ? 0.72 : 0.55)
+            }
+            .frame(height: proxy.size.height * 0.55)
+            .mask(
+                LinearGradient(
+                    colors: [.black, .black, .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .animation(.easeInOut(duration: 5).repeatForever(autoreverses: true), value: isAnimating)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .ignoresSafeArea()
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var auroraLinearColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                .black,
+                .purple.opacity(0.6),
+                .blue.opacity(0.5),
+                .black
+            ]
+        }
+        return [
+            Color(uiColor: .systemBackground),
+            .purple.opacity(0.18),
+            .blue.opacity(0.16),
+            Color(uiColor: .systemBackground)
+        ]
+    }
+
+    private var auroraAngularColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                .black.opacity(0.9),
+                .purple.opacity(0.35),
+                .blue.opacity(0.3),
+                .black.opacity(0.9)
+            ]
+        }
+        return [
+            Color(uiColor: .systemBackground).opacity(0.95),
+            .purple.opacity(0.12),
+            .blue.opacity(0.12),
+            Color(uiColor: .systemBackground).opacity(0.95)
+        ]
+    }
 
     private var successOverlay: some View {
         VStack(spacing: 20) {
@@ -112,6 +234,7 @@ struct ProView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 92, height: 92)
+                .shadow(color: .green.opacity(0.3), radius: 10, x: 0, y: 0)
 
             Text("SeedPilot Pro")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -128,39 +251,55 @@ struct ProView: View {
                 .padding(.horizontal, 20)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 20)
+        .padding(.top, 26)
         .padding(.horizontal, 16)
     }
 
     private var featuresSection: some View {
-        VStack(spacing: 20) {
-            featureRow(icon: "movieclapper.fill", color: .purple, title: LanguageManager.shared.localized("TMDB Poster Wall"), desc: LanguageManager.shared.localized("Automatically match high-quality movie posters and cinematic backdrops."))
-            Divider()
-            featureRow(icon: "chart.bar.doc.horizontal.fill", color: .blue, title: LanguageManager.shared.localized("Pro Dynamic Dashboard"), desc: LanguageManager.shared.localized("Show recently finished tasks with elegant dynamic carousels."))
-            Divider()
-            featureRow(icon: "heart.fill", color: .red, title: LanguageManager.shared.localized("Support Independent Development"), desc: LanguageManager.shared.localized("Help SeedPilot continue shipping improvements."))
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                ForEach(Array(proFeatures.enumerated()), id: \.element.id) { index, feature in
+                    featureRow(feature)
+                        .padding(.vertical, 8)
+
+                    if index < proFeatures.count - 1 {
+                        Divider()
+                            .overlay(Color.secondary.opacity(0.18))
+                            .padding(.leading, 40)
+                            .padding(.vertical, 2)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
         }
-        .padding(20)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 0.5)
+        )
         .padding(.horizontal, 16)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
     }
 
-    private func featureRow(icon: String, color: Color, title: String, desc: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-                .frame(width: 32)
+    private func featureRow(_ feature: ProFeature) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: feature.icon)
+                .font(.title3)
+                .foregroundStyle(feature.color)
+                .frame(width: 24, height: 24)
+                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(desc)
+                Text(feature.title)
+                    .font(.subheadline.bold())
+                Text(feature.subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .truncationMode(.tail)
             }
             Spacer()
         }
@@ -256,17 +395,24 @@ struct ProView: View {
                         .foregroundStyle(isSelected ? Color.blue : Color.gray)
                 }
                 .padding()
-                .background(isSelected ? Color.blue.opacity(0.05) : Color.clear)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? Color.blue.opacity(0.1) : .clear)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isSelected ? Color.blue : Color.gray.opacity(0.3), lineWidth: 1.5)
+                        .stroke(isSelected ? Color.blue : Color.secondary.opacity(0.2), lineWidth: 1.5)
                 )
 
                 if let badge = badge {
                     Text(badge)
                         .font(.caption2.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.red))
@@ -325,18 +471,18 @@ struct ProView: View {
             Group {
                 if isPurchasing {
                     ProgressView()
-                        .tint(.white)
+                        .tint(Color(uiColor: .systemBackground))
                 } else {
                     Text(LanguageManager.shared.localized("Unlock Now"))
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color(uiColor: .systemBackground))
                 }
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
-            .background(Color.blue)
+            .background(.primary)
             .clipShape(Capsule())
-            .shadow(color: .blue.opacity(0.22), radius: 8, x: 0, y: 4)
+            .shadow(color: .primary.opacity(0.2), radius: 8, x: 0, y: 4)
         }
         .disabled(isPurchasing || selectedProduct == nil)
         .padding(.horizontal, 16)
@@ -415,8 +561,15 @@ struct ProView: View {
     }
 }
 
-#Preview {
+#Preview("Light") {
     NavigationStack {
         ProView()
     }
+}
+
+#Preview("Dark") {
+    NavigationStack {
+        ProView()
+    }
+    .preferredColorScheme(.dark)
 }
