@@ -94,7 +94,8 @@ struct TorrentRowView: View {
                         }
 
                         // Title
-                        let titleText = Text(task.name)
+                        // 插入零宽空格 (\u{200B}) 允许 SwiftUI 在点号后自由换行，防止中文字符和超长英文字符串被错误地绑定成一个不可分割的单词
+                        let titleText = Text(task.name.replacingOccurrences(of: ".", with: ".\u{200B}"))
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary)
 
