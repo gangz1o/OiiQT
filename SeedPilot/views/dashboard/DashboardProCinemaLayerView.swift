@@ -283,16 +283,11 @@ private struct DashboardProPosterCard: View {
                     }
             } else {
                 SimpleCachedImage(url: item.posterURL)
-                    .scaledToFill()
+                    .scaledToFit()
                     .frame(width: 120, height: 180)
-                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
-        )
         .shadow(color: .black.opacity(0.14), radius: 4, x: 0, y: 2)
     }
 }

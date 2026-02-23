@@ -19,6 +19,15 @@ struct BatchActionPanel: View {
     @State private var showingBatchTrackerAlert = false
     @State private var newBatchTrackers = ""
     @State private var showingBatchDeleteConfirmation = false
+    @State private var showingCategoryUnsupportedAlert = false
+    @State private var showingBatchCategorySelector = false
+    @State private var showingBatchTagSelector = false
+    @State private var batchCategoryOptions: [String] = []
+    @State private var batchTagOptions: [String] = []
+    @State private var batchSelectedCategory = ""
+    @State private var batchSelectedTags: Set<String> = []
+    @State private var actionErrorMessage = ""
+    @State private var showingActionErrorAlert = false
     @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
 
     // Grid Setup
@@ -39,6 +48,12 @@ struct BatchActionPanel: View {
 
     var areAllPaused: Bool {
         !selectedTasks.isEmpty && selectedTasks.allSatisfy { $0.status == .paused }
+    }
+
+    var containsTransmissionSelection: Bool {
+        selectedTasks.contains { task in
+            appStateManager.servers.first(where: { $0.id == task.serverID })?.type == .transmission
+        }
     }
 
     private var presetSavePaths: [String] {
@@ -99,7 +114,24 @@ struct BatchActionPanel: View {
                     showingBatchTrackerAlert = true
                 }
 
-                // 7. Delete (Red)
+                // 7. Category (qB only)
+                ActionButton(
+                    icon: "tray.full",
+                    text: LanguageManager.shared.localized("Category")
+                ) {
+                    handleBatchCategoryTapped()
+                }
+                .opacity(containsTransmissionSelection ? 0.5 : 1)
+
+                // 8. Tags
+                ActionButton(
+                    icon: "tag",
+                    text: LanguageManager.shared.localized("Tags")
+                ) {
+                    handleBatchTagsTapped()
+                }
+
+                // 9. Delete (Red)
                 ActionButton(icon: "trash.fill", text: LanguageManager.shared.localized("Delete"), color: .red) {
                     showingBatchDeleteConfirmation = true
                 }
@@ -182,6 +214,38 @@ struct BatchActionPanel: View {
                 )
             )
         }
+        .alert(LanguageManager.shared.localized("Feature Unavailable"), isPresented: $showingCategoryUnsupportedAlert) {
+            Button(LanguageManager.shared.localized("OK"), role: .cancel) {}
+        } message: {
+            Text(LanguageManager.shared.localized("Transmission servers do not support category. Please select only qBittorrent tasks."))
+        }
+        .alert(LanguageManager.shared.localized("Error"), isPresented: $showingActionErrorAlert) {
+            Button(LanguageManager.shared.localized("OK"), role: .cancel) {}
+        } message: {
+            Text(actionErrorMessage)
+        }
+        .sheet(isPresented: $showingBatchCategorySelector) {
+            CategorySelectionSheetView(
+                categories: batchCategoryOptions,
+                initialSelection: batchSelectedCategory
+            ) { category in
+                Task {
+                    await applyBatchCategory(category)
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingBatchTagSelector) {
+            TagMultiSelectSheetView(
+                availableTags: batchTagOptions,
+                initialSelection: batchSelectedTags
+            ) { tags in
+                Task {
+                    await applyBatchTags(tags)
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 
     private func performAction(action: () -> Void) {
@@ -197,6 +261,108 @@ struct BatchActionPanel: View {
             isEditing = false
             selectedTaskHashes.removeAll()
         }
+    }
+
+    private func handleBatchCategoryTapped() {
+        guard !containsTransmissionSelection else {
+            showingCategoryUnsupportedAlert = true
+            return
+        }
+        Task {
+            do {
+                let options = try await appStateManager.fetchTaskCategoryOptions(for: selectedTasksSet)
+                await MainActor.run {
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
+                    batchCategoryOptions = options
+                    batchSelectedCategory = ""
+                    showingBatchCategorySelector = true
+                }
+            } catch {
+                await MainActor.run {
+                    actionErrorMessage = localizedErrorMessage(error)
+                    showingActionErrorAlert = true
+                }
+            }
+        }
+    }
+
+    private func handleBatchTagsTapped() {
+        Task {
+            do {
+                let options = try await appStateManager.fetchTaskTagOptions(for: selectedTasksSet)
+                let current = Set(selectedTasks.flatMap { parseTags($0.tags) })
+                await MainActor.run {
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
+                    batchSelectedTags = current
+                    batchTagOptions = Array(Set(options).union(current))
+                        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+                    showingBatchTagSelector = true
+                }
+            } catch {
+                await MainActor.run {
+                    actionErrorMessage = localizedErrorMessage(error)
+                    showingActionErrorAlert = true
+                }
+            }
+        }
+    }
+
+    private var selectedTasksSet: Set<TorrentTask> {
+        Set(selectedTasks)
+    }
+
+    private func applyBatchCategory(_ category: String) async {
+        do {
+            try await appStateManager.applyCategory(category, to: selectedTasksSet)
+            await MainActor.run {
+                withAnimation {
+                    isEditing = false
+                    selectedTaskHashes.removeAll()
+                }
+            }
+        } catch {
+            await MainActor.run {
+                actionErrorMessage = localizedErrorMessage(error)
+                showingActionErrorAlert = true
+            }
+        }
+    }
+
+    private func applyBatchTags(_ tags: [String]) async {
+        do {
+            try await appStateManager.applyTags(tags, to: selectedTasksSet)
+            await MainActor.run {
+                withAnimation {
+                    isEditing = false
+                    selectedTaskHashes.removeAll()
+                }
+            }
+        } catch {
+            await MainActor.run {
+                actionErrorMessage = localizedErrorMessage(error)
+                showingActionErrorAlert = true
+            }
+        }
+    }
+
+    private func parseTags(_ raw: String) -> [String] {
+        Array(
+            Set(
+                raw.split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func localizedErrorMessage(_ error: Error) -> String {
+        if case let TorrentClientError.apiError(message) = error {
+            return LanguageManager.shared.localized(message)
+        }
+        return error.localizedDescription
     }
 }
 

@@ -16,6 +16,7 @@ struct ServerListView: View {
     @State private var showingAddServer = false
     @State private var editingServer: ServerConfig?
     @State private var rateLimitServer: ServerConfig?
+    @State private var taxonomyServer: ServerConfig?
 
     var body: some View {
         ScrollView {
@@ -38,6 +39,15 @@ struct ServerListView: View {
                             rateLimitServer = server
                         } label: {
                             Label(LanguageManager.shared.localized("Rate Limit Settings"), systemImage: "speedometer")
+                        }
+
+                        Button {
+                            taxonomyServer = server
+                        } label: {
+                            Label(
+                                LanguageManager.shared.localized(server.type == .qBittorrent ? "Category & Tags Settings" : "Tag Settings"),
+                                systemImage: "tag"
+                            )
                         }
 
                         Button(role: .destructive) {
@@ -78,6 +88,11 @@ struct ServerListView: View {
         }
         .sheet(item: $rateLimitServer) { server in
             ServerRateLimitView(server: server)
+        }
+        .sheet(item: $taxonomyServer) { server in
+            NavigationStack {
+                ServerTaxonomySettingsView(server: server)
+            }
         }
         .onAppear {
             appStateManager.updateServers(servers)

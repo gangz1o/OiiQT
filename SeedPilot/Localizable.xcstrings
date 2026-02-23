@@ -349,6 +349,23 @@
         }
       }
     },
+    "Add Category" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Category"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增分类"
+          }
+        }
+      }
+    },
     "Add failed: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -464,6 +481,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加订阅源"
+          }
+        }
+      }
+    },
+    "Add Tag" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增标签"
           }
         }
       }
@@ -791,6 +825,23 @@
         }
       }
     },
+    "Are you sure you want to delete %@?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to delete %@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你确定要删除 %@ 吗？"
+          }
+        }
+      }
+    },
     "Are you sure you want to delete %d selected tasks?" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1079,6 +1130,40 @@
         }
       }
     },
+    "Category & Tags Settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category & Tags Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分类与标签设置"
+          }
+        }
+      }
+    },
+    "Category Name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分类名称"
+          }
+        }
+      }
+    },
     "Change Location" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1334,6 +1419,23 @@
         }
       }
     },
+    "Current Transmission server does not support global tag catalog API." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Transmission server does not support global tag catalog API."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前 Transmission 服务器不支持全局标签目录 API。"
+          }
+        }
+      }
+    },
     "Dark" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1521,6 +1623,23 @@
         }
       }
     },
+    "Delete Category" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Category"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除分类"
+          }
+        }
+      }
+    },
     "Delete Server" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1534,6 +1653,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除服务器"
+          }
+        }
+      }
+    },
+    "Delete Tag" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除标签"
           }
         }
       }
@@ -1776,6 +1912,23 @@
         }
       }
     },
+    "Edit Category" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Category"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑分类"
+          }
+        }
+      }
+    },
     "Edit Rules" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1806,6 +1959,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "编辑服务器"
+          }
+        }
+      }
+    },
+    "Edit Tag" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑标签"
+          }
+        }
+      }
+    },
+    "Edit Tags" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Tags"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑标签"
           }
         }
       }
@@ -2044,6 +2231,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存限速设置失败：%@"
+          }
+        }
+      }
+    },
+    "Feature Unavailable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feature Unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功能不可用"
           }
         }
       }
@@ -2983,6 +3187,23 @@
         }
       }
     },
+    "No Categories" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Categories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无分类"
+          }
+        }
+      }
+    },
     "No need to enter http:// or https://, the system handles it automatically." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3084,6 +3305,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无订阅源"
+          }
+        }
+      }
+    },
+    "No Tags" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Tags"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无标签"
           }
         }
       }
@@ -4465,6 +4703,23 @@
         }
       }
     },
+    "Save Path (Optional)" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Path (Optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存路径（可选）"
+          }
+        }
+      }
+    },
     "Scheduled Alternative Limits" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4825,6 +5080,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "服务器类型"
+          }
+        }
+      }
+    },
+    "Set Category" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Category"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置分类"
           }
         }
       }
@@ -5329,6 +5601,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跟随系统"
+          }
+        }
+      }
+    },
+    "Tag Name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标签名称"
+          }
+        }
+      }
+    },
+    "Tag Settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标签设置"
           }
         }
       }
@@ -6226,6 +6532,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "传输任务"
+          }
+        }
+      }
+    },
+    "Transmission servers do not support category and tags. Please select only qBittorrent tasks." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission servers do not support category and tags. Please select only qBittorrent tasks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 服务器不支持分类与标签功能，请仅选择 qBittorrent 任务进行操作。"
+          }
+        }
+      }
+    },
+    "Transmission servers do not support category. Please select only qBittorrent tasks." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission servers do not support category. Please select only qBittorrent tasks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 服务器不支持分类功能，请仅选择 qBittorrent 任务进行操作。"
           }
         }
       }

@@ -579,6 +579,256 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 }
 
+extension QBittorrentClient {
+    func setTaskCategory(hashes: [String], category: String) async throws {
+        let normalizedHashes = hashes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        guard !normalizedHashes.isEmpty else { return }
+
+        try await performAction(
+            endpoint: "setCategory",
+            hashes: normalizedHashes.joined(separator: "|"),
+            extraParams: ["category": category.trimmingCharacters(in: .whitespacesAndNewlines)]
+        )
+    }
+
+    func addTaskTags(hashes: [String], tags: [String]) async throws {
+        let normalizedHashes = hashes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        let normalizedTags = normalizedServerTags(tags)
+        guard !normalizedHashes.isEmpty, !normalizedTags.isEmpty else { return }
+
+        try await performAction(
+            endpoint: "addTags",
+            hashes: normalizedHashes.joined(separator: "|"),
+            extraParams: ["tags": normalizedTags.joined(separator: ",")]
+        )
+    }
+
+    func removeTaskTags(hashes: [String], tags: [String]) async throws {
+        let normalizedHashes = hashes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        let normalizedTags = normalizedServerTags(tags)
+        guard !normalizedHashes.isEmpty, !normalizedTags.isEmpty else { return }
+
+        try await performAction(
+            endpoint: "removeTags",
+            hashes: normalizedHashes.joined(separator: "|"),
+            extraParams: ["tags": normalizedTags.joined(separator: ",")]
+        )
+    }
+
+    struct ServerCategoryEntry: Identifiable, Hashable {
+        let name: String
+        let savePath: String
+
+        var id: String { name }
+    }
+
+    func fetchServerCategories() async throws -> [ServerCategoryEntry] {
+        let data = try await performServerSettingsRequest(path: "categories")
+
+        struct CategoryInfo: Decodable {
+            let name: String?
+            let savePath: String?
+        }
+
+        let decoded = try JSONDecoder().decode([String: CategoryInfo].self, from: data)
+        return decoded.map { key, value in
+            ServerCategoryEntry(
+                name: value.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? (value.name ?? key) : key,
+                savePath: value.savePath ?? ""
+            )
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func createServerCategory(name: String, savePath: String) async throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        _ = try await performServerSettingsRequest(
+            path: "createCategory",
+            method: "POST",
+            formParams: [
+                "category": trimmed,
+                "savePath": savePath
+            ]
+        )
+    }
+
+    func updateServerCategory(name: String, savePath: String) async throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        _ = try await performServerSettingsRequest(
+            path: "editCategory",
+            method: "POST",
+            formParams: [
+                "category": trimmed,
+                "savePath": savePath
+            ]
+        )
+    }
+
+    func renameServerCategory(oldName: String, newName: String, savePath: String) async throws {
+        let trimmedOld = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNew = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOld.isEmpty, !trimmedNew.isEmpty else { return }
+
+        if trimmedOld == trimmedNew {
+            try await updateServerCategory(name: trimmedNew, savePath: savePath)
+            return
+        }
+
+        try await createServerCategory(name: trimmedNew, savePath: savePath)
+        try await deleteServerCategories([trimmedOld])
+    }
+
+    func deleteServerCategories(_ names: [String]) async throws {
+        let normalized = names
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalized.isEmpty else { return }
+
+        _ = try await performServerSettingsRequest(
+            path: "removeCategories",
+            method: "POST",
+            formParams: ["categories": normalized.joined(separator: "\n")]
+        )
+    }
+
+    func fetchServerTags() async throws -> [String] {
+        let data = try await performServerSettingsRequest(path: "tags")
+
+        if let array = try? JSONDecoder().decode([String].self, from: data) {
+            return normalizedServerTags(array)
+        }
+
+        if let plain = String(data: data, encoding: .utf8) {
+            let fallback = plain
+                .split(whereSeparator: { $0 == "," || $0 == "\n" })
+                .map { String($0) }
+            return normalizedServerTags(fallback)
+        }
+
+        return []
+    }
+
+    func createServerTags(_ tags: [String]) async throws {
+        let normalized = normalizedServerTags(tags)
+        guard !normalized.isEmpty else { return }
+
+        _ = try await performServerSettingsRequest(
+            path: "createTags",
+            method: "POST",
+            formParams: ["tags": normalized.joined(separator: ",")]
+        )
+    }
+
+    func deleteServerTags(_ tags: [String]) async throws {
+        let normalized = normalizedServerTags(tags)
+        guard !normalized.isEmpty else { return }
+
+        _ = try await performServerSettingsRequest(
+            path: "deleteTags",
+            method: "POST",
+            formParams: ["tags": normalized.joined(separator: ",")]
+        )
+    }
+
+    func renameServerTag(oldName: String, newName: String) async throws {
+        let trimmedOld = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNew = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOld.isEmpty, !trimmedNew.isEmpty else { return }
+        guard trimmedOld != trimmedNew else { return }
+
+        _ = try await performServerSettingsRequest(
+            path: "renameTag",
+            method: "POST",
+            formParams: [
+                "oldTag": trimmedOld,
+                "newTag": trimmedNew
+            ]
+        )
+    }
+
+    private func performServerSettingsRequest(
+        path: String,
+        method: String = "GET",
+        formParams: [String: String] = [:]
+    ) async throws -> Data {
+        func makeRequest() throws -> URLRequest {
+            guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/\(path)") else {
+                throw TorrentClientError.invalidURL
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = method
+            configureRequest(&request)
+
+            if method == "POST" {
+                request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+                request.httpBody = formEncodedBody(formParams)
+            }
+
+            return request
+        }
+
+        var request = try makeRequest()
+        let (firstData, firstResponse) = try await session.data(for: request)
+
+        guard let firstHTTP = firstResponse as? HTTPURLResponse else {
+            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
+        }
+
+        if firstHTTP.statusCode == 403 {
+            try await login()
+            request = try makeRequest()
+            let (retryData, retryResponse) = try await session.data(for: request)
+            guard let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
+                let status = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
+                let body = String(data: retryData, encoding: .utf8) ?? ""
+                throw TorrentClientError.apiError("\(path) failed: HTTP \(status) \(body)")
+            }
+            return retryData
+        }
+
+        guard firstHTTP.statusCode == 200 else {
+            let body = String(data: firstData, encoding: .utf8) ?? ""
+            throw TorrentClientError.apiError("\(path) failed: HTTP \(firstHTTP.statusCode) \(body)")
+        }
+
+        return firstData
+    }
+
+    private func normalizedServerTags(_ tags: [String]) -> [String] {
+        Array(
+            Set(
+                tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func formEncodedBody(_ params: [String: String]) -> Data {
+        let encoded = params.map { key, value in
+            let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+            var allowed = CharacterSet.alphanumerics
+            allowed.insert(charactersIn: "-_.~")
+            let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+            return "\(encodedKey)=\(encodedValue)"
+        }
+        .joined(separator: "&")
+
+        return Data(encoded.utf8)
+    }
+}
+
 // MARK: - Decodable Model
 
 struct QBTask: Decodable {

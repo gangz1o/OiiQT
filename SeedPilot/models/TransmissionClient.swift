@@ -153,6 +153,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 let secondsSeeding: Int? // Optional
                 let tracker: String?
                 let trackers: [Tracker]?
+                let labels: [String]?
             }
             let torrents: [Item]
         }
@@ -161,7 +162,7 @@ class TransmissionClient: NSObject, TorrentClient {
             "id", "hashString", "name", "totalSize", "rateDownload", "rateUpload",
             "status", "downloadDir", "percentDone", "eta", "downloadedEver",
             "uploadedEver", "uploadRatio", "peersConnected", "addedDate", "secondsSeeding",
-            "tracker", "trackers"
+            "tracker", "trackers", "labels"
         ]
 
         let args = try await performRequest("torrent-get", arguments: ["fields": fields], responseType: TorrentGet.self)
@@ -229,7 +230,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 serverID: config.id,
                 tracker: trackerURL,
                 savePath: item.downloadDir,
-                tags: "", // Transmission doesn't handle tags same way as qB, uses labels in newer versions. Skipping.
+                tags: normalizeTags(item.labels ?? []).joined(separator: ","),
                 downloaded: item.downloadedEver,
                 uploaded: item.uploadedEver,
                 isSequential: nil,
@@ -257,6 +258,9 @@ class TransmissionClient: NSObject, TorrentClient {
             if !options.savePath.isEmpty {
                 args["download-dir"] = options.savePath
             }
+            if !options.tags.isEmpty {
+                args["labels"] = normalizeTags(options.tags)
+            }
 
            struct AddResponse: Decodable {} // We don't need content, just success result
            _ = try await performRequest("torrent-add", arguments: args, responseType: AddResponse.self)
@@ -275,6 +279,9 @@ class TransmissionClient: NSObject, TorrentClient {
         ]
         if !options.savePath.isEmpty {
             args["download-dir"] = options.savePath
+        }
+        if !options.tags.isEmpty {
+            args["labels"] = normalizeTags(options.tags)
         }
 
         struct AddResponse: Decodable {}
@@ -337,6 +344,206 @@ class TransmissionClient: NSObject, TorrentClient {
         case 5, 6: return .seeding
         default: return .error
         }
+    }
+}
+
+extension TransmissionClient {
+    func setTaskTags(hashes: [String], tags: [String]) async throws {
+        let normalizedHashes = hashes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalizedHashes.isEmpty else { return }
+
+        _ = try await performRequest(
+            "torrent-set",
+            arguments: [
+                "ids": normalizedHashes,
+                "labels": normalizeTags(tags)
+            ],
+            responseType: EmptyArgs.self
+        )
+    }
+
+    func fetchServerTags() async throws -> [String] {
+        var merged = Set<String>()
+        merged.formUnion(loadFallbackTagCatalog())
+
+        if let sessionLabels = try await fetchSessionLabels() {
+            merged.formUnion(sessionLabels)
+        }
+
+        let torrentLabels = try await fetchTorrentLabels()
+            .flatMap(\.labels)
+        merged.formUnion(torrentLabels)
+
+        return merged
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    func createServerTags(_ tags: [String]) async throws {
+        let normalized = normalizeTags(tags)
+        guard !normalized.isEmpty else { return }
+
+        let existingSessionLabels = try await fetchSessionLabels()
+        let existingTorrentLabels = try await fetchTorrentLabels()
+            .flatMap(\.labels)
+        let fallbackLabels = loadFallbackTagCatalog()
+
+        let merged = Set(existingSessionLabels ?? [])
+            .union(existingTorrentLabels)
+            .union(fallbackLabels)
+            .union(normalized)
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        if existingSessionLabels == nil {
+            saveFallbackTagCatalog(merged)
+            return
+        }
+
+        try await setSessionLabels(merged)
+        saveFallbackTagCatalog(merged)
+    }
+
+    func deleteServerTags(_ tags: [String]) async throws {
+        let normalized = Set(normalizeTags(tags))
+        guard !normalized.isEmpty else { return }
+
+        if let existing = try await fetchSessionLabels() {
+            let updated = existing.filter { !normalized.contains($0) }
+            try await setSessionLabels(updated)
+        }
+
+        try await removeTagsFromTorrents(normalized)
+
+        let fallback = Set(loadFallbackTagCatalog())
+        let updatedFallback = fallback.subtracting(normalized)
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        saveFallbackTagCatalog(updatedFallback)
+    }
+
+    func renameServerTag(oldName: String, newName: String) async throws {
+        let trimmedOld = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNew = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOld.isEmpty, !trimmedNew.isEmpty else { return }
+        guard trimmedOld != trimmedNew else { return }
+
+        if let existing = try await fetchSessionLabels() {
+            var updated = existing.filter { $0 != trimmedOld }
+            if !updated.contains(trimmedNew) {
+                updated.append(trimmedNew)
+            }
+            updated.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            try await setSessionLabels(updated)
+        }
+
+        try await renameTagAcrossTorrents(oldName: trimmedOld, newName: trimmedNew)
+
+        var fallback = loadFallbackTagCatalog()
+        if let index = fallback.firstIndex(of: trimmedOld) {
+            fallback[index] = trimmedNew
+        } else if !fallback.contains(trimmedNew) {
+            fallback.append(trimmedNew)
+        }
+        saveFallbackTagCatalog(normalizeTags(fallback))
+    }
+
+    private struct TransmissionLabelItem: Decodable {
+        let id: Int
+        let labels: [String]
+    }
+
+    private func fetchSessionLabels() async throws -> [String]? {
+        struct SessionGetLabels: Decodable {
+            let labels: [String]?
+        }
+
+        let args = try await performRequest("session-get", arguments: nil, responseType: SessionGetLabels.self)
+        guard let labels = args.labels else { return nil }
+        return normalizeTags(labels)
+    }
+
+    private func setSessionLabels(_ labels: [String]) async throws {
+        _ = try await performRequest("session-set", arguments: ["labels": labels], responseType: EmptyArgs.self)
+    }
+
+    private func fetchTorrentLabels() async throws -> [TransmissionLabelItem] {
+        struct TorrentGetLabels: Decodable {
+            struct Item: Decodable {
+                let id: Int
+                let labels: [String]?
+            }
+
+            let torrents: [Item]
+        }
+
+        let args = try await performRequest(
+            "torrent-get",
+            arguments: ["fields": ["id", "labels"]],
+            responseType: TorrentGetLabels.self
+        )
+
+        return args.torrents.map {
+            TransmissionLabelItem(
+                id: $0.id,
+                labels: normalizeTags($0.labels ?? [])
+            )
+        }
+    }
+
+    private func removeTagsFromTorrents(_ tags: Set<String>) async throws {
+        guard !tags.isEmpty else { return }
+        let torrents = try await fetchTorrentLabels()
+
+        for torrent in torrents {
+            let nextLabels = torrent.labels.filter { !tags.contains($0) }
+            if nextLabels != torrent.labels {
+                _ = try await performRequest(
+                    "torrent-set",
+                    arguments: ["ids": [torrent.id], "labels": nextLabels],
+                    responseType: EmptyArgs.self
+                )
+            }
+        }
+    }
+
+    private func renameTagAcrossTorrents(oldName: String, newName: String) async throws {
+        let torrents = try await fetchTorrentLabels()
+
+        for torrent in torrents {
+            guard torrent.labels.contains(oldName) else { continue }
+            let replaced = torrent.labels.map { $0 == oldName ? newName : $0 }
+            let deduplicated = normalizeTags(replaced)
+            _ = try await performRequest(
+                "torrent-set",
+                arguments: ["ids": [torrent.id], "labels": deduplicated],
+                responseType: EmptyArgs.self
+            )
+        }
+    }
+
+    private var fallbackTagCatalogKey: String {
+        "transmission.tag.catalog.\(config.id.uuidString)"
+    }
+
+    private func loadFallbackTagCatalog() -> [String] {
+        let raw = UserDefaults.standard.array(forKey: fallbackTagCatalogKey) as? [String] ?? []
+        return normalizeTags(raw)
+    }
+
+    private func saveFallbackTagCatalog(_ tags: [String]) {
+        UserDefaults.standard.set(normalizeTags(tags), forKey: fallbackTagCatalogKey)
+    }
+
+    fileprivate func normalizeTags(_ tags: [String]) -> [String] {
+        Array(
+            Set(
+                tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 }
 

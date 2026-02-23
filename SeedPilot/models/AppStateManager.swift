@@ -297,6 +297,222 @@ class AppStateManager {
         return client
     }
 
+    // MARK: - Server Category / Tag Settings
+
+    func fetchServerCategories(for server: ServerConfig) async throws -> [QBittorrentClient.ServerCategoryEntry] {
+        guard server.type == .qBittorrent else { return [] }
+        guard let client = getClient(for: server) as? QBittorrentClient else {
+            throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+        }
+        return try await client.fetchServerCategories()
+    }
+
+    func createServerCategory(for server: ServerConfig, name: String, savePath: String) async throws {
+        guard server.type == .qBittorrent else {
+            throw TorrentClientError.apiError("Current server does not support categories.")
+        }
+        guard let client = getClient(for: server) as? QBittorrentClient else {
+            throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+        }
+        try await client.createServerCategory(name: name, savePath: savePath)
+        await refreshData()
+    }
+
+    func updateServerCategory(for server: ServerConfig, oldName: String, newName: String, savePath: String) async throws {
+        guard server.type == .qBittorrent else {
+            throw TorrentClientError.apiError("Current server does not support categories.")
+        }
+        guard let client = getClient(for: server) as? QBittorrentClient else {
+            throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+        }
+        try await client.renameServerCategory(oldName: oldName, newName: newName, savePath: savePath)
+        await refreshData()
+    }
+
+    func deleteServerCategory(for server: ServerConfig, name: String) async throws {
+        guard server.type == .qBittorrent else {
+            throw TorrentClientError.apiError("Current server does not support categories.")
+        }
+        guard let client = getClient(for: server) as? QBittorrentClient else {
+            throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+        }
+        try await client.deleteServerCategories([name])
+        await refreshData()
+    }
+
+    func fetchServerTags(for server: ServerConfig) async throws -> [String] {
+        switch server.type {
+        case .qBittorrent:
+            guard let client = getClient(for: server) as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+            }
+            return try await client.fetchServerTags()
+        case .transmission:
+            guard let client = getClient(for: server) as? TransmissionClient else {
+                throw TorrentClientError.apiError("Failed to initialize Transmission client.")
+            }
+            return try await client.fetchServerTags()
+        }
+    }
+
+    func createServerTag(for server: ServerConfig, name: String) async throws {
+        switch server.type {
+        case .qBittorrent:
+            guard let client = getClient(for: server) as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+            }
+            try await client.createServerTags([name])
+        case .transmission:
+            guard let client = getClient(for: server) as? TransmissionClient else {
+                throw TorrentClientError.apiError("Failed to initialize Transmission client.")
+            }
+            try await client.createServerTags([name])
+        }
+        await refreshData()
+    }
+
+    func updateServerTag(for server: ServerConfig, oldName: String, newName: String) async throws {
+        switch server.type {
+        case .qBittorrent:
+            guard let client = getClient(for: server) as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+            }
+            try await client.renameServerTag(oldName: oldName, newName: newName)
+        case .transmission:
+            guard let client = getClient(for: server) as? TransmissionClient else {
+                throw TorrentClientError.apiError("Failed to initialize Transmission client.")
+            }
+            try await client.renameServerTag(oldName: oldName, newName: newName)
+        }
+        await refreshData()
+    }
+
+    func deleteServerTag(for server: ServerConfig, name: String) async throws {
+        switch server.type {
+        case .qBittorrent:
+            guard let client = getClient(for: server) as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+            }
+            try await client.deleteServerTags([name])
+        case .transmission:
+            guard let client = getClient(for: server) as? TransmissionClient else {
+                throw TorrentClientError.apiError("Failed to initialize Transmission client.")
+            }
+            try await client.deleteServerTags([name])
+        }
+        await refreshData()
+    }
+
+    // MARK: - Task Category / Tag Actions
+
+    func fetchTaskCategoryOptions(for task: TorrentTask) async throws -> [String] {
+        try await fetchTaskCategoryOptions(for: Set([task]))
+    }
+
+    func fetchTaskCategoryOptions(for tasks: Set<TorrentTask>) async throws -> [String] {
+        var merged = Set<String>()
+        let grouped = Dictionary(grouping: tasks, by: \.serverID)
+
+        for (serverID, _) in grouped {
+            guard let server = servers.first(where: { $0.id == serverID }) else {
+                throw TorrentClientError.apiError("Server not found.")
+            }
+            guard server.type == .qBittorrent else {
+                throw TorrentClientError.apiError("Current server does not support categories.")
+            }
+            let categories = try await fetchServerCategories(for: server).map(\.name)
+            merged.formUnion(categories)
+        }
+
+        return merged.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    func fetchTaskTagOptions(for task: TorrentTask) async throws -> [String] {
+        try await fetchTaskTagOptions(for: Set([task]))
+    }
+
+    func fetchTaskTagOptions(for tasks: Set<TorrentTask>) async throws -> [String] {
+        var merged = Set<String>()
+        let grouped = Dictionary(grouping: tasks, by: \.serverID)
+
+        for (serverID, groupTasks) in grouped {
+            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
+            let serverTags = try await fetchServerTags(for: server)
+            merged.formUnion(serverTags)
+            for task in groupTasks {
+                merged.formUnion(normalizedTagSet(from: task.tags))
+            }
+        }
+
+        return merged.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    func applyCategory(_ category: String, to task: TorrentTask) async throws {
+        try await applyCategory(category, to: Set([task]))
+    }
+
+    func applyCategory(_ category: String, to tasks: Set<TorrentTask>) async throws {
+        let grouped = Dictionary(grouping: tasks, by: \.serverID)
+        let normalizedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        for (serverID, groupTasks) in grouped {
+            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
+            guard server.type == .qBittorrent else {
+                throw TorrentClientError.apiError("Current server does not support categories.")
+            }
+            guard let client = getClient(for: server) as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+            }
+
+            try await client.setTaskCategory(
+                hashes: groupTasks.map(\.id),
+                category: normalizedCategory
+            )
+        }
+
+        await refreshData()
+    }
+
+    func applyTags(_ tags: [String], to task: TorrentTask) async throws {
+        try await applyTags(tags, to: Set([task]))
+    }
+
+    func applyTags(_ tags: [String], to tasks: Set<TorrentTask>) async throws {
+        let targetTags = normalizeTags(tags)
+        let targetTagSet = Set(targetTags)
+        let grouped = Dictionary(grouping: tasks, by: \.serverID)
+
+        for (serverID, groupTasks) in grouped {
+            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
+
+            switch server.type {
+            case .qBittorrent:
+                guard let client = getClient(for: server) as? QBittorrentClient else {
+                    throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
+                }
+                for task in groupTasks {
+                    let currentTagSet = normalizedTagSet(from: task.tags)
+                    let toAdd = Array(targetTagSet.subtracting(currentTagSet))
+                    let toRemove = Array(currentTagSet.subtracting(targetTagSet))
+                    if !toAdd.isEmpty {
+                        try await client.addTaskTags(hashes: [task.id], tags: toAdd)
+                    }
+                    if !toRemove.isEmpty {
+                        try await client.removeTaskTags(hashes: [task.id], tags: toRemove)
+                    }
+                }
+
+            case .transmission:
+                guard let client = getClient(for: server) as? TransmissionClient else {
+                    throw TorrentClientError.apiError("Failed to initialize Transmission client.")
+                }
+                try await client.setTaskTags(hashes: groupTasks.map(\.id), tags: targetTags)
+            }
+        }
+
+        await refreshData()
+    }
+
     // MARK: - Task Actions
 
 
@@ -587,5 +803,23 @@ class AppStateManager {
             }
             await self.refreshData()
         }
+    }
+
+    private func normalizeTags(_ tags: [String]) -> [String] {
+        Array(
+            Set(
+                tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func normalizedTagSet(from raw: String) -> Set<String> {
+        Set(
+            raw.split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
     }
 }

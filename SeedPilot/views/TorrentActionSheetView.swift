@@ -17,7 +17,15 @@ struct TorrentActionSheetView: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingSetSavePathSheet = false
     @State private var showingManualMatchSheet = false
+    @State private var showingCategorySelector = false
+    @State private var showingTagSelector = false
     @State private var draftSavePath = ""
+    @State private var categoryOptions: [String] = []
+    @State private var tagOptions: [String] = []
+    @State private var selectedCategory = ""
+    @State private var selectedTags: Set<String> = []
+    @State private var taxonomyErrorMessage = ""
+    @State private var showingTaxonomyError = false
 
     private var presetSavePaths: [String] {
         PresetSavePathsCodec.decode(presetSavePathsRaw)
@@ -31,6 +39,18 @@ struct TorrentActionSheetView: View {
 
     private var pauseOrResumeIcon: String {
         task.status == .paused ? "play.fill" : "pause.fill"
+    }
+
+    private var taskServerType: ServerType? {
+        appStateManager.servers.first(where: { $0.id == task.serverID })?.type
+    }
+
+    private var supportsCategory: Bool {
+        taskServerType == .qBittorrent
+    }
+
+    private var supportsTags: Bool {
+        taskServerType == .qBittorrent || taskServerType == .transmission
     }
 
     var body: some View {
@@ -74,6 +94,30 @@ struct TorrentActionSheetView: View {
                         )
                     }
                     .buttonStyle(.plain)
+
+                    if supportsCategory {
+                        Button {
+                            handleSetCategoryTapped()
+                        } label: {
+                            sheetMenuRow(
+                                title: languageManager.localized("Set Category"),
+                                systemImage: "tray.full"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if supportsTags {
+                        Button {
+                            handleEditTagsTapped()
+                        } label: {
+                            sheetMenuRow(
+                                title: languageManager.localized("Edit Tags"),
+                                systemImage: "tag"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
 
                 Section {
@@ -178,6 +222,33 @@ struct TorrentActionSheetView: View {
                     onPosterChanged()
                 }
         }
+        .sheet(isPresented: $showingCategorySelector) {
+            CategorySelectionSheetView(
+                categories: categoryOptions,
+                initialSelection: selectedCategory
+            ) { category in
+                Task {
+                    await applyCategory(category)
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingTagSelector) {
+            TagMultiSelectSheetView(
+                availableTags: tagOptions,
+                initialSelection: selectedTags
+            ) { tags in
+                Task {
+                    await applyTags(tags)
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .alert(languageManager.localized("Error"), isPresented: $showingTaxonomyError) {
+            Button(languageManager.localized("OK"), role: .cancel) {}
+        } message: {
+            Text(taxonomyErrorMessage)
+        }
     }
 
     private var header: some View {
@@ -263,6 +334,88 @@ struct TorrentActionSheetView: View {
                 .foregroundStyle(.tertiary)
         }
         .contentShape(Rectangle())
+    }
+
+    private func handleSetCategoryTapped() {
+        guard supportsCategory else { return }
+        Task {
+            do {
+                let categories = try await appStateManager.fetchTaskCategoryOptions(for: task)
+                await MainActor.run {
+                    categoryOptions = categories
+                    selectedCategory = ""
+                    showingCategorySelector = true
+                }
+            } catch {
+                await MainActor.run {
+                    taxonomyErrorMessage = localizedErrorMessage(error)
+                    showingTaxonomyError = true
+                }
+            }
+        }
+    }
+
+    private func handleEditTagsTapped() {
+        guard supportsTags else { return }
+        Task {
+            do {
+                let fetchedOptions = try await appStateManager.fetchTaskTagOptions(for: task)
+                let current = parseTags(task.tags)
+                await MainActor.run {
+                    selectedTags = Set(current)
+                    tagOptions = Array(Set(fetchedOptions).union(selectedTags))
+                        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+                    showingTagSelector = true
+                }
+            } catch {
+                await MainActor.run {
+                    taxonomyErrorMessage = localizedErrorMessage(error)
+                    showingTaxonomyError = true
+                }
+            }
+        }
+    }
+
+    private func applyCategory(_ category: String) async {
+        do {
+            try await appStateManager.applyCategory(category, to: task)
+            await MainActor.run { dismiss() }
+        } catch {
+            await MainActor.run {
+                taxonomyErrorMessage = localizedErrorMessage(error)
+                showingTaxonomyError = true
+            }
+        }
+    }
+
+    private func applyTags(_ tags: [String]) async {
+        do {
+            try await appStateManager.applyTags(tags, to: task)
+            await MainActor.run { dismiss() }
+        } catch {
+            await MainActor.run {
+                taxonomyErrorMessage = localizedErrorMessage(error)
+                showingTaxonomyError = true
+            }
+        }
+    }
+
+    private func parseTags(_ raw: String) -> [String] {
+        Array(
+            Set(
+                raw.split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func localizedErrorMessage(_ error: Error) -> String {
+        if case let TorrentClientError.apiError(message) = error {
+            return languageManager.localized(message)
+        }
+        return error.localizedDescription
     }
 
 }
