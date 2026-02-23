@@ -66,16 +66,6 @@ struct TorrentRowView: View {
                                 .background(Color.blue)
                                 .clipShape(Capsule())
 
-                            // Seeding Time / Added Date if not seeding
-                            if task.status == .seeding {
-                                 HStack(spacing: 2) {
-                                    Image(systemName: "clock")
-                                    Text(task.displayText.seedingTime)
-                                }
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                            }
-
                             Spacer()
 
                             // Status & Percent
@@ -138,7 +128,9 @@ struct TorrentRowView: View {
                             peersText: task.displayText.peers,
                             seedsText: task.displayText.seeds,
                             sizeText: task.displayText.size,
-                            ratioText: task.displayText.ratio
+                            ratioText: task.displayText.ratio,
+                            seedingTimeText: compactSeedingTimeText,
+                            savePathText: task.savePath.isEmpty ? "--" : task.savePath
                         )
                         .equatable()
                     }
@@ -267,7 +259,7 @@ struct TorrentRowView: View {
     }
 
     private var displayedTags: [String] {
-        Array(normalizedTags.prefix(2))
+        Array(normalizedTags.prefix(3))
     }
 
     private var hiddenTagCount: Int {
@@ -307,9 +299,22 @@ struct TorrentRowView: View {
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
     }
+
+    private var compactSeedingTimeText: String {
+        TorrentRowView.compactDurationFormatter.string(from: max(0, task.seedingTime)) ?? task.displayText.seedingTime
+    }
 }
 
 private extension TorrentRowView {
+    static let compactDurationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        formatter.zeroFormattingBehavior = [.dropLeading, .dropMiddle, .dropTrailing]
+        return formatter
+    }()
+
     var displayedTracker: String {
         trackerAliasManager.getAlias(for: task.trackerHost)
     }
@@ -371,16 +376,20 @@ struct VerticalEdgeProgressBar: View {
 struct GridRowIconText: View, Equatable {
     let icon: String
     let text: String
+    var middleTruncation: Bool = false
+    var expands: Bool = true
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             Image(systemName: icon)
-                .font(.caption2)
                 .foregroundStyle(.secondary)
             Text(text)
-                .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(middleTruncation ? .middle : .tail)
+                .frame(maxWidth: expands ? .infinity : nil, alignment: .leading)
         }
+        .frame(maxWidth: expands ? .infinity : nil, alignment: .leading)
     }
 }
 
@@ -391,22 +400,35 @@ struct TaskProgressView: View, Equatable {
     let seedsText: String
     let sizeText: String
     let ratioText: String
+    let seedingTimeText: String
+    let savePathText: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            LazyVGrid(columns: [
-                GridItem(.flexible(), alignment: .leading),
-                GridItem(.flexible(), alignment: .leading),
-                GridItem(.flexible(), alignment: .leading)
-            ], spacing: 6) {
-                GridRowIconText(icon: "arrow.down.circle", text: downloadSpeedText).equatable()
-                GridRowIconText(icon: "arrow.down", text: peersText).equatable()
-                GridRowIconText(icon: "doc", text: sizeText).equatable()
+        HStack(alignment: .top, spacing: 12) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                GridRow {
+                    GridRowIconText(icon: "arrow.down.circle", text: downloadSpeedText, expands: false).equatable()
+                    GridRowIconText(icon: "arrow.down", text: peersText, expands: false).equatable()
+                    GridRowIconText(icon: "doc", text: sizeText, expands: false).equatable()
+                }
 
-                GridRowIconText(icon: "arrow.up.circle", text: uploadSpeedText).equatable()
-                GridRowIconText(icon: "leaf", text: seedsText).equatable()
-                GridRowIconText(icon: "arrow.left.and.right", text: ratioText).equatable()
+                GridRow {
+                    GridRowIconText(icon: "arrow.up.circle", text: uploadSpeedText, expands: false).equatable()
+                    GridRowIconText(icon: "leaf", text: seedsText, expands: false).equatable()
+                    GridRowIconText(icon: "arrow.left.and.right", text: ratioText, expands: false).equatable()
+                }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: 224, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 6) {
+                GridRowIconText(icon: "clock", text: seedingTimeText).equatable()
+                GridRowIconText(icon: "folder", text: savePathText, middleTruncation: true).equatable()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
         }
+        .font(.system(size: 10))
+        .monospacedDigit()
     }
 }
