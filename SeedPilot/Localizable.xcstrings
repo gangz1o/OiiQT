@@ -4152,6 +4152,9 @@
         }
       }
     },
+    "Pro" : {
+
+    },
     "Pro Benefits" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4816,7 +4819,6 @@
       }
     },
     "SeedPilot" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

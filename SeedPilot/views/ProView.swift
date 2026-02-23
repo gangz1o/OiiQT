@@ -71,6 +71,10 @@ struct ProView: View {
         )
     ]
 
+    private static let splashWordmarkCropRect = CGRect(x: 198, y: 714, width: 594, height: 118)
+    private static let splashIconCropRect = CGRect(x: 342, y: 82, width: 272, height: 560)
+    private let proTitleColor = Color(red: 41.0 / 255.0, green: 58.0 / 255.0, blue: 136.0 / 255.0)
+
     var body: some View {
         GeometryReader { _ in
             ZStack {
@@ -230,15 +234,11 @@ struct ProView: View {
 
     private var headerSection: some View {
         VStack(spacing: 10) {
-            Image("SplashLogo")
-                .resizable()
-                .scaledToFit()
+            seedIconMark
                 .frame(width: 128, height: 128)
                 .shadow(color: .green.opacity(0.3), radius: 10, x: 0, y: 0)
 
-            Text("SeedPilot Pro")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+            brandTitleLockup
 
             Text(
                 isProUser
@@ -253,6 +253,78 @@ struct ProView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 26)
         .padding(.horizontal, 16)
+    }
+
+    private var brandTitleLockup: some View {
+        HStack(alignment: .center, spacing: 8) {
+            seedPilotWordmark
+
+            Text("Pro")
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundStyle(proTitleColor)
+                .offset(y: 1)
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.yellow)
+                        .rotationEffect(.degrees(14))
+                        .offset(x: 6, y: -5)
+                }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("SeedPilot Pro")
+    }
+
+    private var seedPilotWordmark: some View {
+        Group {
+            if let wordmarkImage = croppedSplashWordmarkImage {
+                Image(uiImage: wordmarkImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                Text("SeedPilot")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+            }
+        }
+        .frame(height: 34)
+        .accessibilityHidden(true)
+    }
+
+    private var seedIconMark: some View {
+        Group {
+            if let iconImage = croppedSplashIconImage {
+                Image(uiImage: iconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                Image("SplashLogo")
+                    .resizable()
+                    .scaledToFit()
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var croppedSplashWordmarkImage: UIImage? {
+        guard let source = UIImage(named: "SplashLogo"),
+              let cgImage = source.cgImage,
+              let cropped = cgImage.cropping(to: Self.splashWordmarkCropRect) else {
+            return nil
+        }
+        return UIImage(cgImage: cropped, scale: source.scale, orientation: .up)
+    }
+
+    private var croppedSplashIconImage: UIImage? {
+        guard let source = UIImage(named: "SplashLogo"),
+              let cgImage = source.cgImage,
+              let cropped = cgImage.cropping(to: Self.splashIconCropRect) else {
+            return nil
+        }
+        return UIImage(cgImage: cropped, scale: source.scale, orientation: .up)
     }
 
     private var featuresSection: some View {
