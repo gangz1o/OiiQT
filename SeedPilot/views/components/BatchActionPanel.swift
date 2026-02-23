@@ -33,6 +33,10 @@ struct BatchActionPanel: View {
         appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
     }
 
+    var isMixedServerSelection: Bool {
+        Set(selectedTasks.map(\.serverID)).count > 1
+    }
+
     var areAllPaused: Bool {
         !selectedTasks.isEmpty && selectedTasks.allSatisfy { $0.status == .paused }
     }
@@ -78,12 +82,20 @@ struct BatchActionPanel: View {
                 }
 
                 // 5. Set Location
-                ActionButton(icon: "folder.badge.plus", text: LanguageManager.shared.localized("Change Location")) {
+                ActionButton(
+                    icon: "folder.badge.plus",
+                    text: LanguageManager.shared.localized("Change Location"),
+                    isDisabled: isMixedServerSelection
+                ) {
                     showingBatchLocationAlert = true
                 }
 
                 // 6. Edit Trackers
-                ActionButton(icon: "link.badge.plus", text: LanguageManager.shared.localized("Edit Tracker")) {
+                ActionButton(
+                    icon: "link.badge.plus",
+                    text: LanguageManager.shared.localized("Edit Tracker"),
+                    isDisabled: isMixedServerSelection
+                ) {
                     showingBatchTrackerAlert = true
                 }
 
@@ -107,6 +119,7 @@ struct BatchActionPanel: View {
             Button(LanguageManager.shared.localized("Confirm")) {
                 let trimmed = newBatchLocation.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
+                guard !isMixedServerSelection else { return }
                 performAction {
                     appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: trimmed)
                 }
@@ -140,6 +153,7 @@ struct BatchActionPanel: View {
             TextField(LanguageManager.shared.localized("Tracker URL"), text: $newBatchTrackers)
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
             Button(LanguageManager.shared.localized("Confirm")) {
+                guard !isMixedServerSelection else { return }
                 performAction {
                     appStateManager.editTrackersBatch(Set(selectedTasks), newTrackers: newBatchTrackers)
                 }
@@ -151,16 +165,12 @@ struct BatchActionPanel: View {
         .confirmationDialog(LanguageManager.shared.localized("Batch Delete"), isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
             Button(LanguageManager.shared.localized("Delete Task (Keep Data)"), role: .destructive) {
                 performAction {
-                    for task in selectedTasks {
-                        appStateManager.deleteTask(task, withData: false)
-                    }
+                    appStateManager.deleteTasks(Set(selectedTasks), withData: false)
                 }
             }
             Button(LanguageManager.shared.localized("Delete Task and Data"), role: .destructive) {
                 performAction {
-                    for task in selectedTasks {
-                        appStateManager.deleteTask(task, withData: true)
-                    }
+                    appStateManager.deleteTasks(Set(selectedTasks), withData: true)
                 }
             }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
@@ -194,6 +204,7 @@ struct ActionButton: View {
     let icon: String
     let text: String
     var color: Color = .primary
+    var isDisabled: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -217,5 +228,7 @@ struct ActionButton: View {
                     .minimumScaleFactor(0.8)
             }
         }
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
     }
 }

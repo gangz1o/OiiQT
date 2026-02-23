@@ -25,6 +25,7 @@ struct SettingsView: View {
     // Pro 功能
     @AppStorage("isProUser") private var isProUser: Bool = false
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
+    @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
 
@@ -176,6 +177,9 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: tmdbProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
+                    }
+                    Toggle(isOn: globalTaskAggregationProBinding) {
+                        SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
                     }
                     Toggle(isOn: proDashboardProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
@@ -332,6 +336,21 @@ struct SettingsView: View {
                 }
                 guardProAccess {
                     proDashboardBackgroundEnabled = true
+                }
+            }
+        )
+    }
+
+    private var globalTaskAggregationProBinding: Binding<Bool> {
+        Binding(
+            get: { enableGlobalTaskAggregation },
+            set: { newValue in
+                if !newValue {
+                    enableGlobalTaskAggregation = false
+                    return
+                }
+                guardProAccess {
+                    enableGlobalTaskAggregation = true
                 }
             }
         )

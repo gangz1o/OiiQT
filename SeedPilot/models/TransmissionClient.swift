@@ -149,6 +149,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 let uploadedEver: Int64
                 let uploadRatio: Double
                 let peersConnected: Int
+                let addedDate: Int?
                 let secondsSeeding: Int? // Optional
                 let tracker: String?
                 let trackers: [Tracker]?
@@ -159,7 +160,7 @@ class TransmissionClient: NSObject, TorrentClient {
         let fields = [
             "id", "hashString", "name", "totalSize", "rateDownload", "rateUpload",
             "status", "downloadDir", "percentDone", "eta", "downloadedEver",
-            "uploadedEver", "uploadRatio", "peersConnected", "secondsSeeding",
+            "uploadedEver", "uploadRatio", "peersConnected", "addedDate", "secondsSeeding",
             "tracker", "trackers"
         ]
 
@@ -211,7 +212,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 isFirstLastPiecePriority: nil,
                 completionDate: nil,
                 seedingTime: TimeInterval(item.secondsSeeding ?? 0),
-                addedTime: Date(), // Not returned by default fields, can add 'addedDate'
+                addedTime: item.addedDate.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast,
                 numSeeds: 0, // Need to parse 'peers' detailed or 'trackerStats' for seeds.
                 totalSeeds: 0,
                 numPeers: item.peersConnected,

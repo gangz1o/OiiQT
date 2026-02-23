@@ -10,6 +10,8 @@ import SwiftUI
 
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
+    @ObservedObject private var storeManager = StoreManager.shared
+    @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
 
     @Environment(\.editMode) private var editMode
     @State private var searchText = ""
@@ -102,6 +104,10 @@ struct TransfersView: View {
     // Check if any filter is active for the badge
     private var isFilterActive: Bool {
         selectedStatus != .all || selectedTracker != Self.allTrackersToken || sortOption != .dateAdded || sortAscending != false
+    }
+
+    private var canUseGlobalTaskAggregation: Bool {
+        storeManager.isProUser && enableGlobalTaskAggregation
     }
 
     var body: some View {
@@ -255,12 +261,14 @@ struct TransfersView: View {
                         }
                     } else {
                         Menu {
-                            Button {
-                                withAnimation(.spring()) {
-                                    appStateManager.activeServerId = nil
+                            if canUseGlobalTaskAggregation {
+                                Button {
+                                    withAnimation(.spring()) {
+                                        appStateManager.activeServerId = nil
+                                    }
+                                } label: {
+                                    Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
                                 }
-                            } label: {
-                                Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
                             }
 
                             ForEach(appStateManager.servers) { server in
@@ -325,6 +333,18 @@ struct TransfersView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
+            .onAppear {
+                applyGlobalAggregationSafetyFallbackIfNeeded()
+            }
+            .onChange(of: enableGlobalTaskAggregation) { _, _ in
+                applyGlobalAggregationSafetyFallbackIfNeeded()
+            }
+            .onChange(of: storeManager.isProUser) { _, _ in
+                applyGlobalAggregationSafetyFallbackIfNeeded()
+            }
+            .onChange(of: appStateManager.servers.count) { _, _ in
+                applyGlobalAggregationSafetyFallbackIfNeeded()
+            }
             .sheet(isPresented: $showingAddMagnet) {
                 AddTorrentView()
             }
@@ -339,6 +359,13 @@ struct TransfersView: View {
         } else {
             selectedTaskHashes.insert(hash)
         }
+    }
+
+    private func applyGlobalAggregationSafetyFallbackIfNeeded() {
+        guard !canUseGlobalTaskAggregation else { return }
+        guard appStateManager.activeServerId == nil else { return }
+        guard let firstServerID = appStateManager.servers.first?.id else { return }
+        appStateManager.activeServerId = firstServerID
     }
 
     // MARK: - Subviews

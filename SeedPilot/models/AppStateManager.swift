@@ -442,21 +442,12 @@ class AppStateManager {
     }
 
     func deleteTasks(_ tasks: Set<TorrentTask>) {
-        for task in tasks {
-            guard let server = servers.first(where: { $0.id == task.serverID }) else { continue }
-            let client = getClient(for: server)
-            Task {
-                do {
-                    try await client.deleteTask(hash: task.id, withData: true)
-                 } catch {
-                    print("Failed to delete: \(error)")
-                }
-            }
-        }
-        // Refresh after delay
-        Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            await refreshData()
+        deleteTasks(tasks, withData: true)
+    }
+
+    func deleteTasks(_ tasks: Set<TorrentTask>, withData: Bool) {
+        performBatchAction(tasks) { client, hash in
+            try await client.deleteTask(hash: hash, withData: withData)
         }
     }
 
@@ -519,11 +510,23 @@ class AppStateManager {
     }
 
     func setTransferLocationBatch(_ tasks: Set<TorrentTask>, newLocation: String) {
-         performBatchAction(tasks) { client, hashes in try await client.setLocation(hash: hashes, newLocation: newLocation) }
+        guard canPerformServerScopedBatchMutation(tasks) else {
+            print("Batch set location blocked: mixed server selection.")
+            return
+        }
+        performBatchAction(tasks) { client, hash in
+            try await client.setLocation(hash: hash, newLocation: newLocation)
+        }
     }
 
     func editTrackersBatch(_ tasks: Set<TorrentTask>, newTrackers: String) {
-         performBatchAction(tasks) { client, hashes in try await client.editTrackers(hash: hashes, newTrackers: newTrackers) }
+        guard canPerformServerScopedBatchMutation(tasks) else {
+            print("Batch edit trackers blocked: mixed server selection.")
+            return
+        }
+        performBatchAction(tasks) { client, hash in
+            try await client.editTrackers(hash: hash, newTrackers: newTrackers)
+        }
     }
 
     func forceStartTasks(_ tasks: Set<TorrentTask>) {
@@ -551,23 +554,33 @@ class AppStateManager {
         }
     }
 
+    func canPerformServerScopedBatchMutation(_ tasks: Set<TorrentTask>) -> Bool {
+        !hasMultipleServers(in: tasks)
+    }
+
+    private func hasMultipleServers(in tasks: Set<TorrentTask>) -> Bool {
+        Set(tasks.map(\.serverID)).count > 1
+    }
+
     private func performBatchAction(_ tasks: Set<TorrentTask>, action: @escaping (TorrentClient, String) async throws -> Void) {
-        // Group by server to optimize calls and handle multi-server selection
+        // Group by server and dispatch against the matching client.
         let grouped = Dictionary(grouping: tasks, by: { $0.serverID })
+        guard !grouped.isEmpty else { return }
 
-        for (serverID, serverTasks) in grouped {
-            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
-            let client = getClient(for: server)
-            let hashes = serverTasks.map { $0.id }.joined(separator: "|")
+        Task {
+            for (serverID, serverTasks) in grouped {
+                guard let server = servers.first(where: { $0.id == serverID }) else { continue }
+                let client = getClient(for: server)
 
-            Task {
-                do {
-                    try await action(client, hashes)
-                    await self.refreshData()
-                } catch {
-                    print("Batch action failed for server \(server.name): \(error)")
+                for task in serverTasks {
+                    do {
+                        try await action(client, task.id)
+                    } catch {
+                        print("Batch action failed for server \(server.name), task \(task.id): \(error)")
+                    }
                 }
             }
+            await self.refreshData()
         }
     }
 }

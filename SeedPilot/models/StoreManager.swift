@@ -153,15 +153,17 @@ final class StoreManager: ObservableObject {
         let defaults = UserDefaults.standard
         let wasTMDBEnabled = defaults.bool(forKey: "showTMDBData")
         let wasLegacyTMDBEnabled = defaults.bool(forKey: "tmdbPosterEnabled")
+        let wasGlobalTaskAggregationEnabled = defaults.bool(forKey: "enableGlobalTaskAggregation")
         let wasDashboardProEnabled = defaults.bool(forKey: "proDashboardBackgroundEnabled")
         let wasICloudSyncEnabled = defaults.bool(forKey: "iCloudSyncEnabled")
 
-        guard wasTMDBEnabled || wasLegacyTMDBEnabled || wasDashboardProEnabled || wasICloudSyncEnabled else {
+        guard wasTMDBEnabled || wasLegacyTMDBEnabled || wasGlobalTaskAggregationEnabled || wasDashboardProEnabled || wasICloudSyncEnabled else {
             return
         }
 
         defaults.set(false, forKey: "showTMDBData")
         defaults.set(false, forKey: "tmdbPosterEnabled")
+        defaults.set(false, forKey: "enableGlobalTaskAggregation")
         defaults.set(false, forKey: "proDashboardBackgroundEnabled")
         defaults.set(false, forKey: "iCloudSyncEnabled")
 
