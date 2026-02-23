@@ -286,7 +286,7 @@ struct TorrentTaskDisplayText: Hashable {
 }
 
 struct TorrentTask: Identifiable, Hashable {
-    let id: String           // 任务的 Hash 值
+    let hash: String         // 原始任务 Hash（网络请求使用）
     let name: String         // 文件名
     let progress: Double     // 0.0 到 1.0
     let size: Int64          // 总大小 (Bytes)
@@ -316,6 +316,10 @@ struct TorrentTask: Identifiable, Hashable {
     let totalPeers: Int           // 总用户数
     let ratio: Double             // 分享率
 
+    /// SwiftUI 渲染使用的复合 ID，避免多服务器聚合时 hash 冲突
+    var id: String {
+        "\(serverID.uuidString)_\(hash)"
+    }
 
     // MARK: - Computed Properties
 

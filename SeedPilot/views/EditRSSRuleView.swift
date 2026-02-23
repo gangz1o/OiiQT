@@ -286,25 +286,54 @@ struct KeywordToken: View {
 
 // Simple FlowLayout Helper
 struct FlowLayout: Layout {
+    enum RowAlignment {
+        case leading
+        case trailing
+    }
+
     var spacing: CGFloat = 8
+    var rowAlignment: RowAlignment = .leading
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let rows = arrangeSubviews(proposal: proposal, subviews: subviews)
-        return rows.last?.maxY ?? .zero
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.last.map { $0.originY + $0.height } ?? 0
+        return CGSize(width: width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let rows = arrangeSubviews(proposal: proposal, subviews: subviews)
+        var placementProposal = proposal
+        if placementProposal.width == nil {
+            placementProposal.width = bounds.width
+        }
+        let rows = arrangeSubviews(proposal: placementProposal, subviews: subviews)
+
         for row in rows {
+            let rowOffsetX: CGFloat
+            switch rowAlignment {
+            case .leading:
+                rowOffsetX = 0
+            case .trailing:
+                rowOffsetX = max(0, bounds.width - row.width)
+            }
+
             for element in row.elements {
-                element.subview.place(at: CGPoint(x: bounds.minX + element.rect.minX, y: bounds.minY + element.rect.minY), proposal: .unspecified)
+                element.subview.place(
+                    at: CGPoint(
+                        x: bounds.minX + rowOffsetX + element.rect.minX,
+                        y: bounds.minY + row.originY + element.rect.minY
+                    ),
+                    proposal: .unspecified
+                )
             }
         }
     }
 
     struct Row {
         var elements: [Element] = []
-        var maxY: CGSize = .zero
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+        var originY: CGFloat = 0
     }
 
     struct Element {
@@ -322,22 +351,28 @@ struct FlowLayout: Layout {
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
 
-            if x + size.width > maxWidth && !currentRow.elements.isEmpty {
+            if x > 0, x + size.width > maxWidth, !currentRow.elements.isEmpty {
                 // New Line
-                y += currentRow.maxY.height + spacing
-                x = 0
+                currentRow.width = max(0, x - spacing)
+                currentRow.originY = y
                 rows.append(currentRow)
+
+                y += currentRow.height + spacing
+                x = 0
                 currentRow = Row()
             }
 
-            currentRow.elements.append(Element(subview: subview, rect: CGRect(origin: CGPoint(x: x, y: y), size: size)))
-            currentRow.maxY.height = max(currentRow.maxY.height, size.height)
+            currentRow.elements.append(
+                Element(subview: subview, rect: CGRect(origin: CGPoint(x: x, y: 0), size: size))
+            )
+            currentRow.height = max(currentRow.height, size.height)
             x += size.width + spacing
         }
 
         if !currentRow.elements.isEmpty {
-            currentRow.maxY.height += y
-             rows.append(currentRow)
+            currentRow.width = max(0, x - spacing)
+            currentRow.originY = y
+            rows.append(currentRow)
         }
 
         return rows

@@ -27,12 +27,26 @@ class QBittorrentClient: NSObject, TorrentClient {
         super.init()
     }
 
+    private var apiPathPrefix: String {
+        let trimmed = config.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "/api/v2" }
+
+        let normalized = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        // Backward compatibility: older qB servers may still persist the Transmission default.
+        return normalized == "/transmission/rpc" ? "/api/v2" : normalized
+    }
+
+    private func apiURL(_ path: String) -> URL? {
+        let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        return URL(string: "\(getBaseURL())\(apiPathPrefix)\(normalizedPath)")
+    }
+
     // MARK: - Auth
 
     func login() async throws {
         let address = config.baseURL
 
-        guard let url = URL(string: "\(address)/api/v2/auth/login") else {
+        guard let url = apiURL("auth/login") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -71,9 +85,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Fetch List
 
     func fetchTorrents() async throws -> [TorrentTask] {
-        let address = config.baseURL
-
-        guard let url = URL(string: "\(address)/api/v2/torrents/info") else {
+        guard let url = apiURL("torrents/info") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -120,7 +132,7 @@ class QBittorrentClient: NSObject, TorrentClient {
                 )
 
                 return TorrentTask(
-                    id: task.hash,
+                    hash: task.hash,
                     name: task.name,
                     progress: progress,
                     size: size,
@@ -171,7 +183,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws {
-        guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/add") else {
+        guard let url = apiURL("torrents/add") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -230,7 +242,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     func addTorrentFile(_ fileURL: URL, options: AddTorrentOptions) async throws {
-        guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/add") else {
+        guard let url = apiURL("torrents/add") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -457,7 +469,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         let normalizedHashes = normalizeHashes(hashes)
 
         func makeRequest() throws -> URLRequest {
-            guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/\(endpoint)") else {
+            guard let url = apiURL("torrents/\(endpoint)") else {
                 throw TorrentClientError.invalidURL
             }
 
@@ -532,7 +544,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Heartbeat
 
     func checkConnection() async throws -> String {
-        guard let url = URL(string: "\(getBaseURL())/api/v2/app/version") else {
+        guard let url = apiURL("app/version") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -763,7 +775,7 @@ extension QBittorrentClient {
         formParams: [String: String] = [:]
     ) async throws -> Data {
         func makeRequest() throws -> URLRequest {
-            guard let url = URL(string: "\(getBaseURL())/api/v2/torrents/\(path)") else {
+            guard let url = apiURL("torrents/\(path)") else {
                 throw TorrentClientError.invalidURL
             }
 

@@ -24,6 +24,32 @@ struct TorrentDetailView: View {
         appStateManager.servers.first(where: { $0.id == task.serverID })?.name ?? LanguageManager.shared.localized("Unknown Server")
     }
 
+    private var serverType: ServerType? {
+        appStateManager.servers.first(where: { $0.id == task.serverID })?.type
+    }
+
+    private var displayCategory: String? {
+        guard let serverType, serverType != .transmission else { return nil }
+        let trimmed = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var normalizedTags: [String] {
+        Array(
+            Set(
+                task.tags
+                    .split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private var hasTaxonomyMetadata: Bool {
+        displayCategory != nil || !normalizedTags.isEmpty
+    }
+
     var body: some View {
         List {
             // MARK: - 1. Header Section
@@ -105,6 +131,42 @@ struct TorrentDetailView: View {
 
             // MARK: - 2. Static Data Report (The Static Report)
             Section {
+                if hasTaxonomyMetadata {
+                    HStack(alignment: .top) {
+                        Text("\(LanguageManager.shared.localized("Category")) / \(LanguageManager.shared.localized("Tags"))")
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: true, vertical: false)
+
+                        Spacer(minLength: 12)
+
+                        FlowLayout(spacing: 8, rowAlignment: .trailing) {
+                            if let category = displayCategory {
+                                ColoredTagPill(
+                                    text: category,
+                                    font: .caption.weight(.semibold),
+                                    horizontalPadding: 10,
+                                    verticalPadding: 5,
+                                    color: TagColorManager.color(for: "category:\(category)")
+                                )
+                                .fixedSize(horizontal: true, vertical: false)
+                            }
+
+                            ForEach(normalizedTags, id: \.self) { tag in
+                                ColoredTagPill(
+                                    text: tag,
+                                    font: .caption.weight(.semibold),
+                                    horizontalPadding: 10,
+                                    verticalPadding: 5
+                                )
+                                .fixedSize(horizontal: true, vertical: false)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 2)
+                }
+
                 // 速率 Rate
                 HStack {
                     Text(LanguageManager.shared.localized("Rate"))
@@ -207,7 +269,7 @@ struct TorrentDetailView: View {
     private func loadTMDBData() async {
         guard tmdbPosterEnabled else { return }
         isLoadingTMDB = true
-        if let details = await TMDBService.shared.fetchDetails(hash: task.id, name: task.name, context: modelContext) {
+        if let details = await TMDBService.shared.fetchDetails(hash: task.hash, name: task.name, context: modelContext) {
             self.tmdbItem = details
         }
         isLoadingTMDB = false

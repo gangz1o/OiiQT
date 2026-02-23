@@ -369,11 +369,11 @@ private enum GlobalStatsFetcher {
             loginSucceeded = false
         }
 
-        async let transfer = qbFetchTransferInfo(baseURL: baseURL, session: session)
-        async let mainData = qbFetchMainData(baseURL: baseURL, session: session)
-        async let defaultSavePath = qbFetchDefaultSavePath(baseURL: baseURL, session: session)
+        async let transfer = qbFetchTransferInfo(endpoint: endpoint, baseURL: baseURL, session: session)
+        async let mainData = qbFetchMainData(endpoint: endpoint, baseURL: baseURL, session: session)
+        async let defaultSavePath = qbFetchDefaultSavePath(endpoint: endpoint, baseURL: baseURL, session: session)
 
-        let torrentItems = (try? await qbFetchTorrents(baseURL: baseURL, session: session)) ?? []
+        let torrentItems = (try? await qbFetchTorrents(endpoint: endpoint, baseURL: baseURL, session: session)) ?? []
         let transferInfo = await transfer
         let mainDataInfo = await mainData
         let savePathFromPreferences = await defaultSavePath
@@ -417,7 +417,7 @@ private enum GlobalStatsFetcher {
     }
 
     private static func qbLogin(endpoint: GlobalStatsServerEndpoint, baseURL: String, session: URLSession) async throws {
-        guard let url = URL(string: "\(baseURL)/api/v2/auth/login") else {
+        guard let url = qbAPIURL(endpoint: endpoint, baseURL: baseURL, path: "auth/login") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -453,8 +453,8 @@ private enum GlobalStatsFetcher {
         throw TorrentClientError.authenticationFailed
     }
 
-    private static func qbFetchTorrents(baseURL: String, session: URLSession) async throws -> [QBTorrentLite] {
-        guard let url = URL(string: "\(baseURL)/api/v2/torrents/info") else {
+    private static func qbFetchTorrents(endpoint: GlobalStatsServerEndpoint, baseURL: String, session: URLSession) async throws -> [QBTorrentLite] {
+        guard let url = qbAPIURL(endpoint: endpoint, baseURL: baseURL, path: "torrents/info") else {
             throw TorrentClientError.invalidURL
         }
 
@@ -470,8 +470,8 @@ private enum GlobalStatsFetcher {
         return try JSONDecoder().decode([QBTorrentLite].self, from: data)
     }
 
-    private static func qbFetchTransferInfo(baseURL: String, session: URLSession) async -> QBTransferInfoLite? {
-        guard let url = URL(string: "\(baseURL)/api/v2/transfer/info") else {
+    private static func qbFetchTransferInfo(endpoint: GlobalStatsServerEndpoint, baseURL: String, session: URLSession) async -> QBTransferInfoLite? {
+        guard let url = qbAPIURL(endpoint: endpoint, baseURL: baseURL, path: "transfer/info") else {
             return nil
         }
 
@@ -497,8 +497,8 @@ private enum GlobalStatsFetcher {
         }
     }
 
-    private static func qbFetchMainData(baseURL: String, session: URLSession) async -> QBMainDataLite? {
-        guard let url = URL(string: "\(baseURL)/api/v2/sync/maindata?rid=0") else {
+    private static func qbFetchMainData(endpoint: GlobalStatsServerEndpoint, baseURL: String, session: URLSession) async -> QBMainDataLite? {
+        guard let url = qbAPIURL(endpoint: endpoint, baseURL: baseURL, path: "sync/maindata?rid=0") else {
             return nil
         }
 
@@ -530,8 +530,8 @@ private enum GlobalStatsFetcher {
         }
     }
 
-    private static func qbFetchDefaultSavePath(baseURL: String, session: URLSession) async -> String {
-        guard let url = URL(string: "\(baseURL)/api/v2/app/preferences") else {
+    private static func qbFetchDefaultSavePath(endpoint: GlobalStatsServerEndpoint, baseURL: String, session: URLSession) async -> String {
+        guard let url = qbAPIURL(endpoint: endpoint, baseURL: baseURL, path: "app/preferences") else {
             return "--"
         }
 
@@ -662,6 +662,20 @@ private enum GlobalStatsFetcher {
         let normalized = normalizedHostAndScheme(address: endpoint.address, useHTTPS: endpoint.useHTTPS)
         let path = endpoint.rpcPath.hasPrefix("/") ? endpoint.rpcPath : "/\(endpoint.rpcPath)"
         return URL(string: "\(normalized.scheme)://\(normalized.host):\(endpoint.port)\(path)")
+    }
+
+    private static func qbAPIURL(endpoint: GlobalStatsServerEndpoint, baseURL: String, path: String) -> URL? {
+        let trimmed = endpoint.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix: String
+        if trimmed.isEmpty {
+            prefix = "/api/v2"
+        } else {
+            let normalized = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+            prefix = normalized == "/transmission/rpc" ? "/api/v2" : normalized
+        }
+
+        let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        return URL(string: "\(baseURL)\(prefix)\(normalizedPath)")
     }
 
     private static func normalizedHostAndScheme(address: String, useHTTPS: Bool) -> (host: String, scheme: String) {

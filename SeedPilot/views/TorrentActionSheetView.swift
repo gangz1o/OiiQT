@@ -216,7 +216,7 @@ struct TorrentActionSheetView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingManualMatchSheet) {
-            ManualMatchView(taskName: task.name, taskHash: task.id)
+            ManualMatchView(taskName: task.name, taskHash: task.hash)
                 .presentationDetents([.medium, .large])
                 .onDisappear {
                     onPosterChanged()

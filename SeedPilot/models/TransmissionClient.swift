@@ -219,7 +219,7 @@ class TransmissionClient: NSObject, TorrentClient {
             )
 
             return TorrentTask(
-                id: item.hashString,
+                hash: item.hashString,
                 name: item.name,
                 progress: progress,
                 size: size,

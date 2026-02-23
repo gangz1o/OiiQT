@@ -24,6 +24,7 @@ struct EditServerView: View {
     @State private var allowInsecureSSL = false
     @State private var rpcPath = "/transmission/rpc"
     @State private var isPasswordVisible = false
+    @State private var showingDeleteConfirmation = false
 
     // Test Connection State
     @State private var isTesting = false
@@ -38,102 +39,157 @@ struct EditServerView: View {
         !name.isEmpty && !address.isEmpty && !port.isEmpty
     }
 
+    private var pathRowTitle: String {
+        if type == .qBittorrent {
+            return "API \(LanguageManager.shared.localized("Path"))"
+        }
+        return LanguageManager.shared.localized("RPC Path")
+    }
+
+    private var pathPlaceholder: String {
+        defaultPath(for: type)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(LanguageManager.shared.localized("Type"), selection: $type) {
+                    Picker(selection: $type) {
                         ForEach(ServerType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
+                    } label: {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("Type"),
+                            iconName: "externaldrive.connected.to.line.below",
+                            color: .purple
+                        )
                     }
-                    .pickerStyle(.segmented)
+                    .tint(.primary)
+
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("Name"),
+                            iconName: "tag.fill",
+                            color: .purple
+                        )
+
+                        TextField(LanguageManager.shared.localized("Name (e.g. Home NAS)"), text: $name)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .multilineTextAlignment(.trailing)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
                 } header: {
-                    Text(LanguageManager.shared.localized("Server Type"))
+                    Text(LanguageManager.shared.localized("Server Information"))
                 }
 
                 Section {
-                    HStack {
-                        Image(systemName: "tag.fill")
-                        TextField(LanguageManager.shared.localized("Name (e.g. Home NAS)"), text: $name)
-                    }
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("IP Address or Domain"),
+                            iconName: "network",
+                            color: .blue
+                        )
 
-                    HStack {
-                        Image(systemName: "network")
                         TextField(LanguageManager.shared.localized("IP Address or Domain"), text: $address)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .multilineTextAlignment(.trailing)
                             .keyboardType(.URL)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                     }
 
-                    HStack {
-                        Image(systemName: "number")
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("Port"),
+                            iconName: "number.square.fill",
+                            color: .blue
+                        )
+
                         TextField(LanguageManager.shared.localized("Port"), text: $port)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .multilineTextAlignment(.trailing)
                             .keyboardType(.numberPad)
                     }
 
-                    if type == .transmission {
-                        HStack {
-                            Image(systemName: "folder.fill")
-                            TextField(LanguageManager.shared.localized("RPC Path"), text: $rpcPath)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                        }
-                    }
-                } header: {
-                    Text(LanguageManager.shared.localized("Server Information"))
-                } footer: {
-                    Text(LanguageManager.shared.localized("No need to enter http:// or https://, the system handles it automatically."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                .foregroundStyle(.blue) // Tint icons
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: pathRowTitle,
+                            iconName: "folder.fill",
+                            color: .blue
+                        )
 
-                // MARK: - SSL Settings
-                Section {
-                    Toggle(isOn: $isHttps.animation()) {
-                        HStack(spacing: 12) {
-                            AppleStyleIcon(backgroundColor: .blue, systemName: "lock.fill")
-                            Text(LanguageManager.shared.localized("Use HTTPS"))
-                        }
-                    }
-
-                    if isHttps {
-                        Toggle(isOn: $allowInsecureSSL.animation()) {
-                            HStack(spacing: 12) {
-                                AppleStyleIcon(backgroundColor: .orange, systemName: "shield.slash")
-                                Text(LanguageManager.shared.localized("Ignore SSL Certificate Errors"))
-                            }
-                        }
-                    }
-                } footer: {
-                    if isHttps {
-                        Text(LanguageManager.shared.localized("Allow connections to self-signed or invalid SSL certificates."))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section {
-                    HStack {
-                        Image(systemName: "person.fill")
-                            .foregroundStyle(.blue)
-                        TextField(LanguageManager.shared.localized("Username"), text: $username)
+                        TextField(pathPlaceholder, text: $rpcPath)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .multilineTextAlignment(.trailing)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
 
-                    HStack {
-                        Image(systemName: "key.fill")
-                            .foregroundStyle(.blue)
+                    Toggle(isOn: $isHttps.animation()) {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("Use HTTPS"),
+                            iconName: "lock.shield.fill",
+                            color: .green
+                        )
+                    }
 
-                        if isPasswordVisible {
-                            TextField(LanguageManager.shared.localized("Password"), text: $password)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                        } else {
-                            SecureField(LanguageManager.shared.localized("Password"), text: $password)
+                    if isHttps {
+                        Toggle(isOn: $allowInsecureSSL.animation()) {
+                            settingsRowLabel(
+                                title: LanguageManager.shared.localized("Ignore SSL Certificate Errors"),
+                                iconName: "shield.slash.fill",
+                                color: .orange
+                            )
                         }
+                    }
+                } header: {
+                    Text(LanguageManager.shared.localized("Server Settings"))
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(LanguageManager.shared.localized("No need to enter http:// or https://, the system handles it automatically."))
+                        if isHttps {
+                            Text(LanguageManager.shared.localized("Allow connections to self-signed or invalid SSL certificates."))
+                        }
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("Username"),
+                            iconName: "person.fill",
+                            color: .orange
+                        )
+
+                        TextField(LanguageManager.shared.localized("Username"), text: $username)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    HStack(spacing: 12) {
+                        settingsRowLabel(
+                            title: LanguageManager.shared.localized("Password"),
+                            iconName: "key.fill",
+                            color: .orange
+                        )
+
+                        Group {
+                            if isPasswordVisible {
+                                TextField(LanguageManager.shared.localized("Password"), text: $password)
+                            } else {
+                                SecureField(LanguageManager.shared.localized("Password"), text: $password)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
 
                         Button {
                             isPasswordVisible.toggle()
@@ -141,6 +197,7 @@ struct EditServerView: View {
                             Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
                                 .foregroundStyle(.secondary)
                         }
+                        .buttonStyle(.plain)
                     }
                 } header: {
                     Text(LanguageManager.shared.localized("Authentication"))
@@ -150,18 +207,20 @@ struct EditServerView: View {
                     Button {
                         testConnection()
                     } label: {
-                        if isTesting {
-                            ProgressView()
-                                .padding(.horizontal)
-                        } else {
-                            HStack {
-                                Spacer()
+                        centeredActionRowLabel {
+                            if isTesting {
+                                ProgressView()
+                            } else {
                                 Text(LanguageManager.shared.localized("Test Connection"))
-                                Spacer()
                             }
                         }
                     }
                     .disabled(isTesting || !isFormValid)
+                    .foregroundStyle(.blue)
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                    .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+                        dimensions.width
+                    }
 
                     if let result = testResult {
                         HStack {
@@ -178,7 +237,24 @@ struct EditServerView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                if serverToEdit != nil {
+                    Section {
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            centeredActionRowLabel {
+                                Text(LanguageManager.shared.localized("Delete Server"))
+                            }
+                        }
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+                            dimensions.width
+                        }
+                    }
+                }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle(serverToEdit == nil ? LanguageManager.shared.localized("Add Server") : LanguageManager.shared.localized("Edit Server"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -205,22 +281,64 @@ struct EditServerView: View {
                     username = server.username
                     password = server.password
                     allowInsecureSSL = server.allowInsecureSSL
-                    rpcPath = server.rpcPath
+                    rpcPath = defaultPathForEditing(server)
+                } else {
+                    rpcPath = defaultPath(for: type)
                 }
             }
             .onChange(of: address) { _, newValue in
                 handleAddressChanged(newValue)
+            }
+            .onChange(of: type) { oldValue, newValue in
+                let trimmed = rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+                let normalized = trimmed.isEmpty ? "" : normalizePathString(trimmed)
+                let oldDefault = defaultPath(for: oldValue)
+
+                if normalized.isEmpty || normalized == oldDefault || normalized == "/transmission/rpc" || normalized == "/api/v2" {
+                    rpcPath = defaultPath(for: newValue)
+                }
             }
             .onChange(of: isHttps) { _, enabled in
                 if !enabled {
                     allowInsecureSSL = false
                 }
             }
+            .alert(LanguageManager.shared.localized("Delete Server"), isPresented: $showingDeleteConfirmation) {
+                Button(LanguageManager.shared.localized("Delete"), role: .destructive) {
+                    if let server = serverToEdit {
+                        modelContext.delete(server)
+                    }
+                    dismiss()
+                }
+                Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
+            }
         }
+    }
+
+    @ViewBuilder
+    private func settingsRowLabel(title: String, iconName: String, color: Color) -> some View {
+        Label {
+            Text(title)
+                .lineLimit(1)
+        } icon: {
+            SettingsIcon(iconName: iconName, color: color)
+        }
+    }
+
+    @ViewBuilder
+    private func centeredActionRowLabel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            content()
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 22, alignment: .center)
+        .contentShape(Rectangle())
     }
 
     private func saveServer() {
         let formattedAddress = sanitizeAddressInput(address)
+        let normalizedPath = effectivePathForCurrentType()
 
         if let server = serverToEdit {
             // Update
@@ -232,7 +350,7 @@ struct EditServerView: View {
             server.password = password
             server.useHTTPS = isHttps
             server.allowInsecureSSL = allowInsecureSSL
-            server.rpcPath = rpcPath.trimmingCharacters(in: .whitespaces)
+            server.rpcPath = normalizedPath
         } else {
             // Insert
             let config = ServerConfig(
@@ -244,7 +362,7 @@ struct EditServerView: View {
                 password: password,
                 useHTTPS: isHttps,
                 allowInsecureSSL: allowInsecureSSL,
-                rpcPath: rpcPath.trimmingCharacters(in: .whitespaces)
+                rpcPath: normalizedPath
             )
             modelContext.insert(config)
         }
@@ -269,7 +387,7 @@ struct EditServerView: View {
                 password: password,
                 useHTTPS: isHttps,
                 allowInsecureSSL: allowInsecureSSL,
-                rpcPath: rpcPath.trimmingCharacters(in: .whitespaces)
+                rpcPath: effectivePathForCurrentType()
             )
 
             let client: TorrentClient = (type == .qBittorrent) ?
@@ -353,6 +471,54 @@ struct EditServerView: View {
         if lower.hasPrefix("https://") { return true }
         if lower.hasPrefix("http://") { return false }
         return server.useHTTPS
+    }
+
+    private func defaultPath(for type: ServerType) -> String {
+        switch type {
+        case .qBittorrent:
+            return "/api/v2"
+        case .transmission:
+            return "/transmission/rpc"
+        }
+    }
+
+    private func normalizePathString(_ rawValue: String) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+    }
+
+    private func effectivePathForCurrentType() -> String {
+        let normalized = normalizePathString(rpcPath)
+        if normalized.isEmpty { return defaultPath(for: type) }
+        if type == .qBittorrent && normalized == "/transmission/rpc" { return "/api/v2" }
+        return normalized
+    }
+
+    private func defaultPathForEditing(_ server: ServerConfig) -> String {
+        let normalized = normalizePathString(server.rpcPath)
+        if normalized.isEmpty { return defaultPath(for: server.type) }
+        if server.type == .qBittorrent && normalized == "/transmission/rpc" {
+            return "/api/v2"
+        }
+        return normalized
+    }
+}
+
+struct SettingsIcon: View {
+    let iconName: String
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color)
+
+            Image(systemName: iconName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 28, height: 28)
     }
 }
 

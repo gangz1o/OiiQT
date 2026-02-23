@@ -179,7 +179,7 @@ struct DashboardProCinemaLayerView: View {
             if torrent.name.hasKnownNonMediaExtension { continue }
 
             guard let posterURL = await TMDBService.shared.fetchPoster(
-                hash: torrent.id,
+                hash: torrent.hash,
                 name: torrent.name,
                 context: modelContext
             ) else {

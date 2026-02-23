@@ -62,7 +62,7 @@ final class ServerRateLimitManager {
             preferencesData = try await qbRequest(
                 server: server,
                 session: session,
-                url: "\(baseURL)/api/v2/app/preferences",
+                url: qbAPIURL(server: server, baseURL: baseURL, path: "app/preferences"),
                 method: "GET"
             )
         } catch where isQBAppPermissionDenied(error) {
@@ -73,7 +73,7 @@ final class ServerRateLimitManager {
         let speedModeData = try? await qbRequest(
             server: server,
             session: session,
-            url: "\(baseURL)/api/v2/transfer/speedLimitsMode",
+            url: qbAPIURL(server: server, baseURL: baseURL, path: "transfer/speedLimitsMode"),
             method: "GET"
         )
         let speedMode = speedModeData
@@ -122,13 +122,13 @@ final class ServerRateLimitManager {
             server: server,
             session: session,
             baseURL: baseURL,
-            endpoint: "/api/v2/transfer/downloadLimit"
+            endpoint: "transfer/downloadLimit"
         )
         let upBytes = try await qbFetchGlobalLimitBytes(
             server: server,
             session: session,
             baseURL: baseURL,
-            endpoint: "/api/v2/transfer/uploadLimit"
+            endpoint: "transfer/uploadLimit"
         )
 
         var settings = RateLimitSettings()
@@ -178,7 +178,7 @@ final class ServerRateLimitManager {
         _ = try await qbRequest(
             server: server,
             session: session,
-            url: "\(baseURL)/api/v2/app/setPreferences",
+            url: qbAPIURL(server: server, baseURL: baseURL, path: "app/setPreferences"),
             method: "POST",
             body: bodyData,
             contentType: "application/x-www-form-urlencoded; charset=UTF-8"
@@ -187,7 +187,7 @@ final class ServerRateLimitManager {
         if let currentModeData = try? await qbRequest(
             server: server,
             session: session,
-            url: "\(baseURL)/api/v2/transfer/speedLimitsMode",
+            url: qbAPIURL(server: server, baseURL: baseURL, path: "transfer/speedLimitsMode"),
             method: "GET"
         ) {
             let currentMode = Int(String(decoding: currentModeData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
@@ -197,7 +197,7 @@ final class ServerRateLimitManager {
                 _ = try? await qbRequest(
                     server: server,
                     session: session,
-                    url: "\(baseURL)/api/v2/transfer/toggleSpeedLimitsMode",
+                    url: qbAPIURL(server: server, baseURL: baseURL, path: "transfer/toggleSpeedLimitsMode"),
                     method: "POST"
                 )
             }
@@ -217,14 +217,14 @@ final class ServerRateLimitManager {
             server: server,
             session: session,
             baseURL: baseURL,
-            endpoint: "/api/v2/transfer/setDownloadLimit",
+            endpoint: "transfer/setDownloadLimit",
             limitBytes: downloadLimitBytes
         )
         try await qbSetGlobalLimitBytes(
             server: server,
             session: session,
             baseURL: baseURL,
-            endpoint: "/api/v2/transfer/setUploadLimit",
+            endpoint: "transfer/setUploadLimit",
             limitBytes: uploadLimitBytes
         )
     }
@@ -237,7 +237,7 @@ final class ServerRateLimitManager {
         ]
         let data = components.percentEncodedQuery?.data(using: .utf8)
 
-        guard let url = URL(string: "\(baseURL)/api/v2/auth/login") else {
+        guard let url = URL(string: qbAPIURL(server: server, baseURL: baseURL, path: "auth/login")) else {
             throw TorrentClientError.invalidURL
         }
 
@@ -291,7 +291,7 @@ final class ServerRateLimitManager {
             throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
         }
 
-        if httpResponse.statusCode == 403, endpoint.path.hasPrefix("/api/v2/app/") {
+        if httpResponse.statusCode == 403, endpoint.path.contains("/app/") {
             // Some reverse proxies/qB builds are stricter on Referer for app/*.
             // Retry once with a minimal header set before treating it as permission failure.
             var relaxed = request
@@ -310,7 +310,7 @@ final class ServerRateLimitManager {
             throw TorrentClientError.authenticationFailed
         case 403:
             let path = endpoint.path.isEmpty ? url : endpoint.path
-            throw TorrentClientError.apiError("qB API denied (403): \(path). Even with admin rights, reverse proxy/cookie policy may block /api/v2/app/*")
+            throw TorrentClientError.apiError("qB API denied (403): \(path). Even with admin rights, reverse proxy/cookie policy may block app/* endpoints")
         default:
             let bodyText = String(decoding: data, as: UTF8.self)
             throw TorrentClientError.apiError("qB API failed (\(httpResponse.statusCode)): \(bodyText)")
@@ -457,6 +457,18 @@ final class ServerRateLimitManager {
         return URL(string: "\(normalizedBaseURL(server: server))\(path)")
     }
 
+    private func qbAPIPathPrefix(server: ServerConfig) -> String {
+        let trimmed = server.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "/api/v2" }
+        let normalized = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
+        return normalized == "/transmission/rpc" ? "/api/v2" : normalized
+    }
+
+    private func qbAPIURL(server: ServerConfig, baseURL: String, path: String) -> String {
+        let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        return "\(baseURL)\(qbAPIPathPrefix(server: server))\(normalizedPath)"
+    }
+
     private func basicAuthHeaderValue(username: String, password: String) -> String {
         let raw = "\(username):\(password)"
         return "Basic \(Data(raw.utf8).base64EncodedString())"
@@ -479,7 +491,7 @@ final class ServerRateLimitManager {
         let data = try await qbRequest(
             server: server,
             session: session,
-            url: "\(baseURL)\(endpoint)",
+            url: qbAPIURL(server: server, baseURL: baseURL, path: endpoint),
             method: "GET"
         )
         let text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -497,7 +509,7 @@ final class ServerRateLimitManager {
         _ = try await qbRequest(
             server: server,
             session: session,
-            url: "\(baseURL)\(endpoint)",
+            url: qbAPIURL(server: server, baseURL: baseURL, path: endpoint),
             method: "POST",
             body: body,
             contentType: "application/x-www-form-urlencoded; charset=UTF-8"
@@ -508,7 +520,7 @@ final class ServerRateLimitManager {
         guard case let TorrentClientError.apiError(message) = error else {
             return false
         }
-        return message.contains("(403)") && message.contains("/api/v2/app/")
+        return message.contains("(403)") && message.contains("/app/")
     }
 
     private func intValue(_ any: Any?) -> Int? {

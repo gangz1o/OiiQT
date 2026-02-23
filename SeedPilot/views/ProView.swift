@@ -233,7 +233,7 @@ struct ProView: View {
             Image("SplashLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 92, height: 92)
+                .frame(width: 128, height: 128)
                 .shadow(color: .green.opacity(0.3), radius: 10, x: 0, y: 0)
 
             Text("SeedPilot Pro")

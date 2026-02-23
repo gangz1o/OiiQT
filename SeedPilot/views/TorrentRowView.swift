@@ -53,9 +53,9 @@ struct TorrentRowView: View {
                     // MARK: - 2. Right Content Area
                     VStack(alignment: .leading, spacing: 8) {
                         // Feature 1: Top Status Bar
-                        HStack {
+                        HStack(spacing: 6) {
                             // Tracker
-                            Text(displayedTracker)
+                            Text(verbatim: displayedTracker)
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
@@ -63,30 +63,39 @@ struct TorrentRowView: View {
                                 .minimumScaleFactor(0.8)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
+                                .frame(minHeight: Self.headerInlinePillMinHeight)
                                 .background(Color.blue)
                                 .clipShape(Capsule())
 
-                            Spacer()
+                            if hasHeaderTaxonomyTags {
+                                headerTaxonomyInlineView
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .clipped()
+                            } else {
+                                Spacer(minLength: 0)
+                            }
 
                             // Status & Percent
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(statusColor)
                                     .frame(width: 6, height: 6)
-                                Text(task.status.localizedDisplayName)
+                                Text(verbatim: task.status.localizedDisplayName)
                                     .font(.caption2.bold())
                                     .foregroundStyle(statusColor)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
-                                Text(task.displayText.percent)
+                                Text(verbatim: task.displayText.percent)
                                     .font(.caption2.monospacedDigit().bold())
                                     .foregroundStyle(statusColor)
                             }
+                            .fixedSize(horizontal: true, vertical: false)
+                            .layoutPriority(2)
                         }
 
                         // Title
                         // 插入零宽空格 (\u{200B}) 允许 SwiftUI 在点号后自由换行，防止中文字符和超长英文字符串被错误地绑定成一个不可分割的单词
-                        let titleText = Text(task.displayText.title)
+                        let titleText = Text(verbatim: task.displayText.title)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary)
 
@@ -116,10 +125,6 @@ struct TorrentRowView: View {
                             titleText
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        if hasTaxonomyMetadata {
-                            taxonomyMetadataView
                         }
 
                         TaskProgressView(
@@ -178,7 +183,7 @@ struct TorrentRowView: View {
     private func refreshPosterAsync() async {
         guard showTMDBData else { return }
         isLoadingPoster = true
-        let url = await TMDBService.shared.fetchPoster(hash: task.id, name: task.name, context: modelContext)
+        let url = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
         if !Task.isCancelled {
             self.posterURL = url
             self.isLoadingPoster = false
@@ -219,13 +224,13 @@ struct TorrentRowView: View {
             if task.status == .downloading {
                 Image(systemName: "arrow.down")
                     .font(.caption2)
-                Text(formatBytes(task.downloadSpeed) + "/s")
+                Text(verbatim: formatBytes(task.downloadSpeed) + "/s")
             } else if task.status == .seeding {
                 Image(systemName: "arrow.up")
                     .font(.caption2)
-                Text(formatBytes(task.uploadSpeed) + "/s")
+                Text(verbatim: formatBytes(task.uploadSpeed) + "/s")
             } else {
-                Text(task.status.localizedDisplayName)
+                Text(verbatim: task.status.localizedDisplayName)
             }
         }
         .font(.caption.monospacedDigit())
@@ -246,6 +251,16 @@ struct TorrentRowView: View {
         }
     }
 
+    private var taskServerType: ServerType? {
+        appStateManager.servers.first(where: { $0.id == task.serverID })?.type
+    }
+
+    private var displayCategory: String? {
+        guard let taskServerType, taskServerType != .transmission else { return nil }
+        let trimmed = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var normalizedTags: [String] {
         Array(
             Set(
@@ -258,38 +273,64 @@ struct TorrentRowView: View {
         .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
-    private var displayedTags: [String] {
-        Array(normalizedTags.prefix(3))
-    }
+    private var allHeaderTaxonomyTags: [String] {
+        var merged: [String] = []
+        var seen = Set<String>()
 
-    private var hiddenTagCount: Int {
-        max(0, normalizedTags.count - displayedTags.count)
-    }
-
-    private var hasTaxonomyMetadata: Bool {
-        !displayedTags.isEmpty
-    }
-
-    private var taxonomyMetadataView: some View {
-        HStack(spacing: 6) {
-            ForEach(displayedTags, id: \.self) { tag in
-                TagCapsule(
-                    text: tag,
-                    foreground: .blue,
-                    background: Color.blue.opacity(0.14)
-                )
+        if let category = displayCategory {
+            let key = category.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            if seen.insert(key).inserted {
+                merged.append(category)
             }
-
-            if hiddenTagCount > 0 {
-                TagCapsule(
-                    text: "+\(hiddenTagCount)",
-                    foreground: .secondary,
-                    background: Color.secondary.opacity(0.14)
-                )
-            }
-
-            Spacer(minLength: 0)
         }
+
+        for tag in normalizedTags {
+            let key = tag.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            if seen.insert(key).inserted {
+                merged.append(tag)
+            }
+        }
+
+        return merged
+    }
+
+    private var displayedHeaderTaxonomyTags: [String] {
+        Array(allHeaderTaxonomyTags.prefix(2))
+    }
+
+    private var hiddenHeaderTaxonomyCount: Int {
+        max(0, allHeaderTaxonomyTags.count - displayedHeaderTaxonomyTags.count)
+    }
+
+    private var hasHeaderTaxonomyTags: Bool {
+        !displayedHeaderTaxonomyTags.isEmpty
+    }
+
+    private var headerTaxonomyInlineView: some View {
+        HStack(spacing: 4) {
+            ForEach(displayedHeaderTaxonomyTags, id: \.self) { tag in
+                ColoredTagPill(
+                    text: tag,
+                    font: .system(size: 10, weight: .bold),
+                    horizontalPadding: 6,
+                    verticalPadding: 2,
+                    minHeight: Self.headerInlinePillMinHeight
+                )
+            }
+
+            if hiddenHeaderTaxonomyCount > 0 {
+                Text(verbatim: "+\(hiddenHeaderTaxonomyCount)")
+                    .font(.system(size: 10, weight: .bold))
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .frame(minHeight: Self.headerInlinePillMinHeight)
+                    .background(Color.secondary.opacity(0.2))
+                    .clipShape(Capsule())
+            }
+        }
+        .layoutPriority(0)
     }
 
     private var posterDownsampleSize: CGSize {
@@ -306,6 +347,8 @@ struct TorrentRowView: View {
 }
 
 private extension TorrentRowView {
+    static let headerInlinePillMinHeight: CGFloat = 20
+
     static let compactDurationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.day, .hour, .minute]
@@ -317,24 +360,6 @@ private extension TorrentRowView {
 
     var displayedTracker: String {
         trackerAliasManager.getAlias(for: task.trackerHost)
-    }
-}
-
-// Helper View for Tags
-struct TagCapsule: View {
-    let text: String
-    var foreground: Color = .secondary
-    var background: Color = Color(.systemGray6)
-
-    var body: some View {
-        Text(text)
-            .lineLimit(1)
-        .font(.caption2.weight(.medium))
-        .foregroundStyle(foreground)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(background)
-        .clipShape(Capsule())
     }
 }
 
@@ -383,7 +408,7 @@ struct GridRowIconText: View, Equatable {
         HStack(spacing: 3) {
             Image(systemName: icon)
                 .foregroundStyle(.secondary)
-            Text(text)
+            Text(verbatim: text)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(middleTruncation ? .middle : .tail)

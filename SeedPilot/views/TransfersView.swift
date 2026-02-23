@@ -373,7 +373,7 @@ struct TransfersView: View {
                     posterURL: selectedTorrentPosterURL,
                     appStateManager: appStateManager,
                     onPosterChanged: {
-                        TMDBService.shared.clearCache(for: selectedTask.id)
+                        TMDBService.shared.clearCache(for: selectedTask.hash)
                     }
                 )
                 .presentationDetents([.medium, .large])

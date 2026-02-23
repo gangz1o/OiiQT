@@ -465,7 +465,7 @@ class AppStateManager {
             }
 
             try await client.setTaskCategory(
-                hashes: groupTasks.map(\.id),
+                hashes: groupTasks.map(\.hash),
                 category: normalizedCategory
             )
         }
@@ -495,10 +495,10 @@ class AppStateManager {
                     let toAdd = Array(targetTagSet.subtracting(currentTagSet))
                     let toRemove = Array(currentTagSet.subtracting(targetTagSet))
                     if !toAdd.isEmpty {
-                        try await client.addTaskTags(hashes: [task.id], tags: toAdd)
+                        try await client.addTaskTags(hashes: [task.hash], tags: toAdd)
                     }
                     if !toRemove.isEmpty {
-                        try await client.removeTaskTags(hashes: [task.id], tags: toRemove)
+                        try await client.removeTaskTags(hashes: [task.hash], tags: toRemove)
                     }
                 }
 
@@ -506,7 +506,7 @@ class AppStateManager {
                 guard let client = getClient(for: server) as? TransmissionClient else {
                     throw TorrentClientError.apiError("Failed to initialize Transmission client.")
                 }
-                try await client.setTaskTags(hashes: groupTasks.map(\.id), tags: targetTags)
+                try await client.setTaskTags(hashes: groupTasks.map(\.hash), tags: targetTags)
             }
         }
 
@@ -593,7 +593,7 @@ class AppStateManager {
     ) async -> Set<String>? {
         guard enforcePausedFallback, options.isPaused else { return nil }
         guard let tasks = try? await client.fetchTorrents() else { return nil }
-        return Set(tasks.map(\.id))
+        return Set(tasks.map(\.hash))
     }
 
     private func pauseNewlyAddedTorrentsIfNeeded(
@@ -607,7 +607,7 @@ class AppStateManager {
 
         guard let tasks = try? await client.fetchTorrents() else { return }
         let newlyAddedHashes = tasks
-            .map(\.id)
+            .map(\.hash)
             .filter { !beforeHashes.contains($0) }
 
         for hash in newlyAddedHashes {
@@ -639,7 +639,7 @@ class AppStateManager {
 
         Task {
             do {
-                try await client.pauseTask(hash: task.id)
+                try await client.pauseTask(hash: task.hash)
                 // Optionally optimistic update
                 await refreshData()
             } catch {
@@ -654,7 +654,7 @@ class AppStateManager {
 
         Task {
             do {
-                try await client.resumeTask(hash: task.id)
+                try await client.resumeTask(hash: task.hash)
                 await refreshData()
             } catch {
                 print("Failed to resume: \(error)")
@@ -767,7 +767,7 @@ class AppStateManager {
         let client = getClient(for: server)
         Task {
             do {
-                try await action(client, task.id)
+                try await action(client, task.hash)
                 // Optional: await refreshData() or let auto-refresh handle it
             } catch {
                 print("Task action failed: \(error)")
@@ -795,9 +795,9 @@ class AppStateManager {
 
                 for task in serverTasks {
                     do {
-                        try await action(client, task.id)
+                        try await action(client, task.hash)
                     } catch {
-                        print("Batch action failed for server \(server.name), task \(task.id): \(error)")
+                        print("Batch action failed for server \(server.name), task \(task.hash): \(error)")
                     }
                 }
             }
