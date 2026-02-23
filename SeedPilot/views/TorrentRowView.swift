@@ -254,10 +254,6 @@ struct TorrentRowView: View {
         }
     }
 
-    private var normalizedCategory: String {
-        task.category.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var normalizedTags: [String] {
         Array(
             Set(
@@ -279,24 +275,14 @@ struct TorrentRowView: View {
     }
 
     private var hasTaxonomyMetadata: Bool {
-        !normalizedCategory.isEmpty || !displayedTags.isEmpty
+        !displayedTags.isEmpty
     }
 
     private var taxonomyMetadataView: some View {
         HStack(spacing: 6) {
-            if !normalizedCategory.isEmpty {
-                TagCapsule(
-                    text: normalizedCategory,
-                    icon: "tray.full.fill",
-                    foreground: .indigo,
-                    background: Color.indigo.opacity(0.14)
-                )
-            }
-
             ForEach(displayedTags, id: \.self) { tag in
                 TagCapsule(
                     text: tag,
-                    icon: "tag.fill",
                     foreground: .blue,
                     background: Color.blue.opacity(0.14)
                 )
@@ -332,18 +318,12 @@ private extension TorrentRowView {
 // Helper View for Tags
 struct TagCapsule: View {
     let text: String
-    var icon: String? = nil
     var foreground: Color = .secondary
     var background: Color = Color(.systemGray6)
 
     var body: some View {
-        HStack(spacing: 3) {
-            if let icon {
-                Image(systemName: icon)
-            }
-            Text(text)
-                .lineLimit(1)
-        }
+        Text(text)
+            .lineLimit(1)
         .font(.caption2.weight(.medium))
         .foregroundStyle(foreground)
         .padding(.horizontal, 8)
