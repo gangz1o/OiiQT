@@ -40,6 +40,15 @@ struct SettingsView: View {
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
+    @State private var hasPerformedInitialLoad = false
+
+    private static let iCloudStatusDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
 
     var body: some View {
         NavigationStack(path: $settingsPath) {
@@ -147,20 +156,17 @@ struct SettingsView: View {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Language"), systemName: "globe", tint: .blue)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("Font Size"), systemName: "textformat.size", tint: .blue)
+                    NavigationLink {
+                        FontSizeSettingsView()
+                    } label: {
                         HStack {
-                            Text("A")
-                                .font(.callout.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Slider(value: $fontSize, in: 0.8...1.4, step: 0.1)
-                                .accessibilityLabel(LanguageManager.shared.localized("Font Size"))
-                            Text("A")
-                                .font(.title3.weight(.semibold))
+                            SettingsRowLabel(title: LanguageManager.shared.localized("Font Size"), systemName: "textformat.size", tint: .blue)
+                            Spacer()
+                            Text(fontSizeScaleLabel)
+                                .font(.subheadline.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .padding(.vertical, 4)
                 } header: {
                     Text(LanguageManager.shared.localized("App Settings"))
                 }
@@ -264,7 +270,10 @@ struct SettingsView: View {
                 TrackerAliasListView()
             }
             .onAppear {
-                updateCacheSize()
+                if !hasPerformedInitialLoad {
+                    updateCacheSize()
+                    hasPerformedInitialLoad = true
+                }
                 openPendingSettingsRouteIfNeeded()
                 iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
             }
@@ -511,11 +520,10 @@ struct SettingsView: View {
         guard let lastTime = iCloudSyncStatus.lastSuccessfulSync else {
             return LanguageManager.shared.localized("Not synced yet")
         }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return String(format: LanguageManager.shared.localized("Last synced: %@"), formatter.string(from: lastTime))
+        return String(
+            format: LanguageManager.shared.localized("Last synced: %@"),
+            Self.iCloudStatusDateFormatter.string(from: lastTime)
+        )
     }
 
     private var iCloudSyncStatusColor: Color {
@@ -531,12 +539,276 @@ struct SettingsView: View {
         }
         return "checkmark.circle.fill"
     }
+
+    private var fontSizeScaleLabel: String {
+        "\(Int((fontSize * 100).rounded()))%"
+    }
 }
 
 private struct LegalSection: Identifiable {
     let id: String
     let titleKey: String
     let bodyKey: String
+}
+
+private struct FontSizeSettingsView: View {
+    @AppStorage("fontSize") private var fontSize: Double = 1.0
+    @ObservedObject private var languageManager = LanguageManager.shared
+
+    private var fontScale: CGFloat { CGFloat(fontSize) }
+    private var trackerFontSize: CGFloat { 10 * fontScale }
+    private var titleFontSize: CGFloat { 14 * fontScale }
+    private var captionFontSize: CGFloat { 11 * fontScale }
+    private var bodyPreviewFontSize: CGFloat { 15 * fontScale }
+
+    private var isEnglish: Bool {
+        languageManager.selectedLanguage == .english
+    }
+
+    private var livePreviewTitle: String {
+        isEnglish ? "Live Preview" : "实时预览"
+    }
+
+    private var textPreviewTitle: String {
+        isEnglish ? "Text Preview" : "文字预览"
+    }
+
+    private var textPreviewDescription: String {
+        isEnglish
+            ? "This area previews regular app text scaling outside task cards."
+            : "这里用于预览任务卡片外普通文案的字号变化效果。"
+    }
+
+    private var sliderHint: String {
+        isEnglish
+            ? "Drag the slider to adjust task titles and data text size across the app."
+            : "拖动滑块以调整 App 内的任务标题与数据文字大小。"
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(livePreviewTitle)
+                        .font(.headline)
+
+                    previewCard
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(Color.clear)
+
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(textPreviewTitle)
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("欢迎使用SeedPilot")
+                            .font(.system(size: 20 * fontScale, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        Text("Welcome to SeedPilot")
+                            .font(.system(size: 19 * fontScale, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        Text(textPreviewDescription)
+                            .font(.system(size: bodyPreviewFontSize))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .tertiarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .animation(.easeInOut(duration: 0.15), value: fontSize)
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(Color.clear)
+
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("A")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Slider(value: $fontSize, in: 0.8...1.4, step: 0.1)
+                            .accessibilityLabel(LanguageManager.shared.localized("Font Size"))
+                        Text("A")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(sliderHint)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
+            .listRowBackground(Color.clear)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle(LanguageManager.shared.localized("Font Size"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var previewCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.45), Color.cyan.opacity(0.35)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 65, height: 97.5)
+                .overlay(alignment: .topLeading) {
+                    DiagonalRibbonView(text: "1080p", color: .blue)
+                        .scaleEffect(fontScale, anchor: .topLeading)
+                        .padding(6)
+                }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Text("tracker")
+                        .font(.system(size: trackerFontSize, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue)
+                        .clipShape(Capsule())
+
+                    HStack(spacing: 2) {
+                        Image(systemName: "clock")
+                        Text("6天10小时40分")
+                    }
+                    .font(.system(size: captionFontSize, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 6, height: 6)
+                        Text(LanguageManager.shared.localized("Seeding"))
+                            .font(.system(size: captionFontSize, weight: .bold))
+                            .foregroundStyle(Color.green)
+                        Text("100%")
+                            .font(.system(size: captionFontSize, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Color.green)
+                    }
+                }
+
+                Text("The.Matrix.1999.REMASTERED.2160p.UHD.BluRay.x265.10bit.DTS-HD.MA.5.1".replacingOccurrences(of: ".", with: ".\u{200B}"))
+                    .font(.system(size: titleFontSize, weight: .medium))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                FontSizePreviewProgressView(
+                    progress: 0.72,
+                    statusColor: .green,
+                    downloadSpeedText: "1.2 MB/s",
+                    uploadSpeedText: "256 KB/s",
+                    peersText: "4/18",
+                    seedsText: "9/73",
+                    sizeText: "18.4 GB",
+                    ratioText: "1.48",
+                    fontSize: captionFontSize
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(8)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2)
+        )
+        .animation(.easeInOut(duration: 0.15), value: fontSize)
+    }
+}
+
+private struct FontSizePreviewProgressView: View {
+    let progress: Double
+    let statusColor: Color
+    let downloadSpeedText: String
+    let uploadSpeedText: String
+    let peersText: String
+    let seedsText: String
+    let sizeText: String
+    let ratioText: String
+    let fontSize: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(.systemGray5))
+                    Capsule().fill(statusColor)
+                        .frame(width: max(0, geo.size.width * CGFloat(progress)))
+                }
+            }
+            .frame(height: 4)
+
+            LazyVGrid(columns: [
+                GridItem(.flexible(), alignment: .leading),
+                GridItem(.flexible(), alignment: .leading),
+                GridItem(.flexible(), alignment: .leading)
+            ], spacing: 6) {
+                FontSizePreviewGridRow(icon: "arrow.down.circle", text: downloadSpeedText, fontSize: fontSize)
+                FontSizePreviewGridRow(icon: "arrow.down", text: peersText, fontSize: fontSize)
+                FontSizePreviewGridRow(icon: "doc", text: sizeText, fontSize: fontSize)
+                FontSizePreviewGridRow(icon: "arrow.up.circle", text: uploadSpeedText, fontSize: fontSize)
+                FontSizePreviewGridRow(icon: "leaf", text: seedsText, fontSize: fontSize)
+                FontSizePreviewGridRow(icon: "arrow.left.and.right", text: ratioText, fontSize: fontSize)
+            }
+        }
+    }
+}
+
+private struct FontSizePreviewGridRow: View {
+    let icon: String
+    let text: String
+    let fontSize: CGFloat
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: fontSize))
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.system(size: fontSize, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
 }
 
 private struct LegalDocumentSheetView: View {

@@ -16,6 +16,7 @@ struct TransfersView: View {
     @Environment(\.editMode) private var editMode
     @State private var searchText = ""
     @State private var selectedTaskHashes = Set<String>()
+    @State private var hasAttemptedInitialLoad = false
 
     // 状态筛选
     @State private var selectedStatus: TaskStatusFilter = .all
@@ -32,9 +33,13 @@ struct TransfersView: View {
 
     // 添加任务
     @State private var showingAddMagnet = false
+    @State private var selectedTorrentForAction: TorrentTask?
+    @State private var selectedTorrentPosterURL: URL?
 
     // 筛选后的任务列表
     var filteredTasks: [TorrentTask] {
+        guard isTransfersTabActive else { return [] }
+
         var tasks = appStateManager.displayedTasks
 
         // 1. Status Filter
@@ -78,6 +83,7 @@ struct TransfersView: View {
 
     // Helper to extract unique trackers
     var uniqueTrackers: [String] {
+        guard isTransfersTabActive else { return [Self.allTrackersToken] }
         let hosts = appStateManager.allTasks.map { $0.trackerHost }
         let unique = Set(hosts)
         return [Self.allTrackersToken] + unique.sorted()
@@ -108,6 +114,10 @@ struct TransfersView: View {
 
     private var canUseGlobalTaskAggregation: Bool {
         storeManager.isProUser && enableGlobalTaskAggregation
+    }
+
+    private var isTransfersTabActive: Bool {
+        appStateManager.selectedTab == .transfers
     }
 
     var body: some View {
@@ -151,6 +161,10 @@ struct TransfersView: View {
                                     isEditing: isEditing,
                                     toggleSelection: {
                                         toggleSelection(for: task.id)
+                                    },
+                                    onShowActionSheet: { selectedTask, posterURL in
+                                        selectedTorrentPosterURL = posterURL
+                                        selectedTorrentForAction = selectedTask
                                     },
                                     appStateManager: appStateManager
                                 )
@@ -335,6 +349,7 @@ struct TransfersView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .onAppear {
                 applyGlobalAggregationSafetyFallbackIfNeeded()
+                triggerInitialLoadIfNeeded()
             }
             .onChange(of: enableGlobalTaskAggregation) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
@@ -345,8 +360,24 @@ struct TransfersView: View {
             .onChange(of: appStateManager.servers.count) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
             }
+            .onChange(of: appStateManager.selectedTab) { _, newValue in
+                guard newValue == .transfers else { return }
+                triggerInitialLoadIfNeeded()
+            }
             .sheet(isPresented: $showingAddMagnet) {
                 AddTorrentView()
+            }
+            .sheet(item: $selectedTorrentForAction) { selectedTask in
+                TorrentActionSheetView(
+                    task: selectedTask,
+                    posterURL: selectedTorrentPosterURL,
+                    appStateManager: appStateManager,
+                    onPosterChanged: {
+                        TMDBService.shared.clearCache(for: selectedTask.id)
+                    }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -366,6 +397,21 @@ struct TransfersView: View {
         guard appStateManager.activeServerId == nil else { return }
         guard let firstServerID = appStateManager.servers.first?.id else { return }
         appStateManager.activeServerId = firstServerID
+    }
+
+    private func triggerInitialLoadIfNeeded() {
+        guard isTransfersTabActive else { return }
+        guard !hasAttemptedInitialLoad else { return }
+        guard appStateManager.allTasks.isEmpty else {
+            hasAttemptedInitialLoad = true
+            return
+        }
+        guard !appStateManager.servers.isEmpty else { return }
+
+        hasAttemptedInitialLoad = true
+        Task {
+            await appStateManager.refreshData()
+        }
     }
 
     // MARK: - Subviews

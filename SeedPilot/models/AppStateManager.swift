@@ -30,6 +30,7 @@ class AppStateManager {
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
     var hasInitialDataLoaded: Bool = false
+    var downloadingTaskBadgeCount: Int = 0
 
     var activeServerId: UUID?
 
@@ -211,6 +212,10 @@ class AppStateManager {
         let finalTasks = gatheredTasks
         await MainActor.run {
             self.allTasks = finalTasks
+            let newDownloadingCount = finalTasks.filter { $0.status == .downloading }.count
+            if self.downloadingTaskBadgeCount != newDownloadingCount {
+                self.downloadingTaskBadgeCount = newDownloadingCount
+            }
             self.hasInitialDataLoaded = true
 
             // Record History

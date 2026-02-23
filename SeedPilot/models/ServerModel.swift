@@ -8,7 +8,7 @@ enum ServerType: String, Codable, CaseIterable {
     case transmission = "Transmission"
 }
 
-enum TorrentStatus: String, Codable, CaseIterable {
+enum TorrentStatus: String, Codable, CaseIterable, Equatable {
     case downloading = "下载中"
     case seeding = "做种中"
     case paused = "已暂停"
@@ -47,20 +47,73 @@ enum TorrentStatus: String, Codable, CaseIterable {
 // Helper Formatter
 // Helper Formatter
 // Helper Formatter
-let torrentByteFormatter: ByteCountFormatter = {
-    let formatter = ByteCountFormatter()
-    formatter.countStyle = .file
-    formatter.allowsNonnumericFormatting = false
-    return formatter
-}()
+enum FormatHelper {
+    private static let formatterLock = NSLock()
+
+    static let byteCountFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter
+    }()
+
+    static let ratioFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.minimumIntegerDigits = 1
+        formatter.locale = .current
+        return formatter
+    }()
+
+    static func formatBytes(_ bytes: Int64) -> String {
+        if bytes == 0 { return "0 B" }
+        formatterLock.lock()
+        let formatted = byteCountFormatter.string(fromByteCount: bytes)
+        formatterLock.unlock()
+        return formatted
+            .replacingOccurrences(of: "bytes", with: "B")
+            .replacingOccurrences(of: "byte", with: "B")
+            .replacingOccurrences(of: "字节", with: "B")
+    }
+
+    static func formatRatio(_ ratio: Double) -> String {
+        formatterLock.lock()
+        let formatted = ratioFormatter.string(from: NSNumber(value: ratio))
+        formatterLock.unlock()
+        return formatted ?? String(format: "%.2f", ratio)
+    }
+
+    static func formatPercent(_ progress: Double) -> String {
+        "\(Int(progress * 100))%"
+    }
+
+    static func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(seconds) / 60)
+        let days = totalMinutes / (24 * 60)
+        let hours = (totalMinutes % (24 * 60)) / 60
+        let minutes = totalMinutes % 60
+
+        return String(
+            format: LanguageManager.shared.localized("Duration Day Hour Minute Format"),
+            locale: .current,
+            days,
+            hours,
+            minutes
+        )
+    }
+
+    static func displayTitle(from rawTitle: String) -> String {
+        rawTitle.replacingOccurrences(of: ".", with: ".\u{200B}")
+    }
+}
 
 func formatBytes(_ bytes: Int64) -> String {
-    if bytes == 0 { return "0 B" }
-    let formatted = torrentByteFormatter.string(fromByteCount: bytes)
-    return formatted
-        .replacingOccurrences(of: "bytes", with: "B")
-        .replacingOccurrences(of: "byte", with: "B")
-        .replacingOccurrences(of: "字节", with: "B")
+    FormatHelper.formatBytes(bytes)
+}
+
+func formatRatio(_ ratio: Double) -> String {
+    FormatHelper.formatRatio(ratio)
 }
 
 // MARK: - 2. 服务器配置模型
@@ -172,6 +225,66 @@ extension ServerConfig {
 
 // MARK: - 3. 统一的任务模型 (UI 展现层)
 /// 无论后端是 qB 还是 TR，UI 只看这个模型
+enum ResolutionBadge: String, Codable, Hashable {
+    case ultraHD
+    case fullHD
+    case hd
+
+    var text: String {
+        switch self {
+        case .ultraHD: return "4K"
+        case .fullHD: return "1080p"
+        case .hd: return "720p"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .ultraHD: return .purple
+        case .fullHD: return .blue
+        case .hd: return .green
+        }
+    }
+}
+
+struct TorrentTaskDisplayText: Hashable {
+    let title: String
+    let percent: String
+    let seedingTime: String
+    let downloadSpeed: String
+    let uploadSpeed: String
+    let peers: String
+    let seeds: String
+    let size: String
+    let ratio: String
+
+    static func build(
+        title: String,
+        progress: Double,
+        seedingTime: TimeInterval,
+        downloadSpeed: Int64,
+        uploadSpeed: Int64,
+        numPeers: Int,
+        totalPeers: Int,
+        numSeeds: Int,
+        totalSeeds: Int,
+        size: Int64,
+        ratio: Double
+    ) -> TorrentTaskDisplayText {
+        TorrentTaskDisplayText(
+            title: FormatHelper.displayTitle(from: title),
+            percent: FormatHelper.formatPercent(progress),
+            seedingTime: FormatHelper.formatDuration(seedingTime),
+            downloadSpeed: "\(FormatHelper.formatBytes(downloadSpeed))/s",
+            uploadSpeed: "\(FormatHelper.formatBytes(uploadSpeed))/s",
+            peers: "\(numPeers)/\(totalPeers)",
+            seeds: "\(numSeeds)/\(totalSeeds)",
+            size: FormatHelper.formatBytes(size),
+            ratio: FormatHelper.formatRatio(ratio)
+        )
+    }
+}
+
 struct TorrentTask: Identifiable, Hashable {
     let id: String           // 任务的 Hash 值
     let name: String         // 文件名
@@ -194,6 +307,8 @@ struct TorrentTask: Identifiable, Hashable {
     // New Fields for Pro Display
     let seedingTime: TimeInterval // 做种时间 (秒)
     let addedTime: Date           // 添加时间
+    let resolutionBadge: ResolutionBadge?
+    let displayText: TorrentTaskDisplayText
     let numSeeds: Int             // 连接种子数
     let totalSeeds: Int           // 总种子数
     let numPeers: Int             // 连接用户数
@@ -205,13 +320,11 @@ struct TorrentTask: Identifiable, Hashable {
 
     /// 例如 "1.2 GB"
     var sizeString: String {
-        formatBytes(size)
+        displayText.size
     }
 
     var speedString: String {
-        let dl = formatBytes(downloadSpeed)
-        let ul = formatBytes(uploadSpeed)
-        return "↓\(dl)/s ↑\(ul)/s"
+        "↓\(displayText.downloadSpeed) ↑\(displayText.uploadSpeed)"
     }
 
     /// 从 Tracker URL 提取域名，例如 "https://tracker.example.com/announce" → "tracker.example.com"
@@ -247,7 +360,7 @@ struct TorrentTask: Identifiable, Hashable {
     }
 
     var percentString: String {
-        "\(Int(progress * 100))%"
+        displayText.percent
     }
 
     /// 存储路径最后一级目录名
@@ -257,27 +370,16 @@ struct TorrentTask: Identifiable, Hashable {
     }
 
     var seedingTimeString: String {
-        formatDuration(seedingTime)
+        displayText.seedingTime
     }
 
     var ratioString: String {
-        String(format: "%.2f", ratio)
+        displayText.ratio
     }
 }
 
 func formatDuration(_ seconds: TimeInterval) -> String {
-    let totalMinutes = max(0, Int(seconds) / 60)
-    let days = totalMinutes / (24 * 60)
-    let hours = (totalMinutes % (24 * 60)) / 60
-    let minutes = totalMinutes % 60
-
-    return String(
-        format: LanguageManager.shared.localized("Duration Day Hour Minute Format"),
-        locale: .current,
-        days,
-        hours,
-        minutes
-    )
+    FormatHelper.formatDuration(seconds)
 }
 
 // MARK: - 4. 抽象客户端协议

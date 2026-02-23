@@ -28,16 +28,6 @@
         }
       }
     },
-    "%@  %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@  %2$@"
-          }
-        }
-      }
-    },
     "%d unread" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -197,6 +187,9 @@
         }
       }
     },
+    "6天10小时40分" : {
+
+    },
     "15 min" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -264,6 +257,9 @@
           }
         }
       }
+    },
+    "100%" : {
+
     },
     "A" : {
 
@@ -6113,6 +6109,9 @@
         }
       }
     },
+    "tracker" : {
+
+    },
     "Tracker" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6656,6 +6655,9 @@
         }
       }
     },
+    "Welcome to SeedPilot" : {
+
+    },
     "When enabled, newly published compliant items will be automatically pushed to your downloader." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6817,6 +6819,9 @@
           }
         }
       }
+    },
+    "欢迎使用SeedPilot" : {
+
     },
     "自动匹配高清海报与剧情简介，无缝适配您的系统语言。" : {
       "localizations" : {

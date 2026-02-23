@@ -11,6 +11,7 @@ import UIKit
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @ObservedObject private var dashboardViewModel: DashboardViewModel
+    @State private var hasSyncedModuleOrder = false
 
     init(viewModel: DashboardViewModel) {
         self.dashboardViewModel = viewModel
@@ -103,6 +104,10 @@ struct DashboardView: View {
         ].joined(separator: "|")
     }
 
+    private var isDashboardTabActive: Bool {
+        appStateManager.selectedTab == .dashboard
+    }
+
     var body: some View {
         Group {
             if allModulesDisabled {
@@ -154,7 +159,12 @@ struct DashboardView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .task(id: "\(globalStatsRefreshKey)|\(needsGlobalStatsData)") {
+        .task(id: "\(globalStatsRefreshKey)|\(needsGlobalStatsData)|\(isDashboardTabActive)") {
+            guard isDashboardTabActive else {
+                dashboardViewModel.stopAutoRefresh()
+                return
+            }
+
             if needsGlobalStatsData {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
@@ -168,8 +178,11 @@ struct DashboardView: View {
             dashboardViewModel.stopAutoRefresh()
         }
         .onAppear {
-            dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
-            print("Dashboard: proDashboardBackgroundEnabled=\(proDashboardBackgroundEnabled), resolved=\(isProCinemaEnabled)")
+            guard isDashboardTabActive else { return }
+            if !hasSyncedModuleOrder {
+                dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
+                hasSyncedModuleOrder = true
+            }
         }
         .onChange(of: enabledModuleKey) { _, _ in
             dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
@@ -179,8 +192,16 @@ struct DashboardView: View {
             highlightedDropTarget = nil
             activeHoverTarget = nil
         }
-        .onChange(of: proDashboardBackgroundEnabled) { _, newValue in
-            print("Dashboard: proDashboardBackgroundEnabled changed -> \(newValue)")
+        .onChange(of: appStateManager.selectedTab) { _, newValue in
+            guard newValue == .dashboard else {
+                dashboardViewModel.stopAutoRefresh()
+                return
+            }
+
+            if !hasSyncedModuleOrder {
+                dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
+                hasSyncedModuleOrder = true
+            }
         }
     }
 

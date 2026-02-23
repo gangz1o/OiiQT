@@ -130,6 +130,13 @@ final class GlobalStatsManager {
     }
 
     private func shouldUseCache(signature: String) -> Bool {
+        let hasIncompleteOnlineStorage = snapshot.serverStorage.contains {
+            $0.isOnline && ($0.defaultSavePath == "--" || $0.remainingSpace == nil)
+        }
+        if hasIncompleteOnlineStorage {
+            return false
+        }
+
         guard let lastFetchedAt else { return false }
         let age = Date().timeIntervalSince(lastFetchedAt)
         return age < cacheTTL && signature == lastServerSignature
@@ -354,28 +361,58 @@ private enum GlobalStatsFetcher {
         let session = makeSession(allowInsecureSSL: endpoint.allowInsecureSSL)
         let baseURL = normalizedBaseURL(address: endpoint.address, port: endpoint.port, useHTTPS: endpoint.useHTTPS)
 
-        try await qbLogin(endpoint: endpoint, baseURL: baseURL, session: session)
+        let loginSucceeded: Bool
+        do {
+            try await qbLogin(endpoint: endpoint, baseURL: baseURL, session: session)
+            loginSucceeded = true
+        } catch {
+            loginSucceeded = false
+        }
 
-        async let torrents = qbFetchTorrents(baseURL: baseURL, session: session)
         async let transfer = qbFetchTransferInfo(baseURL: baseURL, session: session)
+        async let mainData = qbFetchMainData(baseURL: baseURL, session: session)
         async let defaultSavePath = qbFetchDefaultSavePath(baseURL: baseURL, session: session)
 
-        let torrentItems = try await torrents
-        let transferInfo = try await transfer
+        let torrentItems = (try? await qbFetchTorrents(baseURL: baseURL, session: session)) ?? []
+        let transferInfo = await transfer
+        let mainDataInfo = await mainData
+        let savePathFromPreferences = await defaultSavePath
 
         let seedingStates: Set<String> = ["uploading", "stalledUP", "forcedUP", "up"]
         let downloadingStates: Set<String> = ["metaDL", "allocating", "downloading", "dl", "stalledDL", "queuedDL"]
 
         let seedingCount = torrentItems.filter { seedingStates.contains($0.state) }.count
         let downloadingCount = torrentItems.filter { downloadingStates.contains($0.state) }.count
-        let totalBandwidth = Int64(transferInfo.dlInfoSpeed) + Int64(transferInfo.upInfoSpeed)
+        let serverState = mainDataInfo?.serverState
+        let downloadSpeed = serverState?.dlInfoSpeed ?? transferInfo?.dlInfoSpeed ?? 0
+        let uploadSpeed = serverState?.upInfoSpeed ?? transferInfo?.upInfoSpeed ?? 0
+        let totalBandwidth = Int64(downloadSpeed) + Int64(uploadSpeed)
+
+        let remainingSpace = serverState?.freeSpaceOnDisk ?? transferInfo?.freeSpaceOnDisk ?? 0
+
+        let fallbackPath = serverState?.defaultSavePath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let resolvedPath: String
+        if savePathFromPreferences == "--" {
+            resolvedPath = fallbackPath.isEmpty ? "--" : fallbackPath
+        } else {
+            resolvedPath = savePathFromPreferences
+        }
+
+        let hasStorageSignal =
+            serverState?.freeSpaceOnDisk != nil ||
+            transferInfo?.freeSpaceOnDisk != nil ||
+            resolvedPath != "--"
+
+        if !loginSucceeded && !hasStorageSignal && torrentItems.isEmpty {
+            throw TorrentClientError.authenticationFailed
+        }
 
         return GlobalStatsServerSnapshot(
             seedingCount: seedingCount,
             downloadingCount: downloadingCount,
             totalBandwidth: totalBandwidth,
-            remainingSpace: transferInfo.freeSpaceOnDisk,
-            defaultSavePath: await defaultSavePath
+            remainingSpace: remainingSpace,
+            defaultSavePath: resolvedPath
         )
     }
 
@@ -384,14 +421,18 @@ private enum GlobalStatsFetcher {
             throw TorrentClientError.invalidURL
         }
 
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "username", value: endpoint.username),
+            URLQueryItem(name: "password", value: endpoint.password)
+        ]
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue(baseURL, forHTTPHeaderField: "Referer")
-
-        let encodedUsername = endpoint.username.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? endpoint.username
-        let encodedPassword = endpoint.password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? endpoint.password
-        request.httpBody = "username=\(encodedUsername)&password=\(encodedPassword)".data(using: .utf8)
+        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -399,9 +440,17 @@ private enum GlobalStatsFetcher {
         }
 
         let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard body == "Ok." else {
-            throw TorrentClientError.authenticationFailed
+        if body == "Ok." {
+            return
         }
+
+        if let cookieStorage = session.configuration.httpCookieStorage,
+           let cookies = cookieStorage.cookies(for: url),
+           cookies.contains(where: { $0.name == "SID" }) {
+            return
+        }
+
+        throw TorrentClientError.authenticationFailed
     }
 
     private static func qbFetchTorrents(baseURL: String, session: URLSession) async throws -> [QBTorrentLite] {
@@ -411,6 +460,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        configureQBRequest(&request, baseURL: baseURL)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -420,20 +470,64 @@ private enum GlobalStatsFetcher {
         return try JSONDecoder().decode([QBTorrentLite].self, from: data)
     }
 
-    private static func qbFetchTransferInfo(baseURL: String, session: URLSession) async throws -> QBTransferInfoLite {
+    private static func qbFetchTransferInfo(baseURL: String, session: URLSession) async -> QBTransferInfoLite? {
         guard let url = URL(string: "\(baseURL)/api/v2/transfer/info") else {
-            throw TorrentClientError.invalidURL
+            return nil
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        configureQBRequest(&request, baseURL: baseURL)
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw TorrentClientError.apiError("qB transfer/info failed")
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return nil
+            }
+            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            return QBTransferInfoLite(
+                dlInfoSpeed: intValue(object["dl_info_speed"]),
+                upInfoSpeed: intValue(object["up_info_speed"]),
+                freeSpaceOnDisk: int64Value(object["free_space_on_disk"])
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private static func qbFetchMainData(baseURL: String, session: URLSession) async -> QBMainDataLite? {
+        guard let url = URL(string: "\(baseURL)/api/v2/sync/maindata?rid=0") else {
+            return nil
         }
 
-        return try JSONDecoder().decode(QBTransferInfoLite.self, from: data)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        configureQBRequest(&request, baseURL: baseURL)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return nil
+            }
+            guard
+                let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let serverStateObject = object["server_state"] as? [String: Any]
+            else {
+                return nil
+            }
+
+            let serverState = QBMainDataLite.ServerState(
+                freeSpaceOnDisk: int64Value(serverStateObject["free_space_on_disk"]),
+                dlInfoSpeed: intValue(serverStateObject["dl_info_speed"]),
+                upInfoSpeed: intValue(serverStateObject["up_info_speed"]),
+                defaultSavePath: stringValue(serverStateObject["default_save_path"])
+            )
+            return QBMainDataLite(serverState: serverState)
+        } catch {
+            return nil
+        }
     }
 
     private static func qbFetchDefaultSavePath(baseURL: String, session: URLSession) async -> String {
@@ -443,6 +537,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        configureQBRequest(&request, baseURL: baseURL)
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -552,7 +647,7 @@ private enum GlobalStatsFetcher {
 
     private static func makeSession(allowInsecureSSL: Bool) -> URLSession {
         let config = URLSessionConfiguration.default
-        config.httpCookieStorage = HTTPCookieStorage()
+        config.httpCookieStorage = HTTPCookieStorage.shared
         config.httpCookieAcceptPolicy = .always
         let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL)
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
@@ -613,6 +708,36 @@ private enum GlobalStatsFetcher {
         let encoded = Data(raw.utf8).base64EncodedString()
         return "Basic \(encoded)"
     }
+
+    private static func configureQBRequest(_ request: inout URLRequest, baseURL: String) {
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue(baseURL, forHTTPHeaderField: "Referer")
+        request.setValue(baseURL, forHTTPHeaderField: "Origin")
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let intValue = value as? Int { return intValue }
+        if let int64Value = value as? Int64 { return Int(int64Value) }
+        if let doubleValue = value as? Double { return Int(doubleValue) }
+        if let stringValue = value as? String { return Int(stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        return nil
+    }
+
+    private static func int64Value(_ value: Any?) -> Int64? {
+        if let int64Value = value as? Int64 { return int64Value }
+        if let intValue = value as? Int { return Int64(intValue) }
+        if let doubleValue = value as? Double { return Int64(doubleValue) }
+        if let stringValue = value as? String { return Int64(stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        return nil
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        if let stringValue = value as? String {
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
+    }
 }
 
 private struct QBTorrentLite: Decodable {
@@ -620,14 +745,36 @@ private struct QBTorrentLite: Decodable {
 }
 
 private struct QBTransferInfoLite: Decodable {
-    let dlInfoSpeed: Int
-    let upInfoSpeed: Int
-    let freeSpaceOnDisk: Int64
+    let dlInfoSpeed: Int?
+    let upInfoSpeed: Int?
+    let freeSpaceOnDisk: Int64?
 
     enum CodingKeys: String, CodingKey {
         case dlInfoSpeed = "dl_info_speed"
         case upInfoSpeed = "up_info_speed"
         case freeSpaceOnDisk = "free_space_on_disk"
+    }
+}
+
+private struct QBMainDataLite: Decodable {
+    struct ServerState: Decodable {
+        let freeSpaceOnDisk: Int64?
+        let dlInfoSpeed: Int?
+        let upInfoSpeed: Int?
+        let defaultSavePath: String?
+
+        enum CodingKeys: String, CodingKey {
+            case freeSpaceOnDisk = "free_space_on_disk"
+            case dlInfoSpeed = "dl_info_speed"
+            case upInfoSpeed = "up_info_speed"
+            case defaultSavePath = "default_save_path"
+        }
+    }
+
+    let serverState: ServerState?
+
+    enum CodingKeys: String, CodingKey {
+        case serverState = "server_state"
     }
 }
 

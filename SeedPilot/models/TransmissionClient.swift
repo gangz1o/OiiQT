@@ -192,14 +192,38 @@ class TransmissionClient: NSObject, TorrentClient {
 
         return args.torrents.map { item in
             let trackerURL = pickTrackerURL(primary: item.tracker, trackers: item.trackers)
+            let progress = item.percentDone
+            let size = item.totalSize
+            let downloadSpeed = item.rateDownload
+            let uploadSpeed = item.rateUpload
+            let seedingTime = TimeInterval(item.secondsSeeding ?? 0)
+            let numSeeds = 0
+            let totalSeeds = 0
+            let numPeers = item.peersConnected
+            let totalPeers = 0
+            let ratio = item.uploadRatio
+
+            let displayText = TorrentTaskDisplayText.build(
+                title: item.name,
+                progress: progress,
+                seedingTime: seedingTime,
+                downloadSpeed: downloadSpeed,
+                uploadSpeed: uploadSpeed,
+                numPeers: numPeers,
+                totalPeers: totalPeers,
+                numSeeds: numSeeds,
+                totalSeeds: totalSeeds,
+                size: size,
+                ratio: ratio
+            )
 
             return TorrentTask(
                 id: item.hashString,
                 name: item.name,
-                progress: item.percentDone,
-                size: item.totalSize,
-                downloadSpeed: item.rateDownload,
-                uploadSpeed: item.rateUpload,
+                progress: progress,
+                size: size,
+                downloadSpeed: downloadSpeed,
+                uploadSpeed: uploadSpeed,
                 remainingTime: TimeInterval(item.eta),
                 status: mapStatus(item.status),
                 serverID: config.id,
@@ -211,13 +235,15 @@ class TransmissionClient: NSObject, TorrentClient {
                 isSequential: nil,
                 isFirstLastPiecePriority: nil,
                 completionDate: nil,
-                seedingTime: TimeInterval(item.secondsSeeding ?? 0),
+                seedingTime: seedingTime,
                 addedTime: item.addedDate.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast,
-                numSeeds: 0, // Need to parse 'peers' detailed or 'trackerStats' for seeds.
-                totalSeeds: 0,
-                numPeers: item.peersConnected,
-                totalPeers: 0,
-                ratio: item.uploadRatio
+                resolutionBadge: ResolutionExtractor.extractBadge(from: item.name),
+                displayText: displayText,
+                numSeeds: numSeeds, // Need to parse 'peers' detailed or 'trackerStats' for seeds.
+                totalSeeds: totalSeeds,
+                numPeers: numPeers,
+                totalPeers: totalPeers,
+                ratio: ratio
             )
         }
     }

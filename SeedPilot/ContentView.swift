@@ -35,7 +35,7 @@ struct ContentView: View {
                     Label(LanguageManager.shared.localized("Tasks"), systemImage: "list.bullet")
                 }
                 .tag(AppTab.transfers)
-                .badge(appStateManager.allTasks.filter { $0.status == .downloading }.count)
+                .badge(appStateManager.downloadingTaskBadgeCount)
 
             // 自动化
             RSSView()

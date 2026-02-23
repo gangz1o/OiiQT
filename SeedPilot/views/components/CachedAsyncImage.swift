@@ -14,12 +14,25 @@ import Kingfisher
 /// Handles memory + disk caching, fade-in animation, and smooth gradient placeholders.
 struct SimpleCachedImage: View {
     let url: URL?
+    var downsampleSize: CGSize? = nil
 
     var body: some View {
-        KFImage(url)
-            .placeholder { SeedPilotPlaceholder() }
-            .fade(duration: 0.25)
-            .resizable()
+        if let downsampleSize {
+            KFImage(url)
+                .placeholder { SeedPilotPlaceholder() }
+                .setProcessor(DownsamplingImageProcessor(size: downsampleSize))
+                .cacheOriginalImage()
+                .fade(duration: 0.2)
+                .cancelOnDisappear(true)
+                .resizable()
+        } else {
+            KFImage(url)
+                .placeholder { SeedPilotPlaceholder() }
+                .cacheOriginalImage()
+                .fade(duration: 0.2)
+                .cancelOnDisappear(true)
+                .resizable()
+        }
     }
 }
 

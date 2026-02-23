@@ -46,13 +46,18 @@ struct TorrentActionSheetView: View {
                         newName = task.name
                         showingRenameAlert = true
                     } label: {
-                        Label(languageManager.localized("Rename"), systemImage: "square.and.pencil")
+                        sheetMenuRow(
+                            title: languageManager.localized("Rename"),
+                            systemImage: "square.and.pencil"
+                        )
                     }
+                    .buttonStyle(.plain)
                     .alert(languageManager.localized("Rename Task"), isPresented: $showingRenameAlert) {
                         TextField(languageManager.localized("New Name"), text: $newName)
                         Button(languageManager.localized("Cancel"), role: .cancel) {}
                         Button(languageManager.localized("Confirm")) {
                             appStateManager.renameTask(task, newName: newName)
+                            DispatchQueue.main.async { dismiss() }
                         }
                     } message: {
                         Text(languageManager.localized("Please enter a new task name."))
@@ -60,10 +65,15 @@ struct TorrentActionSheetView: View {
 
                     Button {
                         draftSavePath = task.savePath
+                        appStateManager.stopAutoRefresh()
                         showingSetSavePathSheet = true
                     } label: {
-                        Label(languageManager.localized("Set Save Path"), systemImage: "folder.badge.gear")
+                        sheetMenuRow(
+                            title: languageManager.localized("Set Save Path"),
+                            systemImage: "folder.badge.gear"
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Section {
@@ -71,8 +81,12 @@ struct TorrentActionSheetView: View {
                         newTrackers = task.tracker
                         showingTrackersAlert = true
                     } label: {
-                        Label(languageManager.localized("Edit Tracker"), systemImage: "network.badge.shield.half.filled")
+                        sheetMenuRow(
+                            title: languageManager.localized("Edit Tracker"),
+                            systemImage: "network.badge.shield.half.filled"
+                        )
                     }
+                    .buttonStyle(.plain)
                     .alert(languageManager.localized("Edit Tracker"), isPresented: $showingTrackersAlert) {
                         TextField(languageManager.localized("Tracker URL"), text: $newTrackers)
                             .textInputAutocapitalization(.never)
@@ -80,6 +94,7 @@ struct TorrentActionSheetView: View {
                         Button(languageManager.localized("Cancel"), role: .cancel) {}
                         Button(languageManager.localized("Confirm")) {
                             appStateManager.editTrackers(task, newTrackers: newTrackers)
+                            DispatchQueue.main.async { dismiss() }
                         }
                     } message: {
                         Text(languageManager.localized("Please enter Tracker URL. For multiple URLs, try comma separation if supported by your server."))
@@ -88,27 +103,40 @@ struct TorrentActionSheetView: View {
                     Button {
                         onPosterChanged()
                     } label: {
-                        Label(languageManager.localized("Rematch Poster"), systemImage: "arrow.triangle.2.circlepath")
+                        sheetMenuRow(
+                            title: languageManager.localized("Rematch Poster"),
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
                     }
+                    .buttonStyle(.plain)
 
                     Button {
                         showingManualMatchSheet = true
                     } label: {
-                        Label(languageManager.localized("Manual Match Poster"), systemImage: "photo.badge.plus")
+                        sheetMenuRow(
+                            title: languageManager.localized("Manual Match Poster"),
+                            systemImage: "photo.badge.plus"
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Section {
                     Button(role: .destructive) {
                         showingDeleteConfirmation = true
                     } label: {
-                        Label {
-                            Text(languageManager.localized("Delete"))
-                        } icon: {
+                        HStack(spacing: 12) {
                             Image(systemName: "trash")
+                                .imageScale(.medium)
+                                .foregroundStyle(.red)
+                            Text(languageManager.localized("Delete"))
+                                .font(.body)
+                                .foregroundStyle(.red)
+                            Spacer()
                         }
-                        .foregroundStyle(.red)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .listStyle(.insetGrouped)
@@ -119,23 +147,25 @@ struct TorrentActionSheetView: View {
         .confirmationDialog(languageManager.localized("Confirm Deletion"), isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
             Button(languageManager.localized("Delete Task (Keep Data)"), role: .destructive) {
                 appStateManager.deleteTask(task, withData: false)
-                dismiss()
+                DispatchQueue.main.async { dismiss() }
             }
             Button(languageManager.localized("Delete Task and Data"), role: .destructive) {
                 appStateManager.deleteTask(task, withData: true)
-                dismiss()
+                DispatchQueue.main.async { dismiss() }
             }
             Button(languageManager.localized("Cancel"), role: .cancel) {}
         } message: {
             Text(String(format: languageManager.localized("Are you sure you want to delete this task? %@"), task.name))
         }
-        .sheet(isPresented: $showingSetSavePathSheet) {
+        .sheet(isPresented: $showingSetSavePathSheet, onDismiss: {
+            appStateManager.startAutoRefresh()
+        }) {
             TorrentSavePathEditorView(
+                isPresented: $showingSetSavePathSheet,
                 path: $draftSavePath,
                 presetSavePaths: presetSavePaths,
                 onConfirm: { path in
                     appStateManager.setLocation(task, newLocation: path)
-                    dismiss()
                 }
             )
             .presentationDetents([.medium])
@@ -191,12 +221,12 @@ struct TorrentActionSheetView: View {
                 } else {
                     appStateManager.pauseTask(task)
                 }
-                dismiss()
+                DispatchQueue.main.async { dismiss() }
             }
 
             quickActionButton(title: languageManager.localized("Force Start"), systemImage: "forward.end.fill") {
                 appStateManager.forceStartTask(task)
-                dismiss()
+                DispatchQueue.main.async { dismiss() }
             }
         }
         .padding(.horizontal, 16)
@@ -218,14 +248,31 @@ struct TorrentActionSheetView: View {
         }
         .buttonStyle(.plain)
     }
+
+    private func sheetMenuRow(title: String, systemImage: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.body)
+                .foregroundStyle(.primary)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+    }
+
 }
 
 private struct TorrentSavePathEditorView: View {
+    @Binding var isPresented: Bool
     @Binding var path: String
     let presetSavePaths: [String]
     let onConfirm: (String) -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var languageManager = LanguageManager.shared
 
     private var presetSelection: Binding<String> {
@@ -278,14 +325,14 @@ private struct TorrentSavePathEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(languageManager.localized("Cancel")) {
-                        dismiss()
+                        isPresented = false
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button(languageManager.localized("Confirm")) {
                         onConfirm(path)
-                        dismiss()
+                        isPresented = false
                     }
                     .disabled(path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }

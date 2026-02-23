@@ -94,13 +94,38 @@ class QBittorrentClient: NSObject, TorrentClient {
             let qbTasks = try decoder.decode([QBTask].self, from: data)
 
             return qbTasks.map { task -> TorrentTask in
+                let progress = task.progress
+                let size = Int64(task.size)
+                let downloadSpeed = Int64(task.dlspeed)
+                let uploadSpeed = Int64(task.upspeed)
+                let seedingTime = TimeInterval(task.seeding_time ?? 0)
+                let numSeeds = task.num_seeds ?? 0
+                let totalSeeds = task.num_complete ?? 0
+                let numPeers = task.num_leechs ?? 0
+                let totalPeers = task.num_incomplete ?? 0
+                let ratio = task.ratio ?? 0.0
+
+                let displayText = TorrentTaskDisplayText.build(
+                    title: task.name,
+                    progress: progress,
+                    seedingTime: seedingTime,
+                    downloadSpeed: downloadSpeed,
+                    uploadSpeed: uploadSpeed,
+                    numPeers: numPeers,
+                    totalPeers: totalPeers,
+                    numSeeds: numSeeds,
+                    totalSeeds: totalSeeds,
+                    size: size,
+                    ratio: ratio
+                )
+
                 return TorrentTask(
                     id: task.hash,
                     name: task.name,
-                    progress: task.progress,
-                    size: Int64(task.size),
-                    downloadSpeed: Int64(task.dlspeed),
-                    uploadSpeed: Int64(task.upspeed),
+                    progress: progress,
+                    size: size,
+                    downloadSpeed: downloadSpeed,
+                    uploadSpeed: uploadSpeed,
                     remainingTime: task.eta == 8640000 ? -1 : TimeInterval(task.eta),
                     status: mapStatus(state: task.state),
                     serverID: config.id,
@@ -112,13 +137,15 @@ class QBittorrentClient: NSObject, TorrentClient {
                     isSequential: task.seq_dl,
                     isFirstLastPiecePriority: task.f_l_piece_prio,
                     completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil,
-                    seedingTime: TimeInterval(task.seeding_time ?? 0),
+                    seedingTime: seedingTime,
                     addedTime: Date(timeIntervalSince1970: TimeInterval(task.added_on ?? 0)),
-                    numSeeds: task.num_seeds ?? 0,
-                    totalSeeds: task.num_complete ?? 0,
-                    numPeers: task.num_leechs ?? 0,
-                    totalPeers: task.num_incomplete ?? 0,
-                    ratio: task.ratio ?? 0.0
+                    resolutionBadge: ResolutionExtractor.extractBadge(from: task.name),
+                    displayText: displayText,
+                    numSeeds: numSeeds,
+                    totalSeeds: totalSeeds,
+                    numPeers: numPeers,
+                    totalPeers: totalPeers,
+                    ratio: ratio
                 )
             }
         } catch {
