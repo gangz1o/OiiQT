@@ -131,6 +131,7 @@ class QBittorrentClient: NSObject, TorrentClient {
                     serverID: config.id,
                     tracker: task.tracker ?? "",
                     savePath: task.save_path ?? "",
+                    category: task.category ?? "",
                     tags: task.tags ?? "",
                     downloaded: task.downloaded ?? 0,
                     uploaded: task.uploaded ?? 0,
@@ -842,6 +843,7 @@ struct QBTask: Decodable {
     let eta: Int
     let tracker: String?
     let save_path: String?
+    let category: String?
     let tags: String?
     let downloaded: Int64?
     let uploaded: Int64?

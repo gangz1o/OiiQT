@@ -43,14 +43,13 @@ struct CategorySelectionSheetView: View {
     }
 
     private func categoryRow(title: String, value: String) -> some View {
-        let isSelected = selectedCategory == value
-        Button {
+        return Button {
             withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
                 selectedCategory = value
             }
         } label: {
             HStack(spacing: 12) {
-                SelectionCircleIndicator(isSelected: isSelected)
+                SelectionCircleIndicator(isSelected: selectedCategory == value)
                 Text(title)
                     .foregroundStyle(.primary)
                 Spacer()
@@ -106,10 +105,9 @@ struct TagMultiSelectSheetView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(displayTags, id: \.self) { tag in
-                            let isSelected = selectedTags.contains(tag)
                             Button {
                                 withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
-                                    if isSelected {
+                                    if selectedTags.contains(tag) {
                                         selectedTags.remove(tag)
                                     } else {
                                         selectedTags.insert(tag)
@@ -117,7 +115,7 @@ struct TagMultiSelectSheetView: View {
                                 }
                             } label: {
                                 HStack(spacing: 12) {
-                                    SelectionCircleIndicator(isSelected: isSelected)
+                                    SelectionCircleIndicator(isSelected: selectedTags.contains(tag))
                                     Text(tag)
                                         .foregroundStyle(.primary)
                                     Spacer()

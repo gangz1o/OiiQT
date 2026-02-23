@@ -128,9 +128,11 @@ struct TorrentRowView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
+                        if hasTaxonomyMetadata {
+                            taxonomyMetadataView
+                        }
+
                         TaskProgressView(
-                            progress: task.progress,
-                            status: task.status,
                             downloadSpeedText: task.displayText.downloadSpeed,
                             uploadSpeedText: task.displayText.uploadSpeed,
                             peersText: task.displayText.peers,
@@ -141,9 +143,18 @@ struct TorrentRowView: View {
                         .equatable()
                     }
                 }
-                .padding(8)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .padding(.trailing, 8)
+                .padding(.leading, 14)
             }
             .background(Color(uiColor: .secondarySystemGroupedBackground)) // Card background
+            .overlay(alignment: .leading) {
+                VerticalEdgeProgressBar(
+                    progress: task.progress,
+                    status: task.status
+                )
+            }
             .clipShape(cardShape)
             .background(
                 cardShape
@@ -243,6 +254,66 @@ struct TorrentRowView: View {
         }
     }
 
+    private var normalizedCategory: String {
+        task.category.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedTags: [String] {
+        Array(
+            Set(
+                task.tags
+                    .split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private var displayedTags: [String] {
+        Array(normalizedTags.prefix(2))
+    }
+
+    private var hiddenTagCount: Int {
+        max(0, normalizedTags.count - displayedTags.count)
+    }
+
+    private var hasTaxonomyMetadata: Bool {
+        !normalizedCategory.isEmpty || !displayedTags.isEmpty
+    }
+
+    private var taxonomyMetadataView: some View {
+        HStack(spacing: 6) {
+            if !normalizedCategory.isEmpty {
+                TagCapsule(
+                    text: normalizedCategory,
+                    icon: "tray.full.fill",
+                    foreground: .indigo,
+                    background: Color.indigo.opacity(0.14)
+                )
+            }
+
+            ForEach(displayedTags, id: \.self) { tag in
+                TagCapsule(
+                    text: tag,
+                    icon: "tag.fill",
+                    foreground: .blue,
+                    background: Color.blue.opacity(0.14)
+                )
+            }
+
+            if hiddenTagCount > 0 {
+                TagCapsule(
+                    text: "+\(hiddenTagCount)",
+                    foreground: .secondary,
+                    background: Color.secondary.opacity(0.14)
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
     private var posterDownsampleSize: CGSize {
         CGSize(width: 65 * displayScale, height: 97.5 * displayScale)
     }
@@ -261,19 +332,59 @@ private extension TorrentRowView {
 // Helper View for Tags
 struct TagCapsule: View {
     let text: String
-    let icon: String
+    var icon: String? = nil
+    var foreground: Color = .secondary
+    var background: Color = Color(.systemGray6)
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: icon)
+            if let icon {
+                Image(systemName: icon)
+            }
             Text(text)
+                .lineLimit(1)
         }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(foreground)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(.systemGray6))
+        .background(background)
         .clipShape(Capsule())
+    }
+}
+
+struct VerticalEdgeProgressBar: View {
+    let progress: Double
+    let status: TorrentStatus
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(uiColor: .systemGray5))
+
+                Rectangle()
+                    .fill(progressColor)
+                    .frame(height: max(4, proxy.size.height * CGFloat(clampedProgress)))
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+        }
+        .frame(width: 4)
+        .allowsHitTesting(false)
+    }
+
+    private var clampedProgress: Double {
+        min(max(progress, 0), 1)
+    }
+
+    private var progressColor: Color {
+        switch status {
+        case .downloading: return .blue
+        case .seeding: return .green
+        case .checking: return .orange
+        case .error: return .red
+        default: return Color.gray.opacity(0.8)
+        }
     }
 }
 
@@ -294,8 +405,6 @@ struct GridRowIconText: View, Equatable {
 }
 
 struct TaskProgressView: View, Equatable {
-    let progress: Double
-    let status: TorrentStatus
     let downloadSpeedText: String
     let uploadSpeedText: String
     let peersText: String
@@ -305,16 +414,6 @@ struct TaskProgressView: View, Equatable {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color(.systemGray5))
-                    Capsule().fill(progressColor)
-                        .frame(width: max(0, geo.size.width * CGFloat(progress)))
-                        .animation(.smooth, value: progress)
-                }
-            }
-            .frame(height: 4)
-
             LazyVGrid(columns: [
                 GridItem(.flexible(), alignment: .leading),
                 GridItem(.flexible(), alignment: .leading),
@@ -328,16 +427,6 @@ struct TaskProgressView: View, Equatable {
                 GridRowIconText(icon: "leaf", text: seedsText).equatable()
                 GridRowIconText(icon: "arrow.left.and.right", text: ratioText).equatable()
             }
-        }
-    }
-
-    private var progressColor: Color {
-        switch status {
-        case .downloading: return .blue
-        case .seeding: return .green
-        case .checking: return .orange
-        case .error: return .red
-        default: return Color.gray.opacity(0.8)
         }
     }
 }

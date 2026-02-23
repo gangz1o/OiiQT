@@ -230,6 +230,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 serverID: config.id,
                 tracker: trackerURL,
                 savePath: item.downloadDir,
+                category: "",
                 tags: normalizeTags(item.labels ?? []).joined(separator: ","),
                 downloaded: item.downloadedEver,
                 uploaded: item.uploadedEver,

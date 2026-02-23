@@ -297,6 +297,7 @@ struct TorrentTask: Identifiable, Hashable {
     let serverID: UUID       // 所属服务器 ID
     let tracker: String      // Tracker URL
     let savePath: String     // 存储路径
+    let category: String     // 分类 (qB)
     let tags: String         // 标签 (逗号分隔)
     let downloaded: Int64    // 已下载字节
     let uploaded: Int64      // 已上传字节
