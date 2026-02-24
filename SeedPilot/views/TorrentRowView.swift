@@ -15,6 +15,7 @@ struct TorrentRowView: View {
     let onShowActionSheet: (TorrentTask, URL?) -> Void
 
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
+    @AppStorage("isProUser") private var isProUser: Bool = false
     @Environment(\.displayScale) private var displayScale
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
@@ -359,7 +360,8 @@ private extension TorrentRowView {
     }()
 
     var displayedTracker: String {
-        trackerAliasManager.getAlias(for: task.trackerHost)
+        guard isProUser else { return task.trackerHost }
+        return trackerAliasManager.getAlias(for: task.trackerHost)
     }
 }
 

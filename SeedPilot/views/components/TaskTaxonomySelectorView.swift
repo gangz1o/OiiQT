@@ -5,12 +5,14 @@ struct CategorySelectionSheetView: View {
     @ObservedObject private var languageManager = LanguageManager.shared
 
     let categories: [String]
+    let initialSelection: String
     let onConfirm: (String) -> Void
 
     @State private var selectedCategory: String
 
     init(categories: [String], initialSelection: String = "", onConfirm: @escaping (String) -> Void) {
         self.categories = categories
+        self.initialSelection = initialSelection
         self.onConfirm = onConfirm
         _selectedCategory = State(initialValue: initialSelection)
     }
@@ -39,6 +41,12 @@ struct CategorySelectionSheetView: View {
                     }
                 }
             }
+            .onAppear {
+                selectedCategory = initialSelection
+            }
+            .onChange(of: initialSelection) { _, newValue in
+                selectedCategory = newValue
+            }
         }
     }
 
@@ -65,6 +73,7 @@ struct TagMultiSelectSheetView: View {
     @ObservedObject private var languageManager = LanguageManager.shared
 
     let availableTags: [String]
+    let initialSelection: Set<String>
     let onConfirm: ([String]) -> Void
 
     @State private var selectedTags: Set<String>
@@ -72,6 +81,7 @@ struct TagMultiSelectSheetView: View {
 
     init(availableTags: [String], initialSelection: Set<String>, onConfirm: @escaping ([String]) -> Void) {
         self.availableTags = availableTags
+        self.initialSelection = initialSelection
         self.onConfirm = onConfirm
         _selectedTags = State(initialValue: initialSelection)
     }
@@ -142,6 +152,12 @@ struct TagMultiSelectSheetView: View {
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                selectedTags = initialSelection
+            }
+            .onChange(of: initialSelection) { _, newValue in
+                selectedTags = newValue
             }
         }
     }

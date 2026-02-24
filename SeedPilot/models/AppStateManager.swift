@@ -29,6 +29,7 @@ struct SpeedPoint: Identifiable {
 class AppStateManager {
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
+    var tasksRevision: Int = 0
     var hasInitialDataLoaded: Bool = false
     var downloadingTaskBadgeCount: Int = 0
 
@@ -212,6 +213,7 @@ class AppStateManager {
         let finalTasks = gatheredTasks
         await MainActor.run {
             self.allTasks = finalTasks
+            self.tasksRevision &+= 1
             let newDownloadingCount = finalTasks.filter { $0.status == .downloading }.count
             if self.downloadingTaskBadgeCount != newDownloadingCount {
                 self.downloadingTaskBadgeCount = newDownloadingCount

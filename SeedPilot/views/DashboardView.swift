@@ -10,6 +10,7 @@ import UIKit
 
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var dashboardViewModel: DashboardViewModel
     @State private var hasSyncedModuleOrder = false
 
@@ -201,6 +202,23 @@ struct DashboardView: View {
             if !hasSyncedModuleOrder {
                 dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
                 hasSyncedModuleOrder = true
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else {
+                dashboardViewModel.stopAutoRefresh()
+                return
+            }
+
+            guard appStateManager.selectedTab == .dashboard else { return }
+
+            if needsGlobalStatsData {
+                dashboardViewModel.startAutoRefresh(
+                    serversProvider: { appStateManager.servers },
+                    tasksProvider: { appStateManager.allTasks }
+                )
+            } else {
+                dashboardViewModel.stopAutoRefresh()
             }
         }
     }

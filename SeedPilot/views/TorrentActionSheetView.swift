@@ -343,7 +343,7 @@ struct TorrentActionSheetView: View {
                 let categories = try await appStateManager.fetchTaskCategoryOptions(for: task)
                 await MainActor.run {
                     categoryOptions = categories
-                    selectedCategory = ""
+                    selectedCategory = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
                     showingCategorySelector = true
                 }
             } catch {

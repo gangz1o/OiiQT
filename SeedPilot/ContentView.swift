@@ -66,10 +66,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: rssRefreshInterval) {
+            guard scenePhase == .active else { return }
             // Restart timer when setting changes
             RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
         }
         .onChange(of: rssSources.count) {
+            guard scenePhase == .active else { return }
             // Restart timer when sources change
             if rssRefreshInterval > 0 {
                 RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
@@ -80,9 +82,18 @@ struct ContentView: View {
             RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
         }
         .onChange(of: scenePhase) {
-            if scenePhase == .active {
-                // Only check if overdue — do NOT restart the timer (would reset the countdown)
-                RSSMonitor.shared.checkIfOverdue(context: modelContext, appStateManager: appStateManager)
+            switch scenePhase {
+            case .active:
+                appStateManager.startAutoRefresh()
+                RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+            case .inactive, .background:
+                appStateManager.stopAutoRefresh()
+                RSSMonitor.shared.stopAutoRefresh()
+                dashboardViewModel.stopAutoRefresh()
+            @unknown default:
+                appStateManager.stopAutoRefresh()
+                RSSMonitor.shared.stopAutoRefresh()
+                dashboardViewModel.stopAutoRefresh()
             }
         }
     }

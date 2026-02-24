@@ -101,65 +101,97 @@ class QBittorrentClient: NSObject, TorrentClient {
             throw TorrentClientError.apiError("Fetch failed")
         }
 
-        let decoder = JSONDecoder()
+        let serverID = config.id
         do {
-            let qbTasks = try decoder.decode([QBTask].self, from: data)
+            return try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let decoder = JSONDecoder()
+                        let qbTasks = try decoder.decode([QBTask].self, from: data)
 
-            return qbTasks.map { task -> TorrentTask in
-                let progress = task.progress
-                let size = Int64(task.size)
-                let downloadSpeed = Int64(task.dlspeed)
-                let uploadSpeed = Int64(task.upspeed)
-                let seedingTime = TimeInterval(task.seeding_time ?? 0)
-                let numSeeds = task.num_seeds ?? 0
-                let totalSeeds = task.num_complete ?? 0
-                let numPeers = task.num_leechs ?? 0
-                let totalPeers = task.num_incomplete ?? 0
-                let ratio = task.ratio ?? 0.0
+                        func mapStatus(_ state: String) -> TorrentStatus {
+                            switch state {
+                            case "metaDL", "allocating", "downloading", "dl", "stalledDL":
+                                return .downloading
+                            case "uploading", "stalledUP", "forcedUP", "up":
+                                return .seeding
+                            case "pausedDL", "pausedUP", "paused":
+                                return .paused
+                            case "checkingDL", "checkingUP", "checkingResumeData", "moving":
+                                return .checking
+                            case "error", "missingFiles":
+                                return .error
+                            case "completed":
+                                return .completed
+                            case "queuedDL", "queuedUP":
+                                return .downloading
+                            default:
+                                return .paused
+                            }
+                        }
 
-                let displayText = TorrentTaskDisplayText.build(
-                    title: task.name,
-                    progress: progress,
-                    seedingTime: seedingTime,
-                    downloadSpeed: downloadSpeed,
-                    uploadSpeed: uploadSpeed,
-                    numPeers: numPeers,
-                    totalPeers: totalPeers,
-                    numSeeds: numSeeds,
-                    totalSeeds: totalSeeds,
-                    size: size,
-                    ratio: ratio
-                )
+                        let mapped = qbTasks.map { task -> TorrentTask in
+                            let progress = task.progress
+                            let size = Int64(task.size)
+                            let downloadSpeed = Int64(task.dlspeed)
+                            let uploadSpeed = Int64(task.upspeed)
+                            let seedingTime = TimeInterval(task.seeding_time ?? 0)
+                            let numSeeds = task.num_seeds ?? 0
+                            let totalSeeds = task.num_complete ?? 0
+                            let numPeers = task.num_leechs ?? 0
+                            let totalPeers = task.num_incomplete ?? 0
+                            let ratio = task.ratio ?? 0.0
 
-                return TorrentTask(
-                    hash: task.hash,
-                    name: task.name,
-                    progress: progress,
-                    size: size,
-                    downloadSpeed: downloadSpeed,
-                    uploadSpeed: uploadSpeed,
-                    remainingTime: task.eta == 8640000 ? -1 : TimeInterval(task.eta),
-                    status: mapStatus(state: task.state),
-                    serverID: config.id,
-                    tracker: task.tracker ?? "",
-                    savePath: task.save_path ?? "",
-                    category: task.category ?? "",
-                    tags: task.tags ?? "",
-                    downloaded: task.downloaded ?? 0,
-                    uploaded: task.uploaded ?? 0,
-                    isSequential: task.seq_dl,
-                    isFirstLastPiecePriority: task.f_l_piece_prio,
-                    completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil,
-                    seedingTime: seedingTime,
-                    addedTime: Date(timeIntervalSince1970: TimeInterval(task.added_on ?? 0)),
-                    resolutionBadge: ResolutionExtractor.extractBadge(from: task.name),
-                    displayText: displayText,
-                    numSeeds: numSeeds,
-                    totalSeeds: totalSeeds,
-                    numPeers: numPeers,
-                    totalPeers: totalPeers,
-                    ratio: ratio
-                )
+                            let displayText = TorrentTaskDisplayText.build(
+                                title: task.name,
+                                progress: progress,
+                                seedingTime: seedingTime,
+                                downloadSpeed: downloadSpeed,
+                                uploadSpeed: uploadSpeed,
+                                numPeers: numPeers,
+                                totalPeers: totalPeers,
+                                numSeeds: numSeeds,
+                                totalSeeds: totalSeeds,
+                                size: size,
+                                ratio: ratio
+                            )
+
+                            return TorrentTask(
+                                hash: task.hash,
+                                name: task.name,
+                                progress: progress,
+                                size: size,
+                                downloadSpeed: downloadSpeed,
+                                uploadSpeed: uploadSpeed,
+                                remainingTime: task.eta == 8640000 ? -1 : TimeInterval(task.eta),
+                                status: mapStatus(task.state),
+                                serverID: serverID,
+                                tracker: task.tracker ?? "",
+                                savePath: task.save_path ?? "",
+                                category: task.category ?? "",
+                                tags: task.tags ?? "",
+                                downloaded: task.downloaded ?? 0,
+                                uploaded: task.uploaded ?? 0,
+                                isSequential: task.seq_dl,
+                                isFirstLastPiecePriority: task.f_l_piece_prio,
+                                completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil,
+                                seedingTime: seedingTime,
+                                addedTime: Date(timeIntervalSince1970: TimeInterval(task.added_on ?? 0)),
+                                resolutionBadge: ResolutionExtractor.extractBadge(from: task.name),
+                                displayText: displayText,
+                                numSeeds: numSeeds,
+                                totalSeeds: totalSeeds,
+                                numPeers: numPeers,
+                                totalPeers: totalPeers,
+                                ratio: ratio
+                            )
+                        }
+
+                        continuation.resume(returning: mapped)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
             }
         } catch {
             print("Decoding error: \(error)")

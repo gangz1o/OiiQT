@@ -20,8 +20,10 @@ final class StoreManager: ObservableObject {
     @Published var isLifetime = false
     @Published var expirationDate: Date?
     @Published var lastPurchaseSucceeded = false
+    @Published private(set) var isSubscriptionStatusLoading = false
 
     private var updatesTask: Task<Void, Never>?
+    private var subscriptionStatusLoadingDepth = 0
 
     private init() {
         updatesTask = startTransactionListener()
@@ -36,6 +38,9 @@ final class StoreManager: ObservableObject {
     }
 
     func fetchProducts() async {
+        beginSubscriptionStatusLoading()
+        defer { endSubscriptionStatusLoading() }
+
         do {
             let fetched = try await Product.products(for: productIDs)
             let order = Dictionary(uniqueKeysWithValues: productIDs.enumerated().map { ($1, $0) })
@@ -73,6 +78,9 @@ final class StoreManager: ObservableObject {
     }
 
     func restorePurchases() async {
+        beginSubscriptionStatusLoading()
+        defer { endSubscriptionStatusLoading() }
+
         do {
             try await AppStore.sync()
             await updateCustomerProductStatus()
@@ -82,6 +90,9 @@ final class StoreManager: ObservableObject {
     }
 
     func updateCustomerProductStatus() async {
+        beginSubscriptionStatusLoading()
+        defer { endSubscriptionStatusLoading() }
+
         // Rebuild the entire entitlement state from current valid transactions.
         purchasedProductIDs = []
         isProUser = false
@@ -171,6 +182,16 @@ final class StoreManager: ObservableObject {
         if wasICloudSyncEnabled {
             iCloudSyncManager.shared.setSyncEnabled(false)
         }
+    }
+
+    private func beginSubscriptionStatusLoading() {
+        subscriptionStatusLoadingDepth += 1
+        isSubscriptionStatusLoading = true
+    }
+
+    private func endSubscriptionStatusLoading() {
+        subscriptionStatusLoadingDepth = max(0, subscriptionStatusLoadingDepth - 1)
+        isSubscriptionStatusLoading = subscriptionStatusLoadingDepth > 0
     }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {

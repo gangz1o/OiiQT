@@ -29,6 +29,8 @@ final class TrackerAliasManager: ObservableObject {
     }
 
     func getAlias(for tracker: String) -> String {
+        guard defaults.bool(forKey: "isProUser") else { return tracker }
+
         let normalized = normalizeTrackerDomain(tracker)
         guard !normalized.isEmpty else { return tracker }
         let alias = aliasMap[normalized]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

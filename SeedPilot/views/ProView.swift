@@ -379,7 +379,7 @@ struct ProView: View {
 
     private var pricingSection: some View {
         VStack(spacing: 16) {
-            if storeManager.products.isEmpty {
+            if storeManager.isSubscriptionStatusLoading && storeManager.products.isEmpty {
                 HStack(spacing: 8) {
                     ProgressView()
                     Text(LanguageManager.shared.localized("Verifying subscription status..."))

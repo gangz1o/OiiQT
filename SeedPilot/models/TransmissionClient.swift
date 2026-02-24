@@ -78,8 +78,7 @@ class TransmissionClient: NSObject, TorrentClient {
                     throw TorrentClientError.apiError("Transmission API Error: \(response)")
                 }
 
-                let decoder = JSONDecoder()
-                let rpcResponse = try decoder.decode(TransmissionRPCResponse<T>.self, from: data)
+                let rpcResponse = try await decodeOnBackground(TransmissionRPCResponse<T>.self, from: data)
 
                 if rpcResponse.result != "success" {
                     throw TorrentClientError.apiError("Transmission RPC Error: \(rpcResponse.result)")
@@ -166,6 +165,7 @@ class TransmissionClient: NSObject, TorrentClient {
         ]
 
         let args = try await performRequest("torrent-get", arguments: ["fields": fields], responseType: TorrentGet.self)
+        let serverID = config.id
 
         func normalizedTrackerURL(_ raw: String) -> String {
             if URL(string: raw) != nil {
@@ -191,62 +191,88 @@ class TransmissionClient: NSObject, TorrentClient {
             return ""
         }
 
-        return args.torrents.map { item in
-            let trackerURL = pickTrackerURL(primary: item.tracker, trackers: item.trackers)
-            let progress = item.percentDone
-            let size = item.totalSize
-            let downloadSpeed = item.rateDownload
-            let uploadSpeed = item.rateUpload
-            let seedingTime = TimeInterval(item.secondsSeeding ?? 0)
-            let numSeeds = 0
-            let totalSeeds = 0
-            let numPeers = item.peersConnected
-            let totalPeers = 0
-            let ratio = item.uploadRatio
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                func normalizeLabels(_ labels: [String]) -> [String] {
+                    Array(
+                        Set(
+                            labels.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                .filter { !$0.isEmpty }
+                        )
+                    )
+                    .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+                }
 
-            let displayText = TorrentTaskDisplayText.build(
-                title: item.name,
-                progress: progress,
-                seedingTime: seedingTime,
-                downloadSpeed: downloadSpeed,
-                uploadSpeed: uploadSpeed,
-                numPeers: numPeers,
-                totalPeers: totalPeers,
-                numSeeds: numSeeds,
-                totalSeeds: totalSeeds,
-                size: size,
-                ratio: ratio
-            )
+                func mapStatus(_ status: Int) -> TorrentStatus {
+                    switch status {
+                    case 0: return .paused
+                    case 1, 2: return .checking
+                    case 3, 4: return .downloading
+                    case 5, 6: return .seeding
+                    default: return .error
+                    }
+                }
 
-            return TorrentTask(
-                hash: item.hashString,
-                name: item.name,
-                progress: progress,
-                size: size,
-                downloadSpeed: downloadSpeed,
-                uploadSpeed: uploadSpeed,
-                remainingTime: TimeInterval(item.eta),
-                status: mapStatus(item.status),
-                serverID: config.id,
-                tracker: trackerURL,
-                savePath: item.downloadDir,
-                category: "",
-                tags: normalizeTags(item.labels ?? []).joined(separator: ","),
-                downloaded: item.downloadedEver,
-                uploaded: item.uploadedEver,
-                isSequential: nil,
-                isFirstLastPiecePriority: nil,
-                completionDate: nil,
-                seedingTime: seedingTime,
-                addedTime: item.addedDate.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast,
-                resolutionBadge: ResolutionExtractor.extractBadge(from: item.name),
-                displayText: displayText,
-                numSeeds: numSeeds, // Need to parse 'peers' detailed or 'trackerStats' for seeds.
-                totalSeeds: totalSeeds,
-                numPeers: numPeers,
-                totalPeers: totalPeers,
-                ratio: ratio
-            )
+                let mapped = args.torrents.map { item in
+                    let trackerURL = pickTrackerURL(primary: item.tracker, trackers: item.trackers)
+                    let progress = item.percentDone
+                    let size = item.totalSize
+                    let downloadSpeed = item.rateDownload
+                    let uploadSpeed = item.rateUpload
+                    let seedingTime = TimeInterval(item.secondsSeeding ?? 0)
+                    let numSeeds = 0
+                    let totalSeeds = 0
+                    let numPeers = item.peersConnected
+                    let totalPeers = 0
+                    let ratio = item.uploadRatio
+
+                    let displayText = TorrentTaskDisplayText.build(
+                        title: item.name,
+                        progress: progress,
+                        seedingTime: seedingTime,
+                        downloadSpeed: downloadSpeed,
+                        uploadSpeed: uploadSpeed,
+                        numPeers: numPeers,
+                        totalPeers: totalPeers,
+                        numSeeds: numSeeds,
+                        totalSeeds: totalSeeds,
+                        size: size,
+                        ratio: ratio
+                    )
+
+                    return TorrentTask(
+                        hash: item.hashString,
+                        name: item.name,
+                        progress: progress,
+                        size: size,
+                        downloadSpeed: downloadSpeed,
+                        uploadSpeed: uploadSpeed,
+                        remainingTime: TimeInterval(item.eta),
+                        status: mapStatus(item.status),
+                        serverID: serverID,
+                        tracker: trackerURL,
+                        savePath: item.downloadDir,
+                        category: "",
+                        tags: normalizeLabels(item.labels ?? []).joined(separator: ","),
+                        downloaded: item.downloadedEver,
+                        uploaded: item.uploadedEver,
+                        isSequential: nil,
+                        isFirstLastPiecePriority: nil,
+                        completionDate: nil,
+                        seedingTime: seedingTime,
+                        addedTime: item.addedDate.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast,
+                        resolutionBadge: ResolutionExtractor.extractBadge(from: item.name),
+                        displayText: displayText,
+                        numSeeds: numSeeds,
+                        totalSeeds: totalSeeds,
+                        numPeers: numPeers,
+                        totalPeers: totalPeers,
+                        ratio: ratio
+                    )
+                }
+
+                continuation.resume(returning: mapped)
+            }
         }
     }
 
@@ -344,6 +370,18 @@ class TransmissionClient: NSObject, TorrentClient {
         case 3, 4: return .downloading
         case 5, 6: return .seeding
         default: return .error
+        }
+    }
+
+    private func decodeOnBackground<T: Decodable>(_ type: T.Type, from data: Data) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    continuation.resume(returning: try JSONDecoder().decode(T.self, from: data))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
 }

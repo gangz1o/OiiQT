@@ -15,8 +15,14 @@ struct TransfersView: View {
 
     @Environment(\.editMode) private var editMode
     @State private var searchText = ""
+    @State private var debouncedSearchText = ""
     @State private var selectedTaskHashes = Set<String>()
     @State private var hasAttemptedInitialLoad = false
+    @State private var filteredTasks: [TorrentTask] = []
+    @State private var uniqueTrackersCache: [String] = [Self.allTrackersToken]
+    @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var filterComputationTask: Task<Void, Never>?
+    @State private var trackerListComputationTask: Task<Void, Never>?
 
     // 状态筛选
     @State private var selectedStatus: TaskStatusFilter = .all
@@ -36,57 +42,10 @@ struct TransfersView: View {
     @State private var selectedTorrentForAction: TorrentTask?
     @State private var selectedTorrentPosterURL: URL?
 
-    // 筛选后的任务列表
-    var filteredTasks: [TorrentTask] {
-        guard isTransfersTabActive else { return [] }
-
-        var tasks = appStateManager.displayedTasks
-
-        // 1. Status Filter
-        if selectedStatus != .all {
-            tasks = tasks.filter { selectedStatus.matches($0) }
-        }
-
-        // 2. Search Text
-        if !searchText.isEmpty {
-            tasks = tasks.filter { task in
-                task.name.localizedCaseInsensitiveContains(searchText) ||
-                task.trackerHost.localizedCaseInsensitiveContains(searchText)
-            }
-        }
-
-        // 3. Tracker Filter
-        if selectedTracker != Self.allTrackersToken {
-            tasks = tasks.filter { $0.trackerHost == selectedTracker }
-        }
-
-        // 4. Sort
-        return tasks.sorted { t1, t2 in
-            var result: Bool
-            switch sortOption {
-            case .dateAdded:
-                result = t1.addedTime < t2.addedTime
-            case .name:
-                result = t1.name.localizedStandardCompare(t2.name) == .orderedAscending
-            case .downloadSpeed:
-                result = t1.downloadSpeed < t2.downloadSpeed
-            case .uploadSpeed:
-                result = t1.uploadSpeed < t2.uploadSpeed
-            case .size:
-                result = t1.size < t2.size
-            case .progress:
-                 result = t1.progress < t2.progress
-            }
-            return sortAscending ? result : !result
-        }
-    }
-
     // Helper to extract unique trackers
     var uniqueTrackers: [String] {
         guard isTransfersTabActive else { return [Self.allTrackersToken] }
-        let hosts = appStateManager.allTasks.map { $0.trackerHost }
-        let unique = Set(hosts)
-        return [Self.allTrackersToken] + unique.sorted()
+        return uniqueTrackersCache
     }
 
     private var navigationTitle: String {
@@ -213,7 +172,6 @@ struct TransfersView: View {
                         .refreshable {
                             await appStateManager.refreshData()
                         }
-                        .animation(.spring(), value: filteredTasks) // Animate reordering
                     }
                 }
 
@@ -350,6 +308,9 @@ struct TransfersView: View {
             .onAppear {
                 applyGlobalAggregationSafetyFallbackIfNeeded()
                 triggerInitialLoadIfNeeded()
+                debouncedSearchText = searchText
+                scheduleFilteredTasksRecompute()
+                scheduleUniqueTrackersRecompute()
             }
             .onChange(of: enableGlobalTaskAggregation) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
@@ -360,9 +321,42 @@ struct TransfersView: View {
             .onChange(of: appStateManager.servers.count) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
             }
+            .onChange(of: appStateManager.tasksRevision) { _, _ in
+                scheduleFilteredTasksRecompute()
+                scheduleUniqueTrackersRecompute()
+            }
+            .onChange(of: appStateManager.activeServerId) { _, _ in
+                scheduleFilteredTasksRecompute()
+            }
             .onChange(of: appStateManager.selectedTab) { _, newValue in
-                guard newValue == .transfers else { return }
-                triggerInitialLoadIfNeeded()
+                if newValue == .transfers {
+                    triggerInitialLoadIfNeeded()
+                }
+                scheduleFilteredTasksRecompute()
+                scheduleUniqueTrackersRecompute()
+            }
+            .onChange(of: selectedStatus) { _, _ in
+                scheduleFilteredTasksRecompute()
+            }
+            .onChange(of: sortOption) { _, _ in
+                scheduleFilteredTasksRecompute()
+            }
+            .onChange(of: sortAscending) { _, _ in
+                scheduleFilteredTasksRecompute()
+            }
+            .onChange(of: selectedTracker) { _, _ in
+                scheduleFilteredTasksRecompute()
+            }
+            .onChange(of: searchText) { _, _ in
+                scheduleSearchDebounce()
+            }
+            .onChange(of: debouncedSearchText) { _, _ in
+                scheduleFilteredTasksRecompute()
+            }
+            .onDisappear {
+                searchDebounceTask?.cancel()
+                filterComputationTask?.cancel()
+                trackerListComputationTask?.cancel()
             }
             .sheet(isPresented: $showingAddMagnet) {
                 AddTorrentView()
@@ -411,6 +405,138 @@ struct TransfersView: View {
         hasAttemptedInitialLoad = true
         Task {
             await appStateManager.refreshData()
+        }
+    }
+
+    private func scheduleSearchDebounce() {
+        searchDebounceTask?.cancel()
+
+        if searchText.isEmpty {
+            debouncedSearchText = ""
+            return
+        }
+
+        let nextValue = searchText
+        searchDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                debouncedSearchText = nextValue
+            }
+        }
+    }
+
+    private func scheduleFilteredTasksRecompute() {
+        filterComputationTask?.cancel()
+
+        let sourceTasks = isTransfersTabActive ? appStateManager.displayedTasks : []
+        let status = selectedStatus
+        let search = debouncedSearchText
+        let tracker = selectedTracker
+        let sort = sortOption
+        let ascending = sortAscending
+
+        filterComputationTask = Task {
+            let computed = await Self.computeFilteredTasksOnBackground(
+                sourceTasks: sourceTasks,
+                selectedStatus: status,
+                searchText: search,
+                selectedTracker: tracker,
+                allTrackersToken: Self.allTrackersToken,
+                sortOption: sort,
+                sortAscending: ascending
+            )
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                filteredTasks = computed
+            }
+        }
+    }
+
+    private func scheduleUniqueTrackersRecompute() {
+        trackerListComputationTask?.cancel()
+
+        guard isTransfersTabActive else {
+            uniqueTrackersCache = [Self.allTrackersToken]
+            return
+        }
+
+        let sourceTasks = appStateManager.allTasks
+
+        trackerListComputationTask = Task {
+            let computed = await Self.computeUniqueTrackersOnBackground(
+                sourceTasks: sourceTasks,
+                allTrackersToken: Self.allTrackersToken
+            )
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                uniqueTrackersCache = computed
+            }
+        }
+    }
+
+    private static func computeFilteredTasksOnBackground(
+        sourceTasks: [TorrentTask],
+        selectedStatus: TaskStatusFilter,
+        searchText: String,
+        selectedTracker: String,
+        allTrackersToken: String,
+        sortOption: SortOption,
+        sortAscending: Bool
+    ) async -> [TorrentTask] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var tasks = sourceTasks
+
+                if selectedStatus != .all {
+                    tasks = tasks.filter { selectedStatus.matches($0) }
+                }
+
+                if !searchText.isEmpty {
+                    tasks = tasks.filter { task in
+                        task.name.localizedCaseInsensitiveContains(searchText) ||
+                        task.trackerHost.localizedCaseInsensitiveContains(searchText)
+                    }
+                }
+
+                if selectedTracker != allTrackersToken {
+                    tasks = tasks.filter { $0.trackerHost == selectedTracker }
+                }
+
+                let sorted = tasks.sorted { t1, t2 in
+                    let result: Bool
+                    switch sortOption {
+                    case .dateAdded:
+                        result = t1.addedTime < t2.addedTime
+                    case .name:
+                        result = t1.name.localizedStandardCompare(t2.name) == .orderedAscending
+                    case .downloadSpeed:
+                        result = t1.downloadSpeed < t2.downloadSpeed
+                    case .uploadSpeed:
+                        result = t1.uploadSpeed < t2.uploadSpeed
+                    case .size:
+                        result = t1.size < t2.size
+                    case .progress:
+                        result = t1.progress < t2.progress
+                    }
+                    return sortAscending ? result : !result
+                }
+
+                continuation.resume(returning: sorted)
+            }
+        }
+    }
+
+    private static func computeUniqueTrackersOnBackground(
+        sourceTasks: [TorrentTask],
+        allTrackersToken: String
+    ) async -> [String] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let hosts = sourceTasks.map(\.trackerHost)
+                let unique = Set(hosts)
+                continuation.resume(returning: [allTrackersToken] + unique.sorted())
+            }
         }
     }
 
