@@ -12,6 +12,7 @@ struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @ObservedObject private var storeManager = StoreManager.shared
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
+    @AppStorage("recentSearches") private var recentSearchesData: Data = Data()
 
     @Environment(\.editMode) private var editMode
     @State private var searchText = ""
@@ -196,9 +197,40 @@ struct TransfersView: View {
                         placement: .navigationBarDrawer(displayMode: .always),
                         prompt: LanguageManager.shared.localized("Search Torrents or Trackers")
                     )
+                    .searchSuggestions {
+                        if searchText.isEmpty {
+                            ForEach(recentSearches, id: \.self) { term in
+                                Label(term, systemImage: "clock.arrow.circlepath")
+                                    .searchCompletion(term)
+                            }
+                        }
+                    }
+                    .onSubmit(of: .search) {
+                        saveSearchTerm(searchText)
+                    }
                     .toolbar { transfersToolbarContent }
             }
         )
+    }
+
+    // MARK: - Search History
+
+    private var recentSearches: [String] {
+        guard let decoded = try? JSONDecoder().decode([String].self, from: recentSearchesData) else {
+            return []
+        }
+        return decoded
+    }
+
+    private func saveSearchTerm(_ term: String) {
+        let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var history = recentSearches.filter { $0 != trimmed }
+        history.insert(trimmed, at: 0)
+        if history.count > 3 { history = Array(history.prefix(3)) }
+        if let encoded = try? JSONEncoder().encode(history) {
+            recentSearchesData = encoded
+        }
     }
 
     // MARK: - Helper Methods
@@ -541,6 +573,7 @@ struct TransfersView: View {
         let tracker = selectedTracker
         let sort = sortOption
         let ascending = sortAscending
+        let aliasMapSnapshot = TrackerAliasManager.shared.aliasMap
 
         shouldHintOverlayLoadingForCurrentFilterPass = showOverlayHint
         isFilteringTasks = true
@@ -553,7 +586,8 @@ struct TransfersView: View {
                 selectedTracker: tracker,
                 allTrackersToken: Self.allTrackersToken,
                 sortOption: sort,
-                sortAscending: ascending
+                sortAscending: ascending,
+                aliasMap: aliasMapSnapshot
             )
             guard !Task.isCancelled else { return }
             await MainActor.run {
@@ -614,7 +648,8 @@ struct TransfersView: View {
         selectedTracker: String,
         allTrackersToken: String,
         sortOption: SortOption,
-        sortAscending: Bool
+        sortAscending: Bool,
+        aliasMap: [String: String] = [:]
     ) async -> [TorrentTask] {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -626,8 +661,12 @@ struct TransfersView: View {
 
                 if !searchText.isEmpty {
                     tasks = tasks.filter { task in
-                        task.name.localizedCaseInsensitiveContains(searchText) ||
-                        task.trackerHost.localizedCaseInsensitiveContains(searchText)
+                        if task.name.localizedCaseInsensitiveContains(searchText) ||
+                           task.trackerHost.localizedCaseInsensitiveContains(searchText) {
+                            return true
+                        }
+                        let alias = aliasMap[task.trackerHost.lowercased()] ?? ""
+                        return !alias.isEmpty && alias.localizedCaseInsensitiveContains(searchText)
                     }
                 }
 

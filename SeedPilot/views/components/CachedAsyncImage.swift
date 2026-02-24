@@ -29,6 +29,7 @@ struct SimpleCachedImage: View {
             KFImage(url)
                 .placeholder { SeedPilotPlaceholder() }
                 .cacheOriginalImage()
+                .loadDiskFileSynchronously()
                 .fade(duration: 0.2)
                 .cancelOnDisappear(true)
                 .resizable()
