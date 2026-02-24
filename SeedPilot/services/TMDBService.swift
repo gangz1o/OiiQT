@@ -33,6 +33,9 @@ class TMDBService {
     }
 
     private var apiKeyToUse: String {
+        guard UserDefaults.standard.bool(forKey: "isProUser") else {
+            return builtInAPIKey
+        }
         let customKey = (UserDefaults.standard.string(forKey: "customTMDBApiKey") ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return customKey.isEmpty ? builtInAPIKey : customKey

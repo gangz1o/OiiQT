@@ -37,6 +37,7 @@ struct SettingsView: View {
     @State private var showingTermsSheet = false
     @State private var showingProRequiredDialog = false
     @State private var showingProPaywallSheet = false
+    @State private var showingTMDBAPIKeySettings = false
     @State private var showingTrackerAliasList = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
@@ -52,13 +53,15 @@ struct SettingsView: View {
     }()
 
     private var tmdbAPIKeyStatusText: String {
-        customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard isProUser else { return LanguageManager.shared.localized("Pro Required") }
+        return customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? LanguageManager.shared.localized("Recommended")
             : LanguageManager.shared.localized("Configured")
     }
 
     private var tmdbAPIKeyStatusColor: Color {
-        customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .orange : .secondary
+        guard isProUser else { return .secondary }
+        return customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .orange : .secondary
     }
 
     var body: some View {
@@ -195,18 +198,29 @@ struct SettingsView: View {
                     Toggle(isOn: tmdbProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
                     }
-                    NavigationLink {
-                        TMDBAPIKeySettingsView()
+                    Button {
+                        guardProAccess {
+                            showingTMDBAPIKeySettings = true
+                        }
                     } label: {
                         HStack {
                             SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
                             Spacer()
-                            Text(tmdbAPIKeyStatusText)
-                                .font(.footnote.weight(.medium))
-                                .foregroundStyle(tmdbAPIKeyStatusColor)
-                                .lineLimit(1)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                if isProUser && customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Image(systemName: "hand.thumbsup.fill")
+                                }
+                                Text(tmdbAPIKeyStatusText)
+                            }
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(tmdbAPIKeyStatusColor)
+                            .lineLimit(1)
+                            Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
                     }
+                    .buttonStyle(.plain)
                     Toggle(isOn: globalTaskAggregationProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
                     }
@@ -291,6 +305,9 @@ struct SettingsView: View {
             }
             .navigationDestination(isPresented: $showingTrackerAliasList) {
                 TrackerAliasListView()
+            }
+            .navigationDestination(isPresented: $showingTMDBAPIKeySettings) {
+                TMDBAPIKeySettingsView()
             }
             .onAppear {
                 if !hasPerformedInitialLoad {

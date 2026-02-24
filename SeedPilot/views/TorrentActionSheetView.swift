@@ -27,6 +27,8 @@ struct TorrentActionSheetView: View {
     @State private var selectedTags: Set<String> = []
     @State private var taxonomyErrorMessage = ""
     @State private var showingTaxonomyError = false
+    @State private var displayPosterURL: URL?
+    @State private var isAutoMatching = false
 
     private var presetSavePaths: [String] {
         PresetSavePathsCodec.decode(presetSavePathsRaw)
@@ -146,15 +148,42 @@ struct TorrentActionSheetView: View {
                     }
 
                     Button {
-                        TMDBService.shared.clearPosterMatch(for: task.hash, context: modelContext)
-                        onPosterChanged()
+                        guard !isAutoMatching else { return }
+                        isAutoMatching = true
+                        Task {
+                            defer { isAutoMatching = false }
+                            TMDBService.shared.clearPosterMatch(for: task.hash, context: modelContext)
+                            let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                            if let newURL {
+                                displayPosterURL = newURL
+                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            } else {
+                                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                            }
+                            onPosterChanged()
+                        }
                     } label: {
-                        sheetMenuRow(
-                            title: languageManager.localized("Rematch Poster"),
-                            systemImage: "arrow.triangle.2.circlepath"
-                        )
+                        HStack(spacing: 12) {
+                            if isAutoMatching {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .imageScale(.medium)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(languageManager.localized("Rematch Poster"))
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .disabled(isAutoMatching)
 
                     Button {
                         showingManualMatchSheet = true
@@ -221,7 +250,14 @@ struct TorrentActionSheetView: View {
             ManualMatchView(taskName: task.name, taskHash: task.hash)
                 .presentationDetents([.medium, .large])
                 .onDisappear {
-                    onPosterChanged()
+                    Task {
+                        let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                        if let newURL {
+                            displayPosterURL = newURL
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
+                        onPosterChanged()
+                    }
                 }
         }
         .sheet(isPresented: $showingCategorySelector) {
@@ -256,8 +292,8 @@ struct TorrentActionSheetView: View {
     private var header: some View {
         VStack(spacing: 10) {
             Group {
-                if let posterURL {
-                    SimpleCachedImage(url: posterURL)
+                if let url = displayPosterURL {
+                    SimpleCachedImage(url: url)
                         .aspectRatio(contentMode: .fill)
                 } else {
                     RoundedRectangle(cornerRadius: 10)
@@ -284,6 +320,22 @@ struct TorrentActionSheetView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .onAppear {
+            displayPosterURL = posterURL
+            if displayPosterURL == nil {
+                Task {
+                    let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                    if let newURL = newURL {
+                        displayPosterURL = newURL
+                    }
+                }
+            }
+        }
+        .onChange(of: posterURL) { _, newURL in
+            if let newURL = newURL, displayPosterURL == nil {
+                displayPosterURL = newURL
+            }
+        }
     }
 
     private var quickActions: some View {

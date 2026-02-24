@@ -89,38 +89,50 @@ struct ManualMatchView: View {
 
     // MARK: - Components
 
+    @FocusState private var isSearchFocused: Bool
+
     private var searchBar: some View {
-        HStack {
-            HStack {
+        HStack(spacing: 12) {
+            // Inner Capsule
+            HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
+                
                 TextField(LanguageManager.shared.localized("Search movies or series..."), text: $searchText)
+                    .focused($isSearchFocused)
+                    .submitLabel(.search)
                     .onSubmit {
                         performSearch()
                     }
-                    .submitLabel(.search)
-
+                
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "multiply.circle.fill")
                             .foregroundStyle(.secondary)
                     }
                 }
             }
-            .padding(10)
-            .background(Color(.systemGray6))
+            .padding(8)
+            .background(Color(uiColor: .systemGray6))
             .cornerRadius(10)
 
+            // External Button
             Button(LanguageManager.shared.localized("Search")) {
                 performSearch()
             }
-            .padding(.leading, 8)
+            .font(.system(.body, design: .default, weight: .semibold))
+            .foregroundStyle(.tint) // Usually blue in iOS
             .disabled(searchText.isEmpty)
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
+        .onAppear {
+            if !searchText.isEmpty {
+                isSearchFocused = true
+            }
+        }
     }
 
     // MARK: - Actions
