@@ -1327,6 +1327,23 @@
         }
       }
     },
+    "Configured" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configured"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配置"
+          }
+        }
+      }
+    },
     "Confirm" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1442,6 +1459,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前 Transmission 服务器不支持全局标签目录 API。"
+          }
+        }
+      }
+    },
+    "Currently using built-in default service." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently using built-in default service."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前使用内置默认服务。"
+          }
+        }
+      }
+    },
+    "Custom API Key configured." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom API Key configured."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配置自定义 API Key。"
+          }
+        }
+      }
+    },
+    "Custom TMDB API Key (Optional)" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom TMDB API Key (Optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义TMDB API Key（可选）"
           }
         }
       }
@@ -2568,6 +2636,23 @@
         }
       }
     },
+    "How to Get TMDB API Key" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Get TMDB API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如何获取 TMDB API Key"
+          }
+        }
+      }
+    },
     "http://..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2734,6 +2819,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近同步：%1$@"
+          }
+        }
+      }
+    },
+    "Leave blank to use the built-in default service. Configure your own key to significantly improve poster loading stability and speed." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave blank to use the built-in default service. Configure your own key to significantly improve poster loading stability and speed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空则使用内置默认服务。配置专属 Key 可显著提升海报加载的稳定性与速度。"
           }
         }
       }
@@ -4427,6 +4529,23 @@
         }
       }
     },
+    "Recommended" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐"
+          }
+        }
+      }
+    },
     "Recommended / Save 50%" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4440,6 +4559,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最推荐 / 省 50%"
+          }
+        }
+      }
+    },
+    "Recommended: Use your own TMDB API Key for a more stable and faster poster loading experience." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommended: Use your own TMDB API Key for a more stable and faster poster loading experience."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐：使用专属 TMDB API Key，可获得更稳定、更快速的海报加载体验。"
           }
         }
       }
@@ -6359,6 +6495,23 @@
         }
       }
     },
+    "TMDB API Key" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDB API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDB API Key"
+          }
+        }
+      }
+    },
     "TMDB Poster Data" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6867,6 +7020,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 HTTPS"
+          }
+        }
+      }
+    },
+    "Use your own TMDB API Key to avoid potential rate limits of the shared service as the user base grows." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use your own TMDB API Key to avoid potential rate limits of the shared service as the user base grows."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随着用户量增长，共享服务可能触发限流。建议配置专属 TMDB API Key 以获得更稳定体验。"
           }
         }
       }

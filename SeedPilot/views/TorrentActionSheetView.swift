@@ -7,6 +7,7 @@ struct TorrentActionSheetView: View {
     let onPosterChanged: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
     @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
 
@@ -145,6 +146,7 @@ struct TorrentActionSheetView: View {
                     }
 
                     Button {
+                        TMDBService.shared.clearPosterMatch(for: task.hash, context: modelContext)
                         onPosterChanged()
                     } label: {
                         sheetMenuRow(

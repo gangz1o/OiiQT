@@ -179,6 +179,13 @@ struct TorrentRowView: View {
         .task(id: "\(task.name)-\(languageManager.selectedLanguage.rawValue)") {
             await refreshPosterAsync()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .tmdbPosterDidChange)) { notification in
+            guard let changedHash = notification.userInfo?["hash"] as? String else { return }
+            guard changedHash == task.hash else { return }
+            Task {
+                await refreshPosterAsync()
+            }
+        }
     }
 
     private func refreshPosterAsync() async {

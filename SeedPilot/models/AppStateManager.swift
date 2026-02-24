@@ -30,6 +30,7 @@ class AppStateManager {
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
     var tasksRevision: Int = 0
+    var isRefreshingTasks: Bool = false
     var hasInitialDataLoaded: Bool = false
     var downloadingTaskBadgeCount: Int = 0
 
@@ -47,6 +48,7 @@ class AppStateManager {
     private var lastKnownServerStatus: [UUID: Bool] = [:]
     private var serverStatusFailureStreak: [UUID: Int] = [:]
     private var autoRefreshTask: Task<Void, Never>?
+    private var refreshDataInFlightCount: Int = 0
 
     // MARK: - Computed Properties
 
@@ -140,6 +142,17 @@ class AppStateManager {
 
     /// 刷新所有服务器的任务 (对应 User Request: refreshData)
     func refreshData() async {
+        await MainActor.run {
+            refreshDataInFlightCount += 1
+            isRefreshingTasks = true
+        }
+        defer {
+            Task { @MainActor in
+                self.refreshDataInFlightCount = max(0, self.refreshDataInFlightCount - 1)
+                self.isRefreshingTasks = self.refreshDataInFlightCount > 0
+            }
+        }
+
         var gatheredTasks: [TorrentTask] = []
 
         // Parallel fetching could be done with TaskGroup, but for now serial is safer for debug

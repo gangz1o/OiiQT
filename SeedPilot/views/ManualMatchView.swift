@@ -158,8 +158,8 @@ struct ManualMatchView: View {
     }
 
     private func saveSelection(_ item: TMDBItem) {
-        guard let path = item.posterPath else { return }
-        TMDBService.shared.saveOverride(hash: taskHash, posterPath: path, context: modelContext)
+        guard item.posterPath != nil else { return }
+        TMDBService.shared.saveOverride(hash: taskHash, item: item, context: modelContext)
         dismiss()
     }
 }

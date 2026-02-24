@@ -20,9 +20,13 @@ struct TransfersView: View {
     @State private var hasAttemptedInitialLoad = false
     @State private var filteredTasks: [TorrentTask] = []
     @State private var uniqueTrackersCache: [String] = [Self.allTrackersToken]
+    @State private var isFilteringTasks = false
+    @State private var shouldHintOverlayLoadingForCurrentFilterPass = false
+    @State private var isOverlayLoadingVisible = false
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var filterComputationTask: Task<Void, Never>?
     @State private var trackerListComputationTask: Task<Void, Never>?
+    @State private var overlayLoadingDelayTask: Task<Void, Never>?
 
     // 状态筛选
     @State private var selectedStatus: TaskStatusFilter = .all
@@ -79,238 +83,86 @@ struct TransfersView: View {
         appStateManager.selectedTab == .transfers
     }
 
+    private var shouldShowTasksLoadingState: Bool {
+        guard isTransfersTabActive else { return false }
+        guard filteredTasks.isEmpty else { return false }
+        if !appStateManager.hasInitialDataLoaded && !appStateManager.servers.isEmpty {
+            return true
+        }
+        return appStateManager.isRefreshingTasks || isFilteringTasks
+    }
+
+    private var shouldRequestOverlayTasksLoadingState: Bool {
+        guard isTransfersTabActive else { return false }
+        guard !filteredTasks.isEmpty else { return false }
+        guard shouldHintOverlayLoadingForCurrentFilterPass else { return false }
+        return isFilteringTasks
+    }
+
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    // 0. 服务器状态栏 (Pinned Top)
-                    ServerStatusBar(appStateManager: appStateManager)
-                        .background(Color(uiColor: .systemBackground))
+        transfersPresentedView
+    }
 
-                    // 0.5. Quick Filter Bar (Capsule) - Hide when editing
-                    if !isEditing {
-                        QuickFilterBar(selectedStatus: $selectedStatus)
-                            .padding(.bottom, 8) // Spacing from list
-                            .background(Color(uiColor: .systemBackground))
-                            .overlay(
-                                Rectangle()
-                                    .frame(height: 0.5)
-                                    .foregroundColor(Color(uiColor: .separator)),
-                                alignment: .bottom
-                            )
-                    }
-
-                    // 1. 任务列表
-                    if filteredTasks.isEmpty {
-                        if !searchText.isEmpty {
-                             ContentUnavailableView.search(text: searchText)
-                        } else {
-                            ContentUnavailableView(
-                                LanguageManager.shared.localized("No Tasks"),
-                                systemImage: "tray",
-                                description: Text(LanguageManager.shared.localized("No tasks match the current filters"))
-                            )
-                        }
-                    } else {
-                        List {
-                            ForEach(filteredTasks) { task in
-                                TorrentRowView(
-                                    task: task,
-                                    isSelected: selectedTaskHashes.contains(task.id),
-                                    isEditing: isEditing,
-                                    toggleSelection: {
-                                        toggleSelection(for: task.id)
-                                    },
-                                    onShowActionSheet: { selectedTask, posterURL in
-                                        selectedTorrentPosterURL = posterURL
-                                        selectedTorrentForAction = selectedTask
-                                    },
-                                    appStateManager: appStateManager
-                                )
-                                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    if !isEditing {
-                                        Button(role: .destructive) {
-                                            appStateManager.deleteTask(task, withData: true)
-                                        } label: {
-                                            Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
-                                        }
-                                    }
-                                }
-                                .swipeActions(edge: .leading) {
-                                    if !isEditing {
-                                        if task.status == .paused {
-                                            Button {
-                                                appStateManager.resumeTask(task)
-                                            } label: {
-                                                Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
-                                            }
-                                            .tint(.green)
-                                        } else {
-                                            Button {
-                                                appStateManager.pauseTask(task)
-                                            } label: {
-                                                Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
-                                            }
-                                            .tint(.orange)
-                                        }
-                                    }
-                                }
-                                .background {
-                                    if !isEditing {
-                                        NavigationLink(destination: TorrentDetailView(task: task, appStateManager: appStateManager)) {
-                                            EmptyView()
-                                        }
-                                        .opacity(0)
-                                    }
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .refreshable {
-                            await appStateManager.refreshData()
-                        }
-                    }
-                }
-
-                // 3. Batch Action Panel - Only show when editing
-                if isEditing && !selectedTaskHashes.isEmpty {
-                     BatchActionPanel(
-                        selectedTaskHashes: $selectedTaskHashes,
-                        isEditing: Binding(
-                            get: { editMode?.wrappedValue == .active },
-                            set: { if !$0 { editMode?.wrappedValue = .inactive } }
+    private var transfersPresentedView: some View {
+        transfersLifecycleBoundView
+            .sheet(isPresented: $showingAddMagnet) {
+                AddTorrentView()
+            }
+            .sheet(item: $selectedTorrentForAction) { selectedTask in
+                TorrentActionSheetView(
+                    task: selectedTask,
+                    posterURL: selectedTorrentPosterURL,
+                    appStateManager: appStateManager,
+                    onPosterChanged: {
+                        TMDBService.shared.clearCache(for: selectedTask.hash)
+                        NotificationCenter.default.post(
+                            name: .tmdbPosterDidChange,
+                            object: nil,
+                            userInfo: ["hash": selectedTask.hash]
                         )
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 0)
-                    .zIndex(2)
-                }
-
-                // FAB (Floating Action Button) for Adding Task
-                if !isEditing {
-                    Button {
-                        showingAddMagnet = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                            .shadow(radius: 4, x: 0, y: 2)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: LanguageManager.shared.localized("Search Torrents or Trackers")
-            )
-            .toolbar {
-                // Leading: Server Menu OR Select All
-                ToolbarItem(placement: .topBarLeading) {
-                    if isEditing {
-                        Button {
-                            if selectedTaskHashes.count == filteredTasks.count {
-                                selectedTaskHashes.removeAll()
-                            } else {
-                                selectedTaskHashes = Set(filteredTasks.map { $0.id })
-                            }
-                        } label: {
-                            Text(
-                                selectedTaskHashes.count == filteredTasks.count
-                                ? LanguageManager.shared.localized("Deselect All")
-                                : LanguageManager.shared.localized("Select All")
-                            )
-                        }
-                    } else {
-                        Menu {
-                            if canUseGlobalTaskAggregation {
-                                Button {
-                                    withAnimation(.spring()) {
-                                        appStateManager.activeServerId = nil
-                                    }
-                                } label: {
-                                    Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
-                                }
-                            }
+    }
 
-                            ForEach(appStateManager.servers) { server in
-                                Button {
-                                    withAnimation(.spring()) {
-                                        appStateManager.activeServerId = server.id
-                                    }
-                                } label: {
-                                    HStack {
-                                        ServerBrandIcon(type: server.type, size: 20)
-                                        Text(server.name)
-                                        Spacer()
-                                        if server.isOnline == true {
-                                            Image(systemName: "circle.fill").foregroundStyle(.green)
-                                        } else {
-                                            Image(systemName: "circle.fill").foregroundStyle(.red)
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            // Header Brand Indicator
-                            ServerBrandIcon(type: appStateManager.activeServerType, size: 22)
-                        }
-                    }
-                }
-
-                // Trailing: Add + Filter + Edit/Done
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
-                        // Unified Sort & Filter Menu
-                         if !isEditing {
-                            FilterMenuView(
-                                sortOption: $sortOption,
-                                sortAscending: $sortAscending,
-                                selectedTracker: $selectedTracker,
-                                uniqueTrackers: uniqueTrackers,
-                                isFilterActive: isFilterActive,
-                                allTrackersToken: Self.allTrackersToken
-                            )
-                        }
-
-                         if isEditing {
-                            Button(LanguageManager.shared.localized("Done")) {
-                                withAnimation {
-                                    editMode?.wrappedValue = .inactive
-                                    selectedTaskHashes.removeAll()
-                                }
-                            }
-                            .bold()
-                        } else {
-                             Button {
-                                withAnimation {
-                                    editMode?.wrappedValue = .active
-                                }
-                            } label: {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 17, weight: .semibold))
-                            }
-                        }
-                    }
-                }
+    private var transfersLifecycleBoundView: some View {
+        transfersLifecycleBoundViewPart1
+            .onChange(of: selectedStatus) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
+            .onChange(of: sortOption) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: sortAscending) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: selectedTracker) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: searchText) { _, _ in
+                scheduleSearchDebounce()
+            }
+            .onChange(of: debouncedSearchText) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: isFilteringTasks) { _, _ in
+                syncOverlayLoadingVisibility()
+            }
+            .onChange(of: filteredTasks.count) { _, _ in
+                syncOverlayLoadingVisibility()
+            }
+            .onDisappear {
+                handleTransfersViewDisappear()
+            }
+    }
+
+    private var transfersLifecycleBoundViewPart1: some View {
+        transfersNavigationBase
             .background(Color(uiColor: .systemGroupedBackground))
             .onAppear {
-                applyGlobalAggregationSafetyFallbackIfNeeded()
-                triggerInitialLoadIfNeeded()
-                debouncedSearchText = searchText
-                scheduleFilteredTasksRecompute()
-                scheduleUniqueTrackersRecompute()
+                handleTransfersViewAppear()
             }
             .onChange(of: enableGlobalTaskAggregation) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
@@ -326,54 +178,27 @@ struct TransfersView: View {
                 scheduleUniqueTrackersRecompute()
             }
             .onChange(of: appStateManager.activeServerId) { _, _ in
-                scheduleFilteredTasksRecompute()
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: appStateManager.selectedTab) { _, newValue in
-                if newValue == .transfers {
-                    triggerInitialLoadIfNeeded()
-                }
-                scheduleFilteredTasksRecompute()
-                scheduleUniqueTrackersRecompute()
+                handleSelectedTabChanged(newValue)
             }
-            .onChange(of: selectedStatus) { _, _ in
-                scheduleFilteredTasksRecompute()
+    }
+
+    private var transfersNavigationBase: some View {
+        AnyView(
+            NavigationStack {
+                transfersRootContent
+                    .navigationTitle(navigationTitle)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .searchable(
+                        text: $searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: LanguageManager.shared.localized("Search Torrents or Trackers")
+                    )
+                    .toolbar { transfersToolbarContent }
             }
-            .onChange(of: sortOption) { _, _ in
-                scheduleFilteredTasksRecompute()
-            }
-            .onChange(of: sortAscending) { _, _ in
-                scheduleFilteredTasksRecompute()
-            }
-            .onChange(of: selectedTracker) { _, _ in
-                scheduleFilteredTasksRecompute()
-            }
-            .onChange(of: searchText) { _, _ in
-                scheduleSearchDebounce()
-            }
-            .onChange(of: debouncedSearchText) { _, _ in
-                scheduleFilteredTasksRecompute()
-            }
-            .onDisappear {
-                searchDebounceTask?.cancel()
-                filterComputationTask?.cancel()
-                trackerListComputationTask?.cancel()
-            }
-            .sheet(isPresented: $showingAddMagnet) {
-                AddTorrentView()
-            }
-            .sheet(item: $selectedTorrentForAction) { selectedTask in
-                TorrentActionSheetView(
-                    task: selectedTask,
-                    posterURL: selectedTorrentPosterURL,
-                    appStateManager: appStateManager,
-                    onPosterChanged: {
-                        TMDBService.shared.clearCache(for: selectedTask.hash)
-                    }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
-        }
+        )
     }
 
     // MARK: - Helper Methods
@@ -386,11 +211,292 @@ struct TransfersView: View {
         }
     }
 
+    private func handleTransfersViewAppear() {
+        applyGlobalAggregationSafetyFallbackIfNeeded()
+        triggerInitialLoadIfNeeded()
+        debouncedSearchText = searchText
+        scheduleFilteredTasksRecompute()
+        scheduleUniqueTrackersRecompute()
+        syncOverlayLoadingVisibility()
+    }
+
+    private func handleSelectedTabChanged(_ newValue: AppTab) {
+        if newValue == .transfers {
+            triggerInitialLoadIfNeeded()
+        }
+        scheduleFilteredTasksRecompute(showOverlayHint: newValue == .transfers)
+        scheduleUniqueTrackersRecompute()
+        syncOverlayLoadingVisibility()
+    }
+
+    private func handleTransfersViewDisappear() {
+        searchDebounceTask?.cancel()
+        filterComputationTask?.cancel()
+        trackerListComputationTask?.cancel()
+        overlayLoadingDelayTask?.cancel()
+        isFilteringTasks = false
+        shouldHintOverlayLoadingForCurrentFilterPass = false
+        isOverlayLoadingVisible = false
+    }
+
     private func applyGlobalAggregationSafetyFallbackIfNeeded() {
         guard !canUseGlobalTaskAggregation else { return }
         guard appStateManager.activeServerId == nil else { return }
         guard let firstServerID = appStateManager.servers.first?.id else { return }
         appStateManager.activeServerId = firstServerID
+    }
+
+    private var transfersRootContent: some View {
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                // 0. 服务器状态栏 (Pinned Top)
+                ServerStatusBar(appStateManager: appStateManager)
+                    .background(Color(uiColor: .systemBackground))
+
+                // 0.5. Quick Filter Bar (Capsule) - Hide when editing
+                if !isEditing {
+                    QuickFilterBar(selectedStatus: $selectedStatus)
+                        .padding(.bottom, 8)
+                        .background(Color(uiColor: .systemBackground))
+                        .overlay(
+                            Rectangle()
+                                .frame(height: 0.5)
+                                .foregroundColor(Color(uiColor: .separator)),
+                            alignment: .bottom
+                        )
+                }
+
+                // 1. 任务列表
+                tasksListSection
+            }
+
+            if isEditing && !selectedTaskHashes.isEmpty {
+                 BatchActionPanel(
+                    selectedTaskHashes: $selectedTaskHashes,
+                    isEditing: Binding(
+                        get: { editMode?.wrappedValue == .active },
+                        set: { if !$0 { editMode?.wrappedValue = .inactive } }
+                    )
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 0)
+                .zIndex(2)
+            }
+
+            if !isEditing {
+                Button {
+                    showingAddMagnet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                        .shadow(radius: 4, x: 0, y: 2)
+                }
+                .padding(.trailing, 20)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var transfersToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            if isEditing {
+                Button {
+                    if selectedTaskHashes.count == filteredTasks.count {
+                        selectedTaskHashes.removeAll()
+                    } else {
+                        selectedTaskHashes = Set(filteredTasks.map { $0.id })
+                    }
+                } label: {
+                    Text(
+                        selectedTaskHashes.count == filteredTasks.count
+                        ? LanguageManager.shared.localized("Deselect All")
+                        : LanguageManager.shared.localized("Select All")
+                    )
+                }
+            } else {
+                Menu {
+                    if canUseGlobalTaskAggregation {
+                        Button {
+                            appStateManager.activeServerId = nil
+                        } label: {
+                            Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
+                        }
+                    }
+
+                    ForEach(appStateManager.servers) { server in
+                        Button {
+                            appStateManager.activeServerId = server.id
+                        } label: {
+                            HStack {
+                                ServerBrandIcon(type: server.type, size: 20)
+                                Text(server.name)
+                                Spacer()
+                                if server.isOnline == true {
+                                    Image(systemName: "circle.fill").foregroundStyle(.green)
+                                } else {
+                                    Image(systemName: "circle.fill").foregroundStyle(.red)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    ServerBrandIcon(type: appStateManager.activeServerType, size: 22)
+                }
+            }
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            HStack(spacing: 16) {
+                if !isEditing {
+                    FilterMenuView(
+                        sortOption: $sortOption,
+                        sortAscending: $sortAscending,
+                        selectedTracker: $selectedTracker,
+                        uniqueTrackers: uniqueTrackers,
+                        isFilterActive: isFilterActive,
+                        allTrackersToken: Self.allTrackersToken
+                    )
+                }
+
+                if isEditing {
+                    Button(LanguageManager.shared.localized("Done")) {
+                        withAnimation {
+                            editMode?.wrappedValue = .inactive
+                            selectedTaskHashes.removeAll()
+                        }
+                    }
+                    .bold()
+                } else {
+                    Button {
+                        withAnimation {
+                            editMode?.wrappedValue = .active
+                        }
+                    } label: {
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tasksListSection: some View {
+        if shouldShowTasksLoadingState {
+            VStack(spacing: 10) {
+                Spacer()
+                ProgressView()
+                Text(LanguageManager.shared.localized("Loading..."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(uiColor: .systemGroupedBackground))
+        } else if filteredTasks.isEmpty {
+            if !searchText.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                ContentUnavailableView(
+                    LanguageManager.shared.localized("No Tasks"),
+                    systemImage: "tray",
+                    description: Text(LanguageManager.shared.localized("No tasks match the current filters"))
+                )
+            }
+        } else {
+            List {
+                ForEach(filteredTasks) { task in
+                    taskRowCell(task)
+                }
+            }
+            .listStyle(.plain)
+            .refreshable {
+                await appStateManager.refreshData()
+            }
+            .overlay(alignment: .top) {
+                tasksInlineLoadingOverlay
+            }
+        }
+    }
+
+    private func taskRowCell(_ task: TorrentTask) -> some View {
+        TorrentRowView(
+            task: task,
+            isSelected: selectedTaskHashes.contains(task.id),
+            isEditing: isEditing,
+            toggleSelection: {
+                toggleSelection(for: task.id)
+            },
+            onShowActionSheet: { selectedTask, posterURL in
+                selectedTorrentPosterURL = posterURL
+                selectedTorrentForAction = selectedTask
+            },
+            appStateManager: appStateManager
+        )
+        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if !isEditing {
+                Button(role: .destructive) {
+                    appStateManager.deleteTask(task, withData: true)
+                } label: {
+                    Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
+                }
+            }
+        }
+        .swipeActions(edge: .leading) {
+            if !isEditing {
+                if task.status == .paused {
+                    Button {
+                        appStateManager.resumeTask(task)
+                    } label: {
+                        Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
+                    }
+                    .tint(.green)
+                } else {
+                    Button {
+                        appStateManager.pauseTask(task)
+                    } label: {
+                        Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
+                    }
+                    .tint(.orange)
+                }
+            }
+        }
+        .background {
+            if !isEditing {
+                NavigationLink(destination: TorrentDetailView(task: task, appStateManager: appStateManager)) {
+                    EmptyView()
+                }
+                .opacity(0)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tasksInlineLoadingOverlay: some View {
+        if isOverlayLoadingVisible {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(LanguageManager.shared.localized("Loading..."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 2)
+            .padding(.top, 10)
+            .allowsHitTesting(false)
+        }
     }
 
     private func triggerInitialLoadIfNeeded() {
@@ -426,7 +532,7 @@ struct TransfersView: View {
         }
     }
 
-    private func scheduleFilteredTasksRecompute() {
+    private func scheduleFilteredTasksRecompute(showOverlayHint: Bool = false) {
         filterComputationTask?.cancel()
 
         let sourceTasks = isTransfersTabActive ? appStateManager.displayedTasks : []
@@ -435,6 +541,9 @@ struct TransfersView: View {
         let tracker = selectedTracker
         let sort = sortOption
         let ascending = sortAscending
+
+        shouldHintOverlayLoadingForCurrentFilterPass = showOverlayHint
+        isFilteringTasks = true
 
         filterComputationTask = Task {
             let computed = await Self.computeFilteredTasksOnBackground(
@@ -449,6 +558,29 @@ struct TransfersView: View {
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 filteredTasks = computed
+                isFilteringTasks = false
+                shouldHintOverlayLoadingForCurrentFilterPass = false
+            }
+        }
+    }
+
+    private func syncOverlayLoadingVisibility() {
+        overlayLoadingDelayTask?.cancel()
+
+        guard shouldRequestOverlayTasksLoadingState else {
+            isOverlayLoadingVisible = false
+            return
+        }
+
+        guard !isOverlayLoadingVisible else { return }
+
+        overlayLoadingDelayTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                if self.shouldRequestOverlayTasksLoadingState {
+                    self.isOverlayLoadingVisible = true
+                }
             }
         }
     }

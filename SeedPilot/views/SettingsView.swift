@@ -25,6 +25,7 @@ struct SettingsView: View {
     // Pro 功能
     @AppStorage("isProUser") private var isProUser: Bool = false
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
+    @AppStorage("customTMDBApiKey") private var customTMDBApiKey: String = ""
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
@@ -49,6 +50,16 @@ struct SettingsView: View {
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter
     }()
+
+    private var tmdbAPIKeyStatusText: String {
+        customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? LanguageManager.shared.localized("Recommended")
+            : LanguageManager.shared.localized("Configured")
+    }
+
+    private var tmdbAPIKeyStatusColor: Color {
+        customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .orange : .secondary
+    }
 
     var body: some View {
         NavigationStack(path: $settingsPath) {
@@ -183,6 +194,18 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: tmdbProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
+                    }
+                    NavigationLink {
+                        TMDBAPIKeySettingsView()
+                    } label: {
+                        HStack {
+                            SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
+                            Spacer()
+                            Text(tmdbAPIKeyStatusText)
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(tmdbAPIKeyStatusColor)
+                                .lineLimit(1)
+                        }
                     }
                     Toggle(isOn: globalTaskAggregationProBinding) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
@@ -980,6 +1003,79 @@ private struct SettingsIconBadge: View {
                 .stroke(.white.opacity(0.22), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+    }
+}
+
+private struct TMDBAPIKeySettingsView: View {
+    @ObservedObject private var languageManager = LanguageManager.shared
+    @AppStorage("customTMDBApiKey") private var customTMDBApiKey: String = ""
+
+    private let tutorialURL = URL(string: "https://www.ugnas.com/tutorial-detail/id-226.html")!
+
+    private var isUsingDefaultKey: Bool {
+        customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        SettingsIconBadge(systemName: "key.fill", tint: .indigo)
+                        SecureField(
+                            languageManager.localized("Custom TMDB API Key (Optional)"),
+                            text: $customTMDBApiKey
+                        )
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.password)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                        Text(languageManager.localized("Recommended: Use your own TMDB API Key for a more stable and faster poster loading experience."))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if isUsingDefaultKey {
+                        Text(languageManager.localized("Currently using built-in default service."))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(languageManager.localized("Custom API Key configured."))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Text(languageManager.localized("TMDB API Key"))
+            }
+
+            Section {
+                Link(destination: tutorialURL) {
+                    HStack {
+                        SettingsRowLabel(
+                            title: languageManager.localized("How to Get TMDB API Key"),
+                            systemName: "book.fill",
+                            tint: .blue
+                        )
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            } footer: {
+                Text(languageManager.localized("Use your own TMDB API Key to avoid potential rate limits of the shared service as the user base grows."))
+            }
+        }
+        .navigationTitle(languageManager.localized("TMDB API Key"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
