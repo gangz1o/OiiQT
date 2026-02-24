@@ -53,7 +53,7 @@ struct SettingsView: View {
     }()
 
     private var tmdbAPIKeyStatusText: String {
-        guard isProUser else { return LanguageManager.shared.localized("Pro Required") }
+        guard isProUser else { return "" }
         return customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? LanguageManager.shared.localized("Recommended")
             : LanguageManager.shared.localized("Configured")
@@ -206,15 +206,17 @@ struct SettingsView: View {
                         HStack {
                             SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
                             Spacer()
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                if isProUser && customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Image(systemName: "hand.thumbsup.fill")
+                            if isProUser {
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Image(systemName: "hand.thumbsup.fill")
+                                    }
+                                    Text(tmdbAPIKeyStatusText)
                                 }
-                                Text(tmdbAPIKeyStatusText)
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(tmdbAPIKeyStatusColor)
+                                .lineLimit(1)
                             }
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(tmdbAPIKeyStatusColor)
-                            .lineLimit(1)
                             Image(systemName: isProUser ? "chevron.right" : "lock.fill")
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.tertiary)
