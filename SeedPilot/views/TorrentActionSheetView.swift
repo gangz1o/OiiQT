@@ -10,6 +10,7 @@ struct TorrentActionSheetView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
     @AppStorage("presetSavePaths") private var presetSavePathsRaw: String = "[]"
+    @AppStorage("showTMDBData") private var showTMDBData: Bool = false
 
     @State private var showingRenameAlert = false
     @State private var newName = ""
@@ -121,9 +122,7 @@ struct TorrentActionSheetView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                }
 
-                Section {
                     Button {
                         newTrackers = task.tracker
                         showingTrackersAlert = true
@@ -147,54 +146,57 @@ struct TorrentActionSheetView: View {
                         Text(languageManager.localized("Please enter Tracker URL. For multiple URLs, try comma separation if supported by your server."))
                     }
 
-                    Button {
-                        guard !isAutoMatching else { return }
-                        isAutoMatching = true
-                        Task {
-                            defer { isAutoMatching = false }
-                            TMDBService.shared.clearPosterMatch(for: task.hash, context: modelContext)
-                            let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
-                            if let newURL {
-                                displayPosterURL = newURL
-                                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                            } else {
-                                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    if showTMDBData {
+                        Button {
+                            guard !isAutoMatching else { return }
+                            isAutoMatching = true
+                            Task {
+                                defer { isAutoMatching = false }
+                                TMDBService.shared.clearPosterMatch(for: task.hash, context: modelContext)
+                                let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                                if let newURL {
+                                    displayPosterURL = newURL
+                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                } else {
+                                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                                }
+                                onPosterChanged()
                             }
-                            onPosterChanged()
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            if isAutoMatching {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .imageScale(.medium)
-                                    .foregroundStyle(.secondary)
+                        } label: {
+                            HStack(spacing: 12) {
+                                if isAutoMatching {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .imageScale(.medium)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(languageManager.localized("Rematch Poster"))
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
                             }
-                            Text(languageManager.localized("Rematch Poster"))
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isAutoMatching)
+                        .buttonStyle(.plain)
+                        .disabled(isAutoMatching)
 
-                    Button {
-                        showingManualMatchSheet = true
-                    } label: {
-                        sheetMenuRow(
-                            title: languageManager.localized("Manual Match Poster"),
-                            systemImage: "photo.badge.plus"
-                        )
+                        Button {
+                            showingManualMatchSheet = true
+                        } label: {
+                            sheetMenuRow(
+                                title: languageManager.localized("Manual Match Poster"),
+                                systemImage: "photo.badge.plus"
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground))
 
                 Section {
                     Button(role: .destructive) {
@@ -213,12 +215,13 @@ struct TorrentActionSheetView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground))
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(Color(uiColor: .systemBackground))
         .confirmationDialog(languageManager.localized("Confirm Deletion"), isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
             Button(languageManager.localized("Delete Task (Keep Data)"), role: .destructive) {
                 appStateManager.deleteTask(task, withData: false)
@@ -246,7 +249,12 @@ struct TorrentActionSheetView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showingManualMatchSheet) {
+        .sheet(
+            isPresented: Binding(
+                get: { showTMDBData && showingManualMatchSheet },
+                set: { showingManualMatchSheet = $0 }
+            )
+        ) {
             ManualMatchView(taskName: task.name, taskHash: task.hash)
                 .presentationDetents([.medium, .large])
                 .onDisappear {
@@ -291,21 +299,23 @@ struct TorrentActionSheetView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Group {
-                if let url = displayPosterURL {
-                    SimpleCachedImage(url: url)
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(uiColor: .tertiarySystemFill))
-                        .overlay {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
-                        }
+            if showTMDBData {
+                Group {
+                    if let url = displayPosterURL {
+                        SimpleCachedImage(url: url)
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(uiColor: .tertiarySystemFill))
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
                 }
+                .frame(width: 68, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .frame(width: 68, height: 96)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             Text(task.name)
                 .font(.headline)
@@ -321,6 +331,11 @@ struct TorrentActionSheetView: View {
         }
         .frame(maxWidth: .infinity)
         .onAppear {
+            guard showTMDBData else {
+                displayPosterURL = nil
+                return
+            }
+
             displayPosterURL = posterURL
             if displayPosterURL == nil {
                 Task {
@@ -332,8 +347,17 @@ struct TorrentActionSheetView: View {
             }
         }
         .onChange(of: posterURL) { _, newURL in
+            guard showTMDBData else { return }
             if let newURL = newURL, displayPosterURL == nil {
                 displayPosterURL = newURL
+            }
+        }
+        .onChange(of: showTMDBData) { _, isEnabled in
+            if !isEnabled {
+                displayPosterURL = nil
+                showingManualMatchSheet = false
+            } else if let posterURL {
+                displayPosterURL = posterURL
             }
         }
     }
