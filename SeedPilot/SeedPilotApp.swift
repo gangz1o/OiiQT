@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Kingfisher
 import UIKit
+import Combine
 
 @main
 struct SeedPilotApp: App {
@@ -91,6 +92,7 @@ struct SeedPilotApp: App {
 private struct AppRootView: View {
     @Binding var isAppReady: Bool
     @ObservedObject var dashboardViewModel: DashboardViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
     @State private var didStartBootstrap = false
@@ -109,6 +111,14 @@ private struct AppRootView: View {
         .task {
             await bootstrapIfNeeded()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            ServerConfigCloudSyncManager.shared.start(with: modelContext)
+            ServerConfigCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .serverConfigCloudSyncDidApply)) { _ in
+            appStateManager.loadServers(context: modelContext)
+        }
     }
 
     @MainActor
@@ -116,6 +126,10 @@ private struct AppRootView: View {
         guard !didStartBootstrap else { return }
         didStartBootstrap = true
 
+        appStateManager.loadServers(context: modelContext)
+        ServerCredentialStore.shared.migrateLegacyPasswords(in: modelContext)
+        ServerConfigCloudSyncManager.shared.start(with: modelContext)
+        ServerConfigCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
         appStateManager.loadServers(context: modelContext)
 
         Task { @MainActor in

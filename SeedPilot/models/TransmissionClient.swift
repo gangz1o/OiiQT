@@ -33,7 +33,7 @@ class TransmissionClient: NSObject, TorrentClient {
     }
 
     private func configureRequest(_ request: inout URLRequest) {
-        let authString = "\(config.username):\(config.password)"
+        let authString = "\(config.username):\(config.resolvedPassword)"
         if let authData = authString.data(using: .utf8) {
             let base64Auth = authData.base64EncodedString()
             request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")

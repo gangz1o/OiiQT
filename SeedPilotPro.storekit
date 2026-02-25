@@ -1,118 +1,100 @@
 {
-  "appPolicies" : {
-    "eula" : "",
-    "policies" : [
+  "appPolicies": {
+    "eula": "",
+    "policies": [
       {
-        "locale" : "en_US",
-        "policyText" : "",
-        "policyURL" : ""
+        "locale": "en_US",
+        "policyText": "",
+        "policyURL": ""
       }
     ]
   },
-  "identifier" : "1A77AC47",
-  "nonRenewingSubscriptions" : [
-
-  ],
-  "products" : [
+  "identifier": "1A77AC47",
+  "nonRenewingSubscriptions": [],
+  "products": [
     {
-      "displayPrice" : "69.00",
-      "familyShareable" : false,
-      "internalID" : "3F9EFC08",
-      "localizations" : [
+      "displayPrice": "69.00",
+      "familyShareable": false,
+      "internalID": "3F9EFC08",
+      "localizations": [
         {
-          "description" : "",
-          "displayName" : "",
-          "locale" : "en_US"
+          "description": "",
+          "displayName": "",
+          "locale": "en_US"
         }
       ],
-      "productID" : "com.seedpilot.pro.lifetime",
-      "referenceName" : "Lifetime Pro",
-      "type" : "NonConsumable"
+      "productID": "com.seedpilot.pro.lifetime",
+      "referenceName": "Lifetime Pro",
+      "type": "NonConsumable"
     }
   ],
-  "settings" : {
-    "_askToBuyEnabled" : false,
-    "_billingGracePeriodEnabled" : false,
-    "_billingIssuesEnabled" : false,
-    "_disableDialogs" : false,
-    "_failTransactionsEnabled" : false,
-    "_locale" : "zh_Hans",
-    "_renewalBillingIssuesEnabled" : false,
-    "_storefront" : "CHN",
-    "_storeKitErrors" : [
-
-    ],
-    "_timeRate" : 0
+  "settings": {
+    "_askToBuyEnabled": false,
+    "_billingGracePeriodEnabled": false,
+    "_billingIssuesEnabled": false,
+    "_disableDialogs": false,
+    "_failTransactionsEnabled": false,
+    "_locale": "zh_Hans",
+    "_renewalBillingIssuesEnabled": false,
+    "_storefront": "CHN",
+    "_storeKitErrors": [],
+    "_timeRate": 0
   },
-  "subscriptionGroups" : [
+  "subscriptionGroups": [
     {
-      "id" : "F54FAEEA",
-      "localizations" : [
-
-      ],
-      "name" : "SeedPilot Pro",
-      "subscriptions" : [
+      "id": "F54FAEEA",
+      "localizations": [],
+      "name": "SeedPilot Pro",
+      "subscriptions": [
         {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "72.00",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "38195B2C",
-          "introductoryOffer" : null,
-          "localizations" : [
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "96",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "38195B2C",
+          "introductoryOffer": null,
+          "localizations": [
             {
-              "description" : "",
-              "displayName" : "",
-              "locale" : "en_US"
+              "description": "",
+              "displayName": "",
+              "locale": "en_US"
             }
           ],
-          "productID" : "com.seedpilot.pro.yearly",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Yearly Pro",
-          "subscriptionGroupID" : "F54FAEEA",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
+          "productID": "com.seedpilot.yearly.pro",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Yearly Pro",
+          "subscriptionGroupID": "F54FAEEA",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
         },
         {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "6.00",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "C0018434",
-          "introductoryOffer" : null,
-          "localizations" : [
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "8",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "C0018434",
+          "introductoryOffer": null,
+          "localizations": [
             {
-              "description" : "",
-              "displayName" : "",
-              "locale" : "en_US"
+              "description": "",
+              "displayName": "",
+              "locale": "en_US"
             }
           ],
-          "productID" : "com.seedpilot.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Monthly Pro",
-          "subscriptionGroupID" : "F54FAEEA",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
+          "productID": "com.seedpilot.monthly.pro",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Monthly Pro",
+          "subscriptionGroupID": "F54FAEEA",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
         }
       ]
     }
   ],
-  "version" : {
-    "major" : 4,
-    "minor" : 0
+  "version": {
+    "major": 4,
+    "minor": 0
   }
 }

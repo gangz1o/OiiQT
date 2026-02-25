@@ -233,7 +233,7 @@ final class ServerRateLimitManager {
         var components = URLComponents()
         components.queryItems = [
             URLQueryItem(name: "username", value: server.username),
-            URLQueryItem(name: "password", value: server.password)
+            URLQueryItem(name: "password", value: server.resolvedPassword)
         ]
         let data = components.percentEncodedQuery?.data(using: .utf8)
 
@@ -402,7 +402,7 @@ final class ServerRateLimitManager {
         var request = URLRequest(url: rpcURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(basicAuthHeaderValue(username: server.username, password: server.password), forHTTPHeaderField: "Authorization")
+        request.setValue(basicAuthHeaderValue(username: server.username, password: server.resolvedPassword), forHTTPHeaderField: "Authorization")
         request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         if let sessionID {
             request.setValue(sessionID, forHTTPHeaderField: "X-Transmission-Session-Id")

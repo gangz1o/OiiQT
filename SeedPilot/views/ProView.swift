@@ -34,8 +34,8 @@ struct ProView: View {
 
     private let optionProductIDs = [
         "com.seedpilot.pro.lifetime",
-        "com.seedpilot.pro.yearly",
-        "com.seedpilot.pro.monthly"
+        "com.seedpilot.yearly.pro",
+        "com.seedpilot.monthly.pro"
     ]
 
     private let proFeatures: [ProFeature] = [
@@ -390,27 +390,23 @@ struct ProView: View {
                 .padding(.horizontal, 4)
             }
 
-            optionCard(
-                index: 0,
-                title: LanguageManager.shared.localized("Lifetime Purchase"),
-                subtitle: LanguageManager.shared.localized("Early bird special, pay once and unlock forever"),
-                price: priceText(for: optionProductIDs[0], fallback: "¥69.00"),
-                badge: LanguageManager.shared.localized("Limited Early Bird")
-            )
-
-            optionCard(
-                index: 1,
-                title: LanguageManager.shared.localized("Yearly Subscription"),
-                subtitle: LanguageManager.shared.localized("Equivalent to ¥6.00 / month"),
-                price: priceText(for: optionProductIDs[1], fallback: LanguageManager.shared.localized("¥72.00 / year"))
-            )
-
-            optionCard(
-                index: 2,
-                title: LanguageManager.shared.localized("Monthly Subscription"),
-                subtitle: nil,
-                price: priceText(for: optionProductIDs[2], fallback: LanguageManager.shared.localized("¥6.00 / month"))
-            )
+            if !orderedProducts.isEmpty {
+                ForEach(Array(orderedProducts.enumerated()), id: \.element.id) { index, product in
+                    optionCard(
+                        index: index,
+                        title: product.displayName,
+                        subtitle: subtitleText(for: product),
+                        price: product.displayPrice,
+                        badge: badgeText(for: product)
+                    )
+                }
+            } else if !storeManager.isSubscriptionStatusLoading {
+                Text(LanguageManager.shared.localized("Unable to load purchase options. Please check your network and try again."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
         }
         .padding(.horizontal, 16)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedOption)
@@ -560,13 +556,17 @@ struct ProView: View {
         .padding(.horizontal, 16)
     }
 
-    private var selectedProductID: String {
-        let safeIndex = min(max(selectedOption, 0), optionProductIDs.count - 1)
-        return optionProductIDs[safeIndex]
+    private var orderedProducts: [Product] {
+        let order = Dictionary(uniqueKeysWithValues: optionProductIDs.enumerated().map { ($1, $0) })
+        return storeManager.products.sorted { lhs, rhs in
+            (order[lhs.id] ?? Int.max) < (order[rhs.id] ?? Int.max)
+        }
     }
 
     private var selectedProduct: Product? {
-        storeManager.products.first { $0.id == selectedProductID }
+        guard !orderedProducts.isEmpty else { return nil }
+        let safeIndex = min(max(selectedOption, 0), orderedProducts.count - 1)
+        return orderedProducts[safeIndex]
     }
 
     private var heroSubtitleText: String {
@@ -604,8 +604,21 @@ struct ProView: View {
         return formatter.string(from: date)
     }
 
-    private func priceText(for productID: String, fallback: String) -> String {
-        storeManager.products.first(where: { $0.id == productID })?.displayPrice ?? fallback
+    private func subtitleText(for product: Product) -> String? {
+        switch product.id {
+        case "com.seedpilot.pro.lifetime":
+            return LanguageManager.shared.localized("Early bird special, pay once and unlock forever")
+        case "com.seedpilot.yearly.pro":
+            return LanguageManager.shared.localized("Equivalent to ¥6.00 / month")
+        default:
+            return nil
+        }
+    }
+
+    private func badgeText(for product: Product) -> String? {
+        product.id == "com.seedpilot.pro.lifetime"
+            ? LanguageManager.shared.localized("Limited Early Bird")
+            : nil
     }
 
     @MainActor

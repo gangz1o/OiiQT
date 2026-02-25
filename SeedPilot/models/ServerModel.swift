@@ -214,6 +214,26 @@ final class ServerConfig {
 }
 
 extension ServerConfig {
+    @Transient
+    var resolvedPassword: String {
+        let securePassword = ServerCredentialStore.shared.password(for: id) ?? ""
+        return securePassword.isEmpty ? password : securePassword
+    }
+
+    func setResolvedPassword(_ newPassword: String) {
+        ServerCredentialStore.shared.setPassword(newPassword, for: id)
+        if !password.isEmpty {
+            password = ""
+        }
+    }
+
+    func deleteResolvedPassword() {
+        ServerCredentialStore.shared.deletePassword(for: id)
+        if !password.isEmpty {
+            password = ""
+        }
+    }
+
     var statusColor: Color {
         switch isOnline {
         case true: return .green

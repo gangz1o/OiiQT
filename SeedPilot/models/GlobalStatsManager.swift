@@ -308,7 +308,7 @@ private struct GlobalStatsServerEndpoint: Sendable {
         self.address = server.address
         self.port = server.port
         self.username = server.username
-        self.password = server.password
+        self.password = server.resolvedPassword
         self.useHTTPS = server.useHTTPS
         self.allowInsecureSSL = server.allowInsecureSSL
         self.rpcPath = server.rpcPath

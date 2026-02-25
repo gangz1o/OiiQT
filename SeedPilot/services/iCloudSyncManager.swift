@@ -22,7 +22,9 @@ final class iCloudSyncManager {
     static let shared = iCloudSyncManager()
 
     let syncableKeys: [String] = [
+        "refreshRate",
         "rssRefreshInterval",
+        "fontSize",
         "localRssFeeds",
         "rssBackgroundFetchEnabled",
         "presetSavePaths",
@@ -36,6 +38,8 @@ final class iCloudSyncManager {
         "trackerAliases",
         "proDashboardBackgroundEnabled",
         "tmdbPosterDataEnabled",
+        "customTMDBApiKey",
+        "enableGlobalTaskAggregation",
         "appTheme",
         "appLanguage",
         "useHttpsDefault"
@@ -62,7 +66,7 @@ final class iCloudSyncManager {
         "showStorageAudit": [DashboardConfig.Keys.showStorageAudit],
         "showRecentTasks": [DashboardConfig.Keys.showRecentFinished],
         "trackerAliases": ["trackerAliasMappings"],
-        "tmdbPosterDataEnabled": ["showTMDBData"],
+        "tmdbPosterDataEnabled": ["showTMDBData", "tmdbPosterEnabled"],
         "appTheme": ["appearance"],
         "appLanguage": ["language"]
     ]

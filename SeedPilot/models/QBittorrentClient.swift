@@ -53,7 +53,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         // qBittorrent 登录是 application/x-www-form-urlencoded
-        let bodyString = "username=\(config.username)&password=\(config.password)"
+        let bodyString = "username=\(config.username)&password=\(config.resolvedPassword)"
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         // 设置 Referer 以防某些版本检查

@@ -279,7 +279,7 @@ struct EditServerView: View {
                     address = sanitizeAddressInput(server.address)
                     port = String(server.port)
                     username = server.username
-                    password = server.password
+                    password = server.resolvedPassword
                     allowInsecureSSL = server.allowInsecureSSL
                     rpcPath = defaultPathForEditing(server)
                 } else {
@@ -306,6 +306,7 @@ struct EditServerView: View {
             .alert(LanguageManager.shared.localized("Delete Server"), isPresented: $showingDeleteConfirmation) {
                 Button(LanguageManager.shared.localized("Delete"), role: .destructive) {
                     if let server = serverToEdit {
+                        server.deleteResolvedPassword()
                         modelContext.delete(server)
                     }
                     dismiss()
@@ -347,7 +348,7 @@ struct EditServerView: View {
             server.address = formattedAddress
             server.port = Int(port) ?? 8080
             server.username = username.trimmingCharacters(in: .whitespaces)
-            server.password = password
+            server.setResolvedPassword(password)
             server.useHTTPS = isHttps
             server.allowInsecureSSL = allowInsecureSSL
             server.rpcPath = normalizedPath
@@ -359,11 +360,12 @@ struct EditServerView: View {
                 address: formattedAddress,
                 port: Int(port) ?? 8080,
                 username: username.trimmingCharacters(in: .whitespaces),
-                password: password,
+                password: "",
                 useHTTPS: isHttps,
                 allowInsecureSSL: allowInsecureSSL,
                 rpcPath: normalizedPath
             )
+            config.setResolvedPassword(password)
             modelContext.insert(config)
         }
         dismiss()

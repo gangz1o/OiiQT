@@ -22,8 +22,16 @@ enum TrackerNameManager {
     ]
 
     nonisolated static func displayName(for rawTracker: String) -> String {
+        displayName(for: rawTracker, aliasMap: [:])
+    }
+
+    nonisolated static func displayName(for rawTracker: String, aliasMap: [String: String]) -> String {
         let host = normalizedHost(from: rawTracker)
         guard !host.isEmpty else { return "--" }
+
+        if let alias = aliasDisplayName(forHost: host, aliasMap: aliasMap) {
+            return alias
+        }
 
         if let preset = knownTrackerNames[host] {
             return preset
@@ -54,6 +62,17 @@ enum TrackerNameManager {
         }
 
         return stripPortIfNeeded(value.lowercased())
+    }
+
+    nonisolated private static func aliasDisplayName(
+        forHost host: String,
+        aliasMap: [String: String]
+    ) -> String? {
+        guard let alias = aliasMap[host]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !alias.isEmpty else {
+            return nil
+        }
+        return alias
     }
 
     nonisolated private static func stripPortIfNeeded(_ host: String) -> String {

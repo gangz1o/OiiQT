@@ -10,8 +10,8 @@ final class StoreManager: ObservableObject {
 
     let productIDs = [
         "com.seedpilot.pro.lifetime",
-        "com.seedpilot.pro.yearly",
-        "com.seedpilot.pro.monthly"
+        "com.seedpilot.yearly.pro",
+        "com.seedpilot.monthly.pro"
     ]
 
     @Published var products: [Product] = []
@@ -43,6 +43,15 @@ final class StoreManager: ObservableObject {
 
         do {
             let fetched = try await Product.products(for: productIDs)
+            if fetched.isEmpty {
+                print("ERROR StoreManager fetchProducts returned empty product list. Expected IDs: \(productIDs)")
+            } else {
+                let fetchedIDs = Set(fetched.map(\.id))
+                let missingIDs = productIDs.filter { !fetchedIDs.contains($0) }
+                if !missingIDs.isEmpty {
+                    print("ERROR StoreManager fetchProducts missing products for IDs: \(missingIDs). Fetched IDs: \(Array(fetchedIDs))")
+                }
+            }
             let order = Dictionary(uniqueKeysWithValues: productIDs.enumerated().map { ($1, $0) })
             products = fetched.sorted { lhs, rhs in
                 let leftOrder = order[lhs.id] ?? Int.max
@@ -54,7 +63,7 @@ final class StoreManager: ObservableObject {
             }
             await updateCustomerProductStatus()
         } catch {
-            print("StoreManager fetchProducts failed: \(error)")
+            print("ERROR StoreManager fetchProducts failed: \(error)")
         }
     }
 
@@ -147,6 +156,7 @@ final class StoreManager: ObservableObject {
         case .verified(let transaction):
             await transaction.finish()
         case .unverified:
+            print("ERROR StoreManager received unverified transaction update")
             break
         }
         await updateCustomerProductStatus()

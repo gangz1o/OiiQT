@@ -51,6 +51,7 @@ struct ServerListView: View {
                         }
 
                         Button(role: .destructive) {
+                            server.deleteResolvedPassword()
                             modelContext.delete(server)
                         } label: {
                             Label(LanguageManager.shared.localized("Delete Server"), systemImage: "trash")
@@ -95,10 +96,13 @@ struct ServerListView: View {
             }
         }
         .onAppear {
+            ServerConfigCloudSyncManager.shared.start(with: modelContext)
+            ServerConfigCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
             appStateManager.updateServers(servers)
             appStateManager.checkServerStatus()
         }
         .onChange(of: servers) { _, newServers in
+            ServerConfigCloudSyncManager.shared.handleLocalServerListChanged(newServers)
             appStateManager.updateServers(newServers)
             appStateManager.checkServerStatus()
         }

@@ -9,11 +9,13 @@
 /* Begin PBXBuildFile section */
 		319DE1DE2F437A6D00F45C11 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 5FAA00022F42000000000002 /* Kingfisher */; };
 		319DE3E12F49F3E100F45C11 /* SeedPilotPro.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 319DE3E02F49F3E100F45C11 /* SeedPilotPro.storekit */; };
+		5FC9981A2F4F3C8F00D1813D /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC998192F4F3C8F00D1813D /* StoreKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		319DE3E02F49F3E100F45C11 /* SeedPilotPro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SeedPilotPro.storekit; sourceTree = "<group>"; };
 		5F3638F42F3F5F1B00896C60 /* SeedPilot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SeedPilot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5FC998192F4F3C8F00D1813D /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -30,6 +32,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				319DE1DE2F437A6D00F45C11 /* Kingfisher in Frameworks */,
+				5FC9981A2F4F3C8F00D1813D /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,6 +44,7 @@
 			children = (
 				319DE3E02F49F3E100F45C11 /* SeedPilotPro.storekit */,
 				5F3638F62F3F5F1B00896C60 /* SeedPilot */,
+				5FC998182F4F3C8F00D1813D /* Frameworks */,
 				5F3638F52F3F5F1B00896C60 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -51,6 +55,14 @@
 				5F3638F42F3F5F1B00896C60 /* SeedPilot.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		5FC998182F4F3C8F00D1813D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5FC998192F4F3C8F00D1813D /* StoreKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -258,9 +270,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SeedPilot/SeedPilot.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = D8JJ8WT5DQ;
+				DEVELOPMENT_TEAM = 6YXB9ASQXU;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -280,7 +293,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gangz1o.SeedPilot;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gangz1o.seedpilot.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -302,9 +315,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SeedPilot/SeedPilot.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = D8JJ8WT5DQ;
+				DEVELOPMENT_TEAM = 6YXB9ASQXU;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -324,7 +338,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gangz1o.SeedPilot;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gangz1o.seedpilot.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;

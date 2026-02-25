@@ -114,15 +114,20 @@ final class DashboardViewModel: ObservableObject {
         let now = Date()
         let baselineSnapshot = Self.decodeTrackerBaselineSnapshot(from: trackerStatsBaselineSnapshotData)
         let rollingSnapshots = Self.decodeTrackerRollingSnapshots(from: trackerStatsRollingSnapshotsData)
+        let trackerAliasMapSnapshot: [String: String] = UserDefaults.standard.bool(forKey: "isProUser")
+            ? TrackerAliasManager.shared.aliasMap
+            : [:]
 
-        trackerStatsComputationTask = Task { [samples, dayStamp, now, baselineSnapshot, rollingSnapshots] in
+        trackerStatsComputationTask = Task {
+            [samples, dayStamp, now, baselineSnapshot, rollingSnapshots, trackerAliasMapSnapshot] in
             let result = await Task.detached(priority: .utility) {
                 DashboardViewModel.computeTrackerStats(
                     samples: samples,
                     dayStamp: dayStamp,
                     now: now,
                     baselineSnapshot: baselineSnapshot,
-                    rollingSnapshots: rollingSnapshots
+                    rollingSnapshots: rollingSnapshots,
+                    trackerAliasMap: trackerAliasMapSnapshot
                 )
             }.value
 
@@ -428,7 +433,8 @@ private extension DashboardViewModel {
         dayStamp: String,
         now: Date,
         baselineSnapshot: TrackerTransferBaselineSnapshot?,
-        rollingSnapshots: [TrackerTransferRollingSnapshot]
+        rollingSnapshots: [TrackerTransferRollingSnapshot],
+        trackerAliasMap: [String: String]
     ) -> TrackerTransferComputationResult {
         var currentTaskCounters: [String: TrackerTransferBaselineEntry] = [:]
         currentTaskCounters.reserveCapacity(max(samples.count, 8))
@@ -486,7 +492,7 @@ private extension DashboardViewModel {
             let downloadDelta = max(currentDownloaded - effectiveBaseline.downloaded, 0)
             guard uploadDelta > 0 || downloadDelta > 0 else { continue }
 
-            let trackerName = TrackerNameManager.displayName(for: sample.tracker)
+            let trackerName = TrackerNameManager.displayName(for: sample.tracker, aliasMap: trackerAliasMap)
             guard trackerName != "--" else { continue }
 
             var bucket = grouped[trackerName] ?? (0, 0)

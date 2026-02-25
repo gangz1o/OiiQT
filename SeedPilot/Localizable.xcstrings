@@ -2220,13 +2220,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equivalent to ¥6.00 / month"
+            "value" : "Equivalent to ¥8.00 / month"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "折合 ¥6.00 / 月"
+            "value" : "折合 ¥8.00 / 月"
           }
         }
       }

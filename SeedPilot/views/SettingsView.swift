@@ -11,6 +11,7 @@ import UIKit
 
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
     private let dashboardConfig = DashboardConfig.shared
 
@@ -268,20 +269,11 @@ struct SettingsView: View {
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.success)
                 iCloudSyncManager.shared.setSyncEnabled(isEnabled)
+                ServerConfigCloudSyncManager.shared.start(with: modelContext)
+                ServerConfigCloudSyncManager.shared.handleSyncToggleChanged(enabled: isEnabled)
             }
             .onReceive(NotificationCenter.default.publisher(for: .iCloudSyncStatusDidChange)) { _ in
                 iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
-            }
-            .alert(
-                LanguageManager.shared.localized("Pro Required"),
-                isPresented: $showingProRequiredDialog,
-            ) {
-                Button(LanguageManager.shared.localized("Upgrade to SeedPilot Pro")) {
-                    showingProPaywallSheet = true
-                }
-                Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
-            } message: {
-                Text(LanguageManager.shared.localized("This feature requires SeedPilot Pro."))
             }
             .sheet(isPresented: $showingPrivacyPolicySheet) {
                 PrivacyPolicySheetView()
@@ -289,10 +281,21 @@ struct SettingsView: View {
             .sheet(isPresented: $showingTermsSheet) {
                 TermsOfServiceSheetView()
             }
-            .sheet(isPresented: $showingProPaywallSheet) {
-                NavigationStack {
-                    ProView()
-                }
+        }
+        .alert(
+            LanguageManager.shared.localized("Pro Required"),
+            isPresented: $showingProRequiredDialog,
+        ) {
+            Button(LanguageManager.shared.localized("Upgrade to SeedPilot Pro")) {
+                showingProPaywallSheet = true
+            }
+            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
+        } message: {
+            Text(LanguageManager.shared.localized("This feature requires SeedPilot Pro."))
+        }
+        .sheet(isPresented: $showingProPaywallSheet) {
+            NavigationStack {
+                ProView()
             }
         }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
