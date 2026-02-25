@@ -109,22 +109,32 @@ struct ManualMatchView: View {
                     Button {
                         searchText = ""
                     } label: {
-                        Image(systemName: "multiply.circle.fill")
-                            .foregroundStyle(.secondary)
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.monochrome)
+                            .foregroundStyle(Color(uiColor: .systemGray3))
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(8)
             .background(Color(uiColor: .systemGray6))
             .cornerRadius(10)
 
-            // External Button
-            Button(LanguageManager.shared.localized("Search")) {
+            // External Search Icon Button (iOS-style neutral look)
+            Button {
                 performSearch()
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(searchText.isEmpty ? .tertiary : .secondary)
+                    .frame(width: 36, height: 36)
+                    .background(Color(uiColor: .systemGray6))
+                    .clipShape(Circle())
             }
-            .font(.system(.body, design: .default, weight: .semibold))
-            .foregroundStyle(.tint) // Usually blue in iOS
+            .buttonStyle(.plain)
+            .accessibilityLabel(LanguageManager.shared.localized("Search"))
             .disabled(searchText.isEmpty)
+            .opacity(searchText.isEmpty ? 0.8 : 1)
         }
         .padding(.horizontal)
         .padding(.bottom, 8)

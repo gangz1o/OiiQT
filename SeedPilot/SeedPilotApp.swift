@@ -27,6 +27,9 @@ struct SeedPilotApp: App {
         cache.diskStorage.config.sizeLimit = 500 * 1024 * 1024          // 500 MB disk
         cache.diskStorage.config.expiration = .days(7)                  // 7-day expiry
 
+        // Start StoreKit transaction listener as early as possible to avoid
+        // missing transactions or triggering runtime warnings on first purchase.
+        _ = StoreManager.shared
         iCloudSyncManager.shared.start()
     }
 

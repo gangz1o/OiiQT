@@ -205,9 +205,13 @@ class AppStateManager {
                                 : 0.0
                         }
                     } catch {
-                        print("Auth retry failed for \(server.name): \(error)")
-                        await MainActor.run {
-                            markServerFailure(server)
+                        if isBenignCancellationError(error) {
+                            continue
+                        } else {
+                            print("Auth retry failed for \(server.name): \(error)")
+                            await MainActor.run {
+                                markServerFailure(server)
+                            }
                         }
                     }
                 } else {
@@ -217,6 +221,9 @@ class AppStateManager {
                     }
                 }
             } catch {
+                if isBenignCancellationError(error) {
+                    continue
+                }
                 print("Unknown error for \(server.name): \(error)")
                 await MainActor.run {
                     markServerFailure(server)
@@ -840,5 +847,14 @@ class AppStateManager {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         )
+    }
+
+    private func isBenignCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 }
