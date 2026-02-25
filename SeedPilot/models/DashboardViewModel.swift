@@ -9,6 +9,54 @@ import Foundation
 import Combine
 import SwiftUI
 
+struct TrackerTransferData: Identifiable {
+    let id: String
+    let trackerName: String
+    let bytes: Int64
+    let color: Color
+
+    init(id: String? = nil, trackerName: String, bytes: Int64, color: Color) {
+        self.id = id ?? trackerName
+        self.trackerName = trackerName
+        self.bytes = bytes
+        self.color = color
+    }
+}
+
+private struct TrackerTransferSample: Sendable {
+    let taskID: String
+    let tracker: String
+    let uploaded: Int64
+    let downloaded: Int64
+}
+
+private struct TrackerTransferAggregate: Sendable {
+    let trackerName: String
+    let uploadedBytes: Int64
+    let downloadedBytes: Int64
+}
+
+private struct TrackerTransferBaselineEntry: Codable, Sendable, Equatable {
+    let uploaded: Int64
+    let downloaded: Int64
+}
+
+private struct TrackerTransferBaselineSnapshot: Codable, Sendable {
+    let dayStamp: String
+    let tasks: [String: TrackerTransferBaselineEntry]
+}
+
+private struct TrackerTransferRollingSnapshot: Codable, Sendable {
+    let timestamp: Date
+    let tasks: [String: TrackerTransferBaselineEntry]
+}
+
+private struct TrackerTransferComputationResult: Sendable {
+    let aggregates: [TrackerTransferAggregate]
+    let baselineSnapshot: TrackerTransferBaselineSnapshot
+    let rollingSnapshots: [TrackerTransferRollingSnapshot]
+}
+
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published private(set) var globalSnapshot = GlobalStatsSnapshot()
@@ -16,11 +64,17 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var isUsingCachedFallback = false
     @Published private(set) var hasLoadedInitialSnapshot = false
     @Published private(set) var moduleOrder: [DashboardModuleType] = DashboardModuleType.defaultOrder
+    @Published private(set) var todayUploadData: [TrackerTransferData] = []
+    @Published private(set) var todayDownloadData: [TrackerTransferData] = []
 
     @AppStorage(DashboardConfig.Keys.moduleOrder) private var moduleOrderStorageData: Data = Data()
+    @AppStorage("dashboard.todayTransferBaselineSnapshot") private var trackerStatsBaselineSnapshotData: Data = Data()
+    @AppStorage("dashboard.todayTransferRollingSnapshots") private var trackerStatsRollingSnapshotsData: Data = Data()
 
     private let statsManager: GlobalStatsManager
     private var autoRefreshTask: Task<Void, Never>?
+    private var trackerStatsComputationTask: Task<Void, Never>?
+    private var trackerStatsTasksProvider: (@MainActor () -> [TorrentTask])?
     private var lastSuccessfulSnapshot: GlobalStatsSnapshot?
     private var lastKnownStorageByServer: [UUID: DashboardServerStorageEntry] = [:]
 
@@ -32,6 +86,53 @@ final class DashboardViewModel: ObservableObject {
     init() {
         self.statsManager = .shared
         hydrateModuleOrderFromStorage()
+    }
+
+    func configureTrackerStatsTasksProvider(_ provider: @escaping @MainActor () -> [TorrentTask]) {
+        trackerStatsTasksProvider = provider
+    }
+
+    func calculateTrackerStats() {
+        guard let trackerStatsTasksProvider else { return }
+        calculateTrackerStats(from: trackerStatsTasksProvider())
+    }
+
+    func calculateTrackerStats(from tasks: [TorrentTask]) {
+        trackerStatsComputationTask?.cancel()
+
+        // Create a lightweight snapshot on MainActor, then aggregate off-main.
+        let samples = tasks.map {
+            TrackerTransferSample(
+                taskID: $0.id,
+                tracker: $0.tracker,
+                uploaded: max($0.uploaded, 0),
+                downloaded: max($0.downloaded, 0)
+            )
+        }
+
+        let dayStamp = Self.trackerStatsDayStampFormatter.string(from: Date())
+        let now = Date()
+        let baselineSnapshot = Self.decodeTrackerBaselineSnapshot(from: trackerStatsBaselineSnapshotData)
+        let rollingSnapshots = Self.decodeTrackerRollingSnapshots(from: trackerStatsRollingSnapshotsData)
+
+        trackerStatsComputationTask = Task { [samples, dayStamp, now, baselineSnapshot, rollingSnapshots] in
+            let result = await Task.detached(priority: .utility) {
+                DashboardViewModel.computeTrackerStats(
+                    samples: samples,
+                    dayStamp: dayStamp,
+                    now: now,
+                    baselineSnapshot: baselineSnapshot,
+                    rollingSnapshots: rollingSnapshots
+                )
+            }.value
+
+            guard !Task.isCancelled else { return }
+
+            todayUploadData = Self.buildTransferData(aggregates: result.aggregates, direction: .upload)
+            todayDownloadData = Self.buildTransferData(aggregates: result.aggregates, direction: .download)
+            trackerStatsBaselineSnapshotData = Self.encodeTrackerBaselineSnapshot(result.baselineSnapshot)
+            trackerStatsRollingSnapshotsData = Self.encodeTrackerRollingSnapshots(result.rollingSnapshots)
+        }
     }
 
     func syncModuleOrder(availableModules: [DashboardModuleType]) {
@@ -309,4 +410,305 @@ final class DashboardViewModel: ObservableObject {
         guard moduleOrderStorageData != serialized else { return }
         moduleOrderStorageData = serialized
     }
+}
+
+private extension DashboardViewModel {
+    enum TrackerTransferDirection {
+        case upload
+        case download
+    }
+
+    static let trackerPalette: [Color] = [
+        .orange, .green, .blue, .pink, .indigo,
+        .mint, .teal, .red, .cyan, .brown
+    ]
+
+    nonisolated static func computeTrackerStats(
+        samples: [TrackerTransferSample],
+        dayStamp: String,
+        now: Date,
+        baselineSnapshot: TrackerTransferBaselineSnapshot?,
+        rollingSnapshots: [TrackerTransferRollingSnapshot]
+    ) -> TrackerTransferComputationResult {
+        var currentTaskCounters: [String: TrackerTransferBaselineEntry] = [:]
+        currentTaskCounters.reserveCapacity(max(samples.count, 8))
+        for sample in samples {
+            let uploaded = max(sample.uploaded, 0)
+            let downloaded = max(sample.downloaded, 0)
+            // Keep zero counters in rolling snapshots so midnight interpolation can preserve
+            // "0 -> positive" transfers that start after midnight.
+            currentTaskCounters[sample.taskID] = TrackerTransferBaselineEntry(uploaded: uploaded, downloaded: downloaded)
+        }
+
+        let updatedRollingSnapshots = normalizedRollingSnapshots(
+            rollingSnapshots,
+            appending: TrackerTransferRollingSnapshot(timestamp: now, tasks: currentTaskCounters),
+            now: now
+        )
+
+        var baselineTasks = resolveBaselineTasks(
+            dayStamp: dayStamp,
+            now: now,
+            currentTaskCounters: currentTaskCounters,
+            baselineSnapshot: baselineSnapshot,
+            rollingSnapshots: updatedRollingSnapshots
+        )
+
+        var grouped: [String: (uploaded: Int64, downloaded: Int64)] = [:]
+        grouped.reserveCapacity(max(samples.count / 2, 4))
+
+        for sample in samples {
+            let currentUploaded = max(sample.uploaded, 0)
+            let currentDownloaded = max(sample.downloaded, 0)
+
+            let baselineEntry = baselineTasks[sample.taskID]
+            let effectiveBaseline: TrackerTransferBaselineEntry
+
+            if let baselineEntry,
+               baselineEntry.uploaded <= currentUploaded,
+               baselineEntry.downloaded <= currentDownloaded {
+                effectiveBaseline = baselineEntry
+            } else {
+                // Counter reset / task re-added / first time seen today: treat current counters as baseline.
+                let resetBaseline = TrackerTransferBaselineEntry(
+                    uploaded: currentUploaded,
+                    downloaded: currentDownloaded
+                )
+                baselineTasks[sample.taskID] = resetBaseline
+                effectiveBaseline = resetBaseline
+            }
+
+            if baselineEntry == nil {
+                baselineTasks[sample.taskID] = effectiveBaseline
+            }
+
+            let uploadDelta = max(currentUploaded - effectiveBaseline.uploaded, 0)
+            let downloadDelta = max(currentDownloaded - effectiveBaseline.downloaded, 0)
+            guard uploadDelta > 0 || downloadDelta > 0 else { continue }
+
+            let trackerName = TrackerNameManager.displayName(for: sample.tracker)
+            guard trackerName != "--" else { continue }
+
+            var bucket = grouped[trackerName] ?? (0, 0)
+            bucket.uploaded += uploadDelta
+            bucket.downloaded += downloadDelta
+            grouped[trackerName] = bucket
+        }
+
+        let aggregates = grouped.map { key, value in
+            TrackerTransferAggregate(
+                trackerName: key,
+                uploadedBytes: max(value.uploaded, 0),
+                downloadedBytes: max(value.downloaded, 0)
+            )
+        }
+
+        let snapshot = TrackerTransferBaselineSnapshot(dayStamp: dayStamp, tasks: baselineTasks)
+        return TrackerTransferComputationResult(
+            aggregates: aggregates,
+            baselineSnapshot: snapshot,
+            rollingSnapshots: updatedRollingSnapshots
+        )
+    }
+
+    static func buildTransferData(
+        aggregates: [TrackerTransferAggregate],
+        direction: TrackerTransferDirection
+    ) -> [TrackerTransferData] {
+        aggregates
+            .map { aggregate in
+                let bytes: Int64
+                switch direction {
+                case .upload:
+                    bytes = aggregate.uploadedBytes
+                case .download:
+                    bytes = aggregate.downloadedBytes
+                }
+
+                return TrackerTransferData(
+                    trackerName: aggregate.trackerName,
+                    bytes: bytes,
+                    color: trackerColor(for: aggregate.trackerName)
+                )
+            }
+            .filter { $0.bytes > 0 }
+            .sorted { lhs, rhs in
+                if lhs.bytes != rhs.bytes { return lhs.bytes > rhs.bytes }
+                return lhs.trackerName.localizedCaseInsensitiveCompare(rhs.trackerName) == .orderedAscending
+            }
+    }
+
+    static func trackerColor(for trackerName: String) -> Color {
+        let palette = trackerPalette
+        guard !palette.isEmpty else { return .blue }
+
+        var hash = 5381
+        for scalar in trackerName.unicodeScalars {
+            hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
+        }
+
+        return palette[abs(hash) % palette.count]
+    }
+
+    static func decodeTrackerBaselineSnapshot(from data: Data) -> TrackerTransferBaselineSnapshot? {
+        guard !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode(TrackerTransferBaselineSnapshot.self, from: data)
+    }
+
+    static func encodeTrackerBaselineSnapshot(_ snapshot: TrackerTransferBaselineSnapshot) -> Data {
+        (try? JSONEncoder().encode(snapshot)) ?? Data()
+    }
+
+    static func decodeTrackerRollingSnapshots(from data: Data) -> [TrackerTransferRollingSnapshot] {
+        guard !data.isEmpty else { return [] }
+        return (try? JSONDecoder().decode([TrackerTransferRollingSnapshot].self, from: data)) ?? []
+    }
+
+    static func encodeTrackerRollingSnapshots(_ snapshots: [TrackerTransferRollingSnapshot]) -> Data {
+        (try? JSONEncoder().encode(snapshots)) ?? Data()
+    }
+
+    nonisolated static func normalizedRollingSnapshots(
+        _ snapshots: [TrackerTransferRollingSnapshot],
+        appending current: TrackerTransferRollingSnapshot,
+        now: Date
+    ) -> [TrackerTransferRollingSnapshot] {
+        var sorted = snapshots.sorted { $0.timestamp < $1.timestamp }
+
+        if let last = sorted.last,
+           abs(last.timestamp.timeIntervalSince(current.timestamp)) < 30,
+           last.tasks == current.tasks {
+            // Avoid duplicate writes from closely spaced onAppear/scenePhase triggers.
+        } else {
+            sorted.append(current)
+        }
+
+        let prunedByAge = sorted.filter {
+            now.timeIntervalSince($0.timestamp) <= Self.maxRollingSnapshotAge
+        }
+
+        if prunedByAge.count <= Self.maxRollingSnapshotCount {
+            return prunedByAge
+        }
+
+        return Array(prunedByAge.suffix(Self.maxRollingSnapshotCount))
+    }
+
+    nonisolated static func resolveBaselineTasks(
+        dayStamp: String,
+        now: Date,
+        currentTaskCounters: [String: TrackerTransferBaselineEntry],
+        baselineSnapshot: TrackerTransferBaselineSnapshot?,
+        rollingSnapshots: [TrackerTransferRollingSnapshot]
+    ) -> [String: TrackerTransferBaselineEntry] {
+        if let baselineSnapshot, baselineSnapshot.dayStamp == dayStamp {
+            return baselineSnapshot.tasks
+        }
+
+        guard !currentTaskCounters.isEmpty else { return [:] }
+
+        let midnight = trackerStatsCalendar.startOfDay(for: now)
+        let beforeMidnight = rollingSnapshots.last(where: { $0.timestamp <= midnight })
+        let afterMidnight = rollingSnapshots.first(where: { $0.timestamp >= midnight })
+
+        var derived: [String: TrackerTransferBaselineEntry] = [:]
+        derived.reserveCapacity(currentTaskCounters.count)
+
+        for (taskID, current) in currentTaskCounters {
+            let beforeEntry = beforeMidnight?.tasks[taskID]
+            let afterEntry = afterMidnight?.tasks[taskID]
+
+            let estimated = estimateMidnightBaseline(
+                current: current,
+                midnight: midnight,
+                beforeTimestamp: beforeMidnight?.timestamp,
+                beforeEntry: beforeEntry,
+                afterTimestamp: afterMidnight?.timestamp,
+                afterEntry: afterEntry
+            ) ?? current
+
+            derived[taskID] = clampBaselineEntry(estimated, toCurrent: current)
+        }
+
+        return derived
+    }
+
+    nonisolated static func estimateMidnightBaseline(
+        current: TrackerTransferBaselineEntry,
+        midnight: Date,
+        beforeTimestamp: Date?,
+        beforeEntry: TrackerTransferBaselineEntry?,
+        afterTimestamp: Date?,
+        afterEntry: TrackerTransferBaselineEntry?
+    ) -> TrackerTransferBaselineEntry? {
+        switch (beforeTimestamp, beforeEntry, afterTimestamp, afterEntry) {
+        case let (.some(beforeTime), .some(before), .some(afterTime), .some(after)):
+            let beforeClamped = clampBaselineEntry(before, toCurrent: current)
+            let afterClamped = clampBaselineEntry(after, toCurrent: current)
+
+            guard afterTime > beforeTime else {
+                return afterTime >= midnight ? afterClamped : beforeClamped
+            }
+
+            // Counters can reset after client restart / task re-add; interpolation is invalid in that case.
+            guard after.uploaded >= before.uploaded, after.downloaded >= before.downloaded else {
+                return afterTime >= midnight ? afterClamped : beforeClamped
+            }
+
+            let total = afterTime.timeIntervalSince(beforeTime)
+            let elapsed = midnight.timeIntervalSince(beforeTime)
+            guard total > 0 else { return afterClamped }
+
+            let progress = min(max(elapsed / total, 0), 1)
+            return clampBaselineEntry(
+                TrackerTransferBaselineEntry(
+                    uploaded: interpolatedInt64(before.uploaded, after.uploaded, progress: progress),
+                    downloaded: interpolatedInt64(before.downloaded, after.downloaded, progress: progress)
+                ),
+                toCurrent: current
+            )
+
+        case let (_, _, .some(_), .some(after)):
+            return clampBaselineEntry(after, toCurrent: current)
+
+        case let (.some(_), .some(before), _, _):
+            return clampBaselineEntry(before, toCurrent: current)
+
+        default:
+            return nil
+        }
+    }
+
+    nonisolated static func clampBaselineEntry(
+        _ baseline: TrackerTransferBaselineEntry,
+        toCurrent current: TrackerTransferBaselineEntry
+    ) -> TrackerTransferBaselineEntry {
+        TrackerTransferBaselineEntry(
+            uploaded: min(max(baseline.uploaded, 0), current.uploaded),
+            downloaded: min(max(baseline.downloaded, 0), current.downloaded)
+        )
+    }
+
+    nonisolated static func interpolatedInt64(_ start: Int64, _ end: Int64, progress: Double) -> Int64 {
+        let value = Double(start) + (Double(end - start) * progress)
+        return Int64(value.rounded())
+    }
+
+    static let trackerStatsDayStampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    nonisolated static let trackerStatsCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        return calendar
+    }()
+
+    nonisolated static let maxRollingSnapshotCount = 48
+    nonisolated static let maxRollingSnapshotAge: TimeInterval = 72 * 60 * 60
 }

@@ -15,9 +15,9 @@ class TransmissionClient: NSObject, TorrentClient {
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.httpCookieStorage = HTTPCookieStorage.shared
         sessionConfig.httpCookieAcceptPolicy = .always
-        sessionConfig.waitsForConnectivity = true
-        sessionConfig.timeoutIntervalForRequest = 20
-        sessionConfig.timeoutIntervalForResource = 40
+        sessionConfig.waitsForConnectivity = false
+        sessionConfig.timeoutIntervalForRequest = 10
+        sessionConfig.timeoutIntervalForResource = 20
         let delegate = NetworkManager(allowInsecureSSL: config.allowInsecureSSL)
         return URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     }()
@@ -45,8 +45,25 @@ class TransmissionClient: NSObject, TorrentClient {
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
     }
 
+    private func prefetchSessionID(url: URL) async {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5 // Short timeout — this is just an optimization
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["method": "session-get", "arguments": [:] as [String: Any]])
+        configureRequest(&request)
+        guard let (_, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse,
+              let sid = http.value(forHTTPHeaderField: "X-Transmission-Session-Id") else { return }
+        self.sessionID = sid
+    }
+
     private func performRequest<T: Decodable>(_ method: String, arguments: [String: Any]?, responseType: T.Type) async throws -> T {
         guard let url = getRPCURL() else { throw TorrentClientError.invalidURL }
+
+        // Pre-fetch session ID on cold start to avoid 409 storm
+        if sessionID == nil {
+            await prefetchSessionID(url: url)
+        }
 
         for attempt in 0..<2 {
             do {
@@ -215,10 +232,10 @@ class TransmissionClient: NSObject, TorrentClient {
 
                 let mapped = args.torrents.map { item in
                     let trackerURL = pickTrackerURL(primary: item.tracker, trackers: item.trackers)
-                    let progress = item.percentDone
+                    let progress = (item.percentDone * 1000).rounded() / 1000   // 0.1% granularity
                     let size = item.totalSize
-                    let downloadSpeed = item.rateDownload
-                    let uploadSpeed = item.rateUpload
+                    let downloadSpeed = (item.rateDownload / 1024) * 1024        // 1 KB granularity
+                    let uploadSpeed = (item.rateUpload / 1024) * 1024            // 1 KB granularity
                     let seedingTime = TimeInterval(item.secondsSeeding ?? 0)
                     let numSeeds = 0
                     let totalSeeds = 0

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import Combine
 
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -19,6 +20,7 @@ struct DashboardView: View {
     }
 
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
+    @AppStorage(DashboardConfig.Keys.showTodayTransfer) private var showTodayTransfer: Bool = true
     @AppStorage(DashboardConfig.Keys.showRecentFinished) private var showRecentFinished: Bool = true
     @AppStorage(DashboardConfig.Keys.showLiveTraffic) private var showLiveTraffic: Bool = true
     @AppStorage(DashboardConfig.Keys.showGlobalAssets) private var showGlobalAssets: Bool = true
@@ -28,6 +30,7 @@ struct DashboardView: View {
     @State private var draggedModule: DashboardModuleType?
     @State private var highlightedDropTarget: DashboardModuleType?
     @State private var activeHoverTarget: DashboardModuleType?
+    private let trackerStatsSilentRefreshTimer = Timer.publish(every: 1800, on: .main, in: .common).autoconnect()
 
     private var isProCinemaEnabled: Bool {
         proDashboardBackgroundEnabled || UserDefaults.standard.bool(forKey: "proDashboardBackgroundEnabled")
@@ -57,6 +60,7 @@ struct DashboardView: View {
         var modules: [DashboardModuleType] = []
         if isProCinemaEnabled { modules.append(.proPosterWall) }
         if showLiveTraffic { modules.append(.liveTraffic) }
+        if showTodayTransfer { modules.append(.todayTransfer) }
         if showGlobalAssets { modules.append(.globalAssets) }
         if showServerStatus { modules.append(.serverStatus) }
         if showStorageAudit { modules.append(.storageAudit) }
@@ -67,6 +71,7 @@ struct DashboardView: View {
     private var allModulesDisabled: Bool {
         !isProCinemaEnabled &&
         !showLiveTraffic &&
+        !showTodayTransfer &&
         !showGlobalAssets &&
         !showServerStatus &&
         !showStorageAudit &&
@@ -97,6 +102,7 @@ struct DashboardView: View {
         [
             isProCinemaEnabled ? "1" : "0",
             showLiveTraffic ? "1" : "0",
+            showTodayTransfer ? "1" : "0",
             showGlobalAssets ? "1" : "0",
             showServerStatus ? "1" : "0",
             showStorageAudit ? "1" : "0",
@@ -107,6 +113,14 @@ struct DashboardView: View {
 
     private var isDashboardTabActive: Bool {
         appStateManager.selectedTab == .dashboard
+    }
+
+    private var todayTransferSectionTitle: String {
+        String(
+            format: LanguageManager.shared.localized("今日传输（日期）格式"),
+            locale: LanguageManager.shared.currentLocale,
+            Self.todayTransferDateFormatter.string(from: Date())
+        )
     }
 
     var body: some View {
@@ -175,15 +189,22 @@ struct DashboardView: View {
                 dashboardViewModel.stopAutoRefresh()
             }
         }
+        .onReceive(trackerStatsSilentRefreshTimer) { _ in
+            refreshTrackerStatsIfNeeded()
+        }
         .onDisappear {
             dashboardViewModel.stopAutoRefresh()
         }
         .onAppear {
             guard isDashboardTabActive else { return }
+            dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
+
             if !hasSyncedModuleOrder {
                 dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
                 hasSyncedModuleOrder = true
             }
+
+            refreshTrackerStatsIfNeeded()
         }
         .onChange(of: enabledModuleKey) { _, _ in
             dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
@@ -199,6 +220,9 @@ struct DashboardView: View {
                 return
             }
 
+            dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
+            refreshTrackerStatsIfNeeded()
+
             if !hasSyncedModuleOrder {
                 dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
                 hasSyncedModuleOrder = true
@@ -212,6 +236,9 @@ struct DashboardView: View {
 
             guard appStateManager.selectedTab == .dashboard else { return }
 
+            dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
+            refreshTrackerStatsIfNeeded()
+
             if needsGlobalStatsData {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
@@ -221,6 +248,13 @@ struct DashboardView: View {
                 dashboardViewModel.stopAutoRefresh()
             }
         }
+    }
+
+    private func refreshTrackerStatsIfNeeded() {
+        guard isDashboardTabActive else { return }
+        guard scenePhase == .active else { return }
+        guard showTodayTransfer else { return }
+        dashboardViewModel.calculateTrackerStats()
     }
 
     private func isModuleRenderable(_ module: DashboardModuleType) -> Bool {
@@ -244,6 +278,13 @@ struct DashboardView: View {
                 DashboardLiveTrafficModuleView(
                     downloadSpeed: appStateManager.displayedDownloadSpeed,
                     uploadSpeed: appStateManager.displayedUploadSpeed
+                )
+            }
+        case .todayTransfer:
+            DashboardSectionBlock(title: todayTransferSectionTitle) {
+                DashboardTodayTransferModuleView(
+                    uploadData: dashboardViewModel.todayUploadData,
+                    downloadData: dashboardViewModel.todayDownloadData
                 )
             }
         case .globalAssets:
@@ -330,6 +371,17 @@ struct DashboardView: View {
             dashboardViewModel.swapModules(source, with: target, availableModules: enabledModules)
         }
     }
+}
+
+private extension DashboardView {
+    static let todayTransferDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 }
 
 private struct DashboardGlobalAssetsSkeletonView: View {

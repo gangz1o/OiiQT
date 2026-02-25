@@ -1,6 +1,9 @@
 {
-  "sourceLanguage" : "en",
+  "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "" : {
+
+    },
     "/downloads/..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -30,7 +33,7 @@
     },
     "%@ / %@" : {
       "localizations" : {
-        "en" : {
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ / %2$@"
@@ -67,7 +70,7 @@
     },
     "↓%@  ↑%@" : {
       "localizations" : {
-        "en" : {
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "↓%1$@  ↑%2$@"
@@ -2585,6 +2588,23 @@
         }
       }
     },
+    "Go to Server Settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to Server Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往配置服务器"
+          }
+        }
+      }
+    },
     "Go to Settings" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3299,6 +3319,23 @@
         }
       }
     },
+    "No Available Server" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Available Server"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无可用服务器"
+          }
+        }
+      }
+    },
     "No Categories" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3672,6 +3709,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "确认购买后，将向您的 Apple ID 账户收款。订阅会自动续期，除非在当前订阅期结束前至少 24 小时取消。"
+          }
+        }
+      }
+    },
+    "Please check your server configuration or network status." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please check your server configuration or network status."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查服务器是否已正确配置，或当前网络是否离线。"
           }
         }
       }
@@ -6973,6 +7027,23 @@
         }
       }
     },
+    "Upload" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传"
+          }
+        }
+      }
+    },
     "Upload Speed" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7230,6 +7301,108 @@
         }
       }
     },
+    "今日传输" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Transfer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日传输"
+          }
+        }
+      }
+    },
+    "今日传输（日期）格式" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Transfer (%@)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日传输(%@)"
+          }
+        }
+      }
+    },
+    "今日传输统计" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Transfer Stats"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日传输统计"
+          }
+        }
+      }
+    },
+    "今日暂无上传数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No upload data today"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日暂无上传数据"
+          }
+        }
+      }
+    },
+    "今日暂无下载数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No download data today"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日暂无下载数据"
+          }
+        }
+      }
+    },
+    "传输量" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer Amount"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "传输量"
+          }
+        }
+      }
+    },
     "全局任务聚合" : {
       "localizations" : {
         "en" : {
@@ -7326,6 +7499,23 @@
         }
       }
     },
+    "总计" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "总计"
+          }
+        }
+      }
+    },
     "支持独立开发" : {
       "localizations" : {
         "en" : {
@@ -7338,6 +7528,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支持独立开发"
+          }
+        }
+      }
+    },
+    "暂无数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无数据"
           }
         }
       }

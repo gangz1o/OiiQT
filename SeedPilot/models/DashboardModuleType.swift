@@ -10,6 +10,7 @@ import Foundation
 enum DashboardModuleType: String, CaseIterable, Identifiable {
     case proPosterWall
     case liveTraffic
+    case todayTransfer
     case globalAssets
     case serverStatus
     case storageAudit
@@ -20,6 +21,7 @@ enum DashboardModuleType: String, CaseIterable, Identifiable {
     static let defaultOrder: [DashboardModuleType] = [
         .proPosterWall,
         .liveTraffic,
+        .todayTransfer,
         .globalAssets,
         .serverStatus,
         .storageAudit,

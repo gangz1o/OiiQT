@@ -7,7 +7,23 @@
 
 import SwiftUI
 
-struct TorrentRowView: View {
+struct TorrentRowView: View, Equatable {
+    static func == (lhs: TorrentRowView, rhs: TorrentRowView) -> Bool {
+        lhs.task.hash == rhs.task.hash &&
+        lhs.task.status == rhs.task.status &&
+        lhs.task.progress == rhs.task.progress &&
+        lhs.task.downloadSpeed == rhs.task.downloadSpeed &&
+        lhs.task.uploadSpeed == rhs.task.uploadSpeed &&
+        lhs.task.seedingTime == rhs.task.seedingTime &&
+        lhs.task.numSeeds == rhs.task.numSeeds &&
+        lhs.task.numPeers == rhs.task.numPeers &&
+        lhs.task.ratio == rhs.task.ratio &&
+        lhs.task.category == rhs.task.category &&
+        lhs.task.tags == rhs.task.tags &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.isEditing == rhs.isEditing
+    }
+
     let task: TorrentTask
     let isSelected: Bool
     let isEditing: Bool

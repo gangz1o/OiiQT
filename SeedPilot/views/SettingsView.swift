@@ -194,78 +194,14 @@ struct SettingsView: View {
                 }
 
                 // MARK: - Pro 功能
-                Section {
-                    Toggle(isOn: tmdbProBinding) {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
+                Section(LanguageManager.shared.localized("Pro Features")) {
+                    NavigationLink(value: SettingsRoute.proFeatures) {
+                        SettingsRowLabel(
+                            title: LanguageManager.shared.localized("Configuration"),
+                            systemName: "sparkles",
+                            tint: .purple
+                        )
                     }
-                    Button {
-                        guardProAccess {
-                            showingTMDBAPIKeySettings = true
-                        }
-                    } label: {
-                        HStack {
-                            SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
-                            Spacer()
-                            if isProUser {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Image(systemName: "hand.thumbsup.fill")
-                                    }
-                                    Text(tmdbAPIKeyStatusText)
-                                }
-                                .font(.footnote.weight(.medium))
-                                .foregroundStyle(tmdbAPIKeyStatusColor)
-                                .lineLimit(1)
-                            }
-                            Image(systemName: isProUser ? "chevron.right" : "lock.fill")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    Toggle(isOn: globalTaskAggregationProBinding) {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
-                    }
-                    Toggle(isOn: proDashboardProBinding) {
-                        SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
-                    }
-                    Button {
-                        guardProAccess {
-                            showingTrackerAliasList = true
-                        }
-                    } label: {
-                        HStack {
-                            SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
-                            Spacer()
-                            Image(systemName: isProUser ? "chevron.right" : "lock.fill")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    Toggle(isOn: iCloudProBinding) {
-                        HStack(spacing: 12) {
-                            AppleStyleIcon(backgroundColor: .cyan, systemName: "icloud.fill")
-                            Text(LanguageManager.shared.localized("iCloud Sync"))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                    }
-                    if iCloudSyncEnabled {
-                        HStack(spacing: 8) {
-                            Image(systemName: iCloudSyncStatusIcon)
-                                .font(.caption)
-                                .foregroundStyle(iCloudSyncStatusColor)
-                            Text(iCloudSyncStatusText)
-                                .font(.footnote)
-                                .foregroundStyle(iCloudSyncStatusColor)
-                                .lineLimit(2)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                } header: {
-                    Text(LanguageManager.shared.localized("Pro Features"))
                 }
 
                 // MARK: - 存储与维护
@@ -303,6 +239,8 @@ struct SettingsView: View {
                 switch route {
                 case .dashboardCustomization:
                     DashboardCustomizationView()
+                case .proFeatures:
+                    proFeaturesSettingsView
                 }
             }
             .navigationDestination(isPresented: $showingTrackerAliasList) {
@@ -358,6 +296,94 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
+    }
+
+    private var proFeaturesSettingsView: some View {
+        Form {
+            Section {
+                proFeaturesSettingsRows
+            }
+        }
+        .navigationTitle(LanguageManager.shared.localized("Pro Features"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var proFeaturesSettingsRows: some View {
+        Toggle(isOn: tmdbProBinding) {
+            SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
+        }
+
+        Button {
+            guardProAccess {
+                showingTMDBAPIKeySettings = true
+            }
+        } label: {
+            HStack {
+                SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
+                Spacer()
+                if isProUser {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Image(systemName: "hand.thumbsup.fill")
+                        }
+                        Text(tmdbAPIKeyStatusText)
+                    }
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(tmdbAPIKeyStatusColor)
+                    .lineLimit(1)
+                }
+                Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+
+        Toggle(isOn: globalTaskAggregationProBinding) {
+            SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
+        }
+
+        Toggle(isOn: proDashboardProBinding) {
+            SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
+        }
+
+        Button {
+            guardProAccess {
+                showingTrackerAliasList = true
+            }
+        } label: {
+            HStack {
+                SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
+                Spacer()
+                Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+
+        Toggle(isOn: iCloudProBinding) {
+            HStack(spacing: 12) {
+                AppleStyleIcon(backgroundColor: .cyan, systemName: "icloud.fill")
+                Text(LanguageManager.shared.localized("iCloud Sync"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+
+        if iCloudSyncEnabled {
+            HStack(spacing: 8) {
+                Image(systemName: iCloudSyncStatusIcon)
+                    .font(.caption)
+                    .foregroundStyle(iCloudSyncStatusColor)
+                Text(iCloudSyncStatusText)
+                    .font(.footnote)
+                    .foregroundStyle(iCloudSyncStatusColor)
+                    .lineLimit(2)
+            }
+            .padding(.vertical, 2)
+        }
     }
 
     // MARK: - Actions
@@ -959,6 +985,9 @@ private struct DashboardCustomizationView: View {
     var body: some View {
         Form {
             Section(LanguageManager.shared.localized("Module Toggles")) {
+                Toggle(isOn: dashboardConfig.showTodayTransferBinding) {
+                    SettingsRowLabel(title: LanguageManager.shared.localized("今日传输统计"), systemName: "chart.pie", tint: .orange)
+                }
                 Toggle(isOn: dashboardConfig.showRecentFinishedBinding) {
                     SettingsRowLabel(title: LanguageManager.shared.localized("Recently Finished"), systemName: "clock.arrow.circlepath", tint: .teal)
                 }

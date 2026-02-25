@@ -27,6 +27,7 @@ final class iCloudSyncManager {
         "rssBackgroundFetchEnabled",
         "presetSavePaths",
         "dashboardModuleOrder",
+        "showTodayTransfer",
         "showTraffic",
         "showAggregation",
         "showServerStatus",
@@ -54,6 +55,7 @@ final class iCloudSyncManager {
     // Canonical cloud keys -> local storage aliases (legacy/backward-compatible keys).
     private let localAliasesByCanonical: [String: [String]] = [
         "dashboardModuleOrder": [DashboardConfig.Keys.moduleOrder],
+        "showTodayTransfer": [DashboardConfig.Keys.showTodayTransfer],
         "showTraffic": [DashboardConfig.Keys.showLiveTraffic],
         "showAggregation": [DashboardConfig.Keys.showGlobalAssets],
         "showServerStatus": [DashboardConfig.Keys.showServerStatus],

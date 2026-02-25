@@ -93,6 +93,17 @@ struct TransfersView: View {
         return appStateManager.isRefreshingTasks || isFilteringTasks
     }
 
+    private var shouldShowServerEmptyState: Bool {
+        if appStateManager.servers.isEmpty { return true }
+        if let id = appStateManager.activeServerId,
+           let server = appStateManager.servers.first(where: { $0.id == id }),
+           server.isOnline == false,
+           appStateManager.hasInitialDataLoaded {
+            return true
+        }
+        return false
+    }
+
     private var shouldRequestOverlayTasksLoadingState: Bool {
         guard isTransfersTabActive else { return false }
         guard !filteredTasks.isEmpty else { return false }
@@ -380,6 +391,7 @@ struct TransfersView: View {
                 } label: {
                     ServerBrandIcon(type: appStateManager.activeServerType, size: 22)
                 }
+                .disabled(appStateManager.servers.isEmpty || shouldShowServerEmptyState)
             }
         }
 
@@ -420,7 +432,9 @@ struct TransfersView: View {
 
     @ViewBuilder
     private var tasksListSection: some View {
-        if shouldShowTasksLoadingState {
+        if shouldShowServerEmptyState {
+            serverEmptyStateView
+        } else if shouldShowTasksLoadingState {
             VStack(spacing: 10) {
                 Spacer()
                 ProgressView()
@@ -457,6 +471,24 @@ struct TransfersView: View {
         }
     }
 
+    private var serverEmptyStateView: some View {
+        ContentUnavailableView {
+            Label(
+                LanguageManager.shared.localized("No Available Server"),
+                systemImage: "server.rack"
+            )
+        } description: {
+            Text(LanguageManager.shared.localized("Please check your server configuration or network status."))
+        } actions: {
+            Button {
+                appStateManager.selectedTab = .settings
+            } label: {
+                Text(LanguageManager.shared.localized("Go to Server Settings"))
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
     private func taskRowCell(_ task: TorrentTask) -> some View {
         TorrentRowView(
             task: task,
@@ -471,6 +503,7 @@ struct TransfersView: View {
             },
             appStateManager: appStateManager
         )
+        .equatable()
         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)

@@ -16,6 +16,7 @@ enum AppTab: Int {
 
 enum SettingsRoute: Hashable {
     case dashboardCustomization
+    case proFeatures
 }
 
 struct SpeedPoint: Identifiable {
@@ -224,9 +225,15 @@ class AppStateManager {
         }
 
         let finalTasks = gatheredTasks
+        // Defer heavy list data update to RunLoop.default — auto-pauses during scroll
+        RunLoop.main.perform(inModes: [.default]) { [self] in
+            if self.allTasks != finalTasks {
+                self.allTasks = finalTasks
+                self.tasksRevision &+= 1
+            }
+        }
+        // Essential state flags must update immediately (not deferred)
         await MainActor.run {
-            self.allTasks = finalTasks
-            self.tasksRevision &+= 1
             let newDownloadingCount = finalTasks.filter { $0.status == .downloading }.count
             if self.downloadingTaskBadgeCount != newDownloadingCount {
                 self.downloadingTaskBadgeCount = newDownloadingCount
@@ -238,9 +245,6 @@ class AppStateManager {
             let down = finalTasks.reduce(0) { $0 + $1.downloadSpeed }
             let up = finalTasks.reduce(0) { $0 + $1.uploadSpeed }
 
-            // Limit history to last 60 points (2 minutes if 2s interval)
-            // Or more? Area chart looks better with more data.
-            // 300 points = 10 minutes.
             if self.speedHistory.count > 60 {
                 self.speedHistory.removeFirst()
             }

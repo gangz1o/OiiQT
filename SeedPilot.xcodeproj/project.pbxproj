@@ -95,7 +95,7 @@
 				};
 			};
 			buildConfigurationList = 5F3638EF2F3F5F1B00896C60 /* Build configuration list for PBXProject "SeedPilot" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
