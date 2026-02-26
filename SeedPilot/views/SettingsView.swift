@@ -582,16 +582,30 @@ struct SettingsView: View {
     }
 
     private var versionTextInline: some View {
-        Text("SeedPilot \(LanguageManager.shared.localized("v1.0.0 (Build 1)"))")
+        Text("SeedPilot \(appVersionDisplayText)")
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
     }
 
     private var versionTextStacked: some View {
-        Text("SeedPilot \(LanguageManager.shared.localized("v1.0.0 (Build 1)"))")
+        Text("SeedPilot \(appVersionDisplayText)")
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .multilineTextAlignment(.center)
+    }
+
+    private var appVersionDisplayText: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        let version = (shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? shortVersion!
+            : "1.0.0"
+        let build = (buildNumber?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? buildNumber!
+            : "1"
+
+        return "v\(version) (Build \(build))"
     }
 
     private var iCloudSyncStatusText: String {
