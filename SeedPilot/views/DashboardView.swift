@@ -140,11 +140,16 @@ struct DashboardView: View {
                                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 .opacity(draggedModule == module ? 0.6 : 1)
                                 .scaleEffect(draggedModule == module ? 1.01 : 1)
-                                .shadow(
-                                    color: .black.opacity(draggedModule == module ? 0.16 : 0.04),
-                                    radius: draggedModule == module ? 14 : 8,
-                                    x: 0,
-                                    y: draggedModule == module ? 8 : 4
+                                // 性能优化：shadow 应用在纯背景形状上，避免对整个模块子视图树做 alpha 遮罩计算
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color.clear)
+                                        .shadow(
+                                            color: .black.opacity(draggedModule == module ? 0.16 : 0.04),
+                                            radius: draggedModule == module ? 14 : 8,
+                                            x: 0,
+                                            y: draggedModule == module ? 8 : 4
+                                        )
                                 )
                                 .overlay {
                                     if highlightedDropTarget == module, draggedModule != module {

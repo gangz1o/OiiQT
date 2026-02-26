@@ -140,6 +140,8 @@ struct DashboardTodayTransferModuleView: View {
                                 }
                             }
                         }
+                        // 性能优化：强制 Metal 离屏渲染，避免滚动时每帧重新光栅化环形图
+                        .drawingGroup()
                         .contentShape(Rectangle())
                         .onTapGesture {
                             clearSelectedTracker(animated: true)

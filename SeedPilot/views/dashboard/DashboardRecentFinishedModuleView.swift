@@ -48,7 +48,8 @@ struct DashboardRecentFinishedModuleView: View {
 
     var body: some View {
         if !recentFinishedTasks.isEmpty {
-            VStack(spacing: 0) {
+            // 性能优化：使用 LazyVStack 懒加载，仅实例化可见行
+            LazyVStack(spacing: 0) {
                 ForEach(Array(displayedTasks.enumerated()), id: \.element.id) { index, task in
                     DashboardRecentFinishedListRow(task: task)
 

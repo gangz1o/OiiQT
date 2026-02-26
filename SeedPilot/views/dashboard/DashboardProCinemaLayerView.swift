@@ -288,6 +288,11 @@ private struct DashboardProPosterCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
-        .shadow(color: .black.opacity(0.14), radius: 4, x: 0, y: 2)
+        // 性能优化：shadow 应用在纯背景形状上，避免对海报图片做 alpha 遮罩计算
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.clear)
+                .shadow(color: .black.opacity(0.14), radius: 4, x: 0, y: 2)
+        )
     }
 }
