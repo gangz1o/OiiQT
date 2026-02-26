@@ -209,6 +209,9 @@ struct DashboardView: View {
         .onChange(of: enabledModuleKey) { _, _ in
             dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
         }
+        .onChange(of: appStateManager.tasksRevision) { _, _ in
+            refreshTrackerStatsIfNeeded()
+        }
         .onChange(of: draggedModule) { _, newValue in
             guard newValue == nil else { return }
             highlightedDropTarget = nil
@@ -284,7 +287,8 @@ struct DashboardView: View {
             DashboardSectionBlock(title: todayTransferSectionTitle) {
                 DashboardTodayTransferModuleView(
                     uploadData: dashboardViewModel.todayUploadData,
-                    downloadData: dashboardViewModel.todayDownloadData
+                    downloadData: dashboardViewModel.todayDownloadData,
+                    isInitialLoading: !appStateManager.hasInitialDataLoaded
                 )
             }
         case .globalAssets:

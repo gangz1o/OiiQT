@@ -156,6 +156,21 @@ final class iCloudSyncManager {
         }
     }
 
+    func refreshFromCloudIfNeeded() {
+        syncQueue.async {
+            guard self.isSyncEnabled else { return }
+            self.setSyncing(true)
+            guard self.ensureICloudAvailable() else {
+                self.setSyncing(false)
+                return
+            }
+            _ = self.cloudStore.synchronize()
+            self.pullFromCloud(keys: self.syncableKeys)
+            self.markSuccess()
+            self.setSyncing(false)
+        }
+    }
+
     private var isSyncEnabled: Bool {
         defaults.bool(forKey: Keys.iCloudSyncEnabled)
     }
@@ -163,10 +178,13 @@ final class iCloudSyncManager {
     private func registerObservers() {
         let defaultsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
-            object: defaults,
+            object: nil,
             queue: nil
-        ) { [weak self] _ in
+        ) { [weak self] note in
             guard let self else { return }
+            if let sender = note.object as? UserDefaults, sender !== self.defaults {
+                return
+            }
             self.syncQueue.async {
                 self.handleLocalDefaultsChanged()
             }

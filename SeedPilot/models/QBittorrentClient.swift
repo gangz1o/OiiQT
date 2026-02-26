@@ -41,6 +41,14 @@ class QBittorrentClient: NSObject, TorrentClient {
         return URL(string: "\(getBaseURL())\(apiPathPrefix)\(normalizedPath)")
     }
 
+    private func formURLEncode(_ value: String) -> String {
+        // application/x-www-form-urlencoded: reserved chars escaped, spaces encoded as "+"
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: ":#[]@!$&'()*+,;=%/?")
+        return (value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")
+            .replacingOccurrences(of: "%20", with: "+")
+    }
+
     // MARK: - Auth
 
     func login() async throws {
@@ -53,7 +61,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         // qBittorrent 登录是 application/x-www-form-urlencoded
-        let bodyString = "username=\(config.username)&password=\(config.resolvedPassword)"
+        let bodyString = "username=\(formURLEncode(config.username))&password=\(formURLEncode(config.resolvedPassword))"
         request.httpBody = bodyString.data(using: .utf8)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         // 设置 Referer 以防某些版本检查

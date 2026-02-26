@@ -12,6 +12,7 @@ import Charts
 struct DashboardTodayTransferModuleView: View {
     let uploadData: [TrackerTransferData]
     let downloadData: [TrackerTransferData]
+    var isInitialLoading: Bool = false
 
     @State private var selectedType: TransferType = .upload
     @State private var selectedTrackerStat: TrackerTransferData?
@@ -44,6 +45,10 @@ struct DashboardTodayTransferModuleView: View {
 
     private var hasTransferData: Bool {
         totalBytes > 0
+    }
+
+    private var showsInitialLoadingState: Bool {
+        isInitialLoading && uploadData.isEmpty && downloadData.isEmpty
     }
 
     private var activeSelectedTrackerStat: TrackerTransferData? {
@@ -87,7 +92,22 @@ struct DashboardTodayTransferModuleView: View {
                 }
 
                 Group {
-                    if hasTransferData {
+                    if showsInitialLoadingState {
+                        VStack(spacing: 10) {
+                            ProgressView()
+                                .controlSize(.regular)
+
+                            Text(LanguageManager.shared.localized("Loading..."))
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(uiColor: .tertiarySystemFill).opacity(0.45))
+                        )
+                        .transition(.opacity)
+                    } else if hasTransferData {
                         Chart(currentData) { item in
                             SectorMark(
                                 angle: .value(LanguageManager.shared.localized("传输量"), max(Double(item.bytes), 0)),
@@ -149,6 +169,7 @@ struct DashboardTodayTransferModuleView: View {
                 .frame(height: 230)
                 .animation(.spring(response: 0.36, dampingFraction: 0.86), value: selectedType)
                 .animation(.easeInOut(duration: 0.2), value: hasTransferData)
+                .animation(.easeInOut(duration: 0.2), value: showsInitialLoadingState)
 
                 if hasTransferData {
                     ScrollView(.horizontal, showsIndicators: false) {

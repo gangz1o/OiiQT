@@ -1330,6 +1330,23 @@
         }
       }
     },
+    "Beta Features" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实验室"
+          }
+        }
+      }
+    },
     "Configured" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2210,23 +2227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "相当于 ¥4.83 / 月"
-          }
-        }
-      }
-    },
-    "Equivalent to ¥6.00 / month" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Equivalent to ¥8.00 / month"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "折合 ¥8.00 / 月"
           }
         }
       }
@@ -4980,13 +4980,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Search Torrents or Trackers"
+            "value" : "Search Tasks..."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "搜索任务或 Tracker"
+            "value" : "搜索任务..."
           }
         }
       }
@@ -6660,13 +6660,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracker Aliases"
+            "value" : "Data Node Aliases"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracker 别名"
+            "value" : "数据节点别名"
           }
         }
       }
@@ -6693,13 +6693,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracker Aliases"
+            "value" : "Data Node Aliases"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracker 别名"
+            "value" : "数据节点别名"
           }
         }
       }
@@ -6982,13 +6982,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Unlock TMDB poster wall and dynamic dashboard"
+            "value" : "Unlock advanced features"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解锁 TMDB 海报墙与动态仪表盘"
+            "value" : "解锁高级功能"
           }
         }
       }
@@ -7290,13 +7290,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Assign concise custom names to long tracker domains for a cleaner layout."
+            "value" : "Set personalized short names for lengthy server node domains, eliminating layout clutter."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。"
+            "value" : "为冗长的服务器节点域名设置个性化短名称，告别排版杂乱。"
           }
         }
       }
@@ -7424,13 +7424,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dynamic Poster Wall"
+            "value" : "Dynamic Data Overview"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "动态海报墙"
+            "value" : "动态数据概览"
           }
         }
       }
@@ -7456,13 +7456,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show your recently added movie and TV collection in a refined dashboard carousel."
+            "value" : "Intuitively display your recently added server assets in a dashboard carousel."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在仪表盘以精美轮播图展示您最近添加的影视收藏。"
+            "value" : "在仪表盘以直观的轮播图形式展示您最近新增的服务器资产。"
           }
         }
       }
@@ -7472,13 +7472,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "View and manage torrent tasks from all servers in one unified list."
+            "value" : "Centrally display and manage remote transfer tasks across all servers in a unified list."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在同一列表中集中展示并管理所有服务器的种子任务。"
+            "value" : "在同一列表中集中展示并实时管理所有服务器的远程传输任务。"
           }
         }
       }
@@ -7488,13 +7488,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Poster & Metadata"
+            "value" : "Smart Metadata Matching"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "影视海报与元数据"
+            "value" : "智能元数据匹配"
           }
         }
       }
@@ -7549,6 +7549,40 @@
         }
       }
     },
+    "View All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看全部"
+          }
+        }
+      }
+    },
+    "Collapse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起"
+          }
+        }
+      }
+    },
     "欢迎使用SeedPilot" : {
 
     },
@@ -7557,13 +7591,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Auto-match high-resolution posters and synopses, aligned with your system language."
+            "value" : "Automatically fetch detailed descriptions and display images for remote files, optimizing the visual experience of data assets."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自动匹配高清海报与剧情简介，无缝适配您的系统语言。"
+            "value" : "自动拉取远端文件的详细描述与展示图，优化数据资产的可视化体验。"
           }
         }
       }

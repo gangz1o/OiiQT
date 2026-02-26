@@ -198,7 +198,7 @@ struct SettingsView: View {
                 Section(LanguageManager.shared.localized("Pro Features")) {
                     NavigationLink(value: SettingsRoute.proFeatures) {
                         SettingsRowLabel(
-                            title: LanguageManager.shared.localized("Configuration"),
+                            title: LanguageManager.shared.localized("Beta Features"),
                             systemName: "sparkles",
                             tint: .purple
                         )

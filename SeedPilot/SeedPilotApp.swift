@@ -65,6 +65,7 @@ struct SeedPilotApp: App {
                 .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
+                    iCloudSyncManager.shared.refreshFromCloudIfNeeded()
                     Task {
                         await StoreManager.shared.updateCustomerProductStatus()
                     }

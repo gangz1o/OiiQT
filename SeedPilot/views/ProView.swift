@@ -608,8 +608,6 @@ struct ProView: View {
         switch product.id {
         case "com.seedpilot.pro.lifetime":
             return LanguageManager.shared.localized("Early bird special, pay once and unlock forever")
-        case "com.seedpilot.yearly.pro":
-            return LanguageManager.shared.localized("Equivalent to ¥6.00 / month")
         default:
             return nil
         }

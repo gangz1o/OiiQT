@@ -9,6 +9,9 @@ import SwiftUI
 
 struct DashboardRecentFinishedModuleView: View {
     let tasks: [TorrentTask]
+    @State private var isExpanded = false
+
+    private let collapsedLimit = 3
 
     static func hasRecentFinishedTasks(in tasks: [TorrentTask]) -> Bool {
         tasks.contains { $0.status == .completed || $0.completionDate != nil || $0.progress >= 1 }
@@ -26,20 +29,65 @@ struct DashboardRecentFinishedModuleView: View {
             .map { $0 }
     }
 
+    private var displayedTasks: [TorrentTask] {
+        if isExpanded {
+            return recentFinishedTasks
+        }
+        return Array(recentFinishedTasks.prefix(collapsedLimit))
+    }
+
+    private var canToggleExpand: Bool {
+        recentFinishedTasks.count > collapsedLimit
+    }
+
+    private var toggleButtonTitle: String {
+        isExpanded
+            ? LanguageManager.shared.localized("Collapse")
+            : LanguageManager.shared.localized("View All")
+    }
+
     var body: some View {
         if !recentFinishedTasks.isEmpty {
-            List {
-                ForEach(recentFinishedTasks) { task in
+            VStack(spacing: 0) {
+                ForEach(Array(displayedTasks.enumerated()), id: \.element.id) { index, task in
                     DashboardRecentFinishedListRow(task: task)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                        .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground))
+
+                    if index < displayedTasks.count - 1 {
+                        Divider()
+                            .padding(.leading, 46)
+                    }
+                }
+
+                if canToggleExpand {
+                    Divider()
+                        .padding(.leading, 14)
+
+                    Button {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(toggleButtonTitle)
+                                .font(.footnote.weight(.semibold))
+
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .listStyle(.plain)
-            .scrollDisabled(true)
-            .scrollContentBackground(.hidden)
-            .frame(height: CGFloat(recentFinishedTasks.count) * 56 + 8)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .onChange(of: recentFinishedTasks.count) { _, newCount in
+                if newCount <= collapsedLimit, isExpanded {
+                    isExpanded = false
+                }
+            }
         }
     }
 }
