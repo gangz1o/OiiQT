@@ -80,6 +80,8 @@ struct RSSView: View {
                                                     withAnimation {
                                                         modelContext.delete(source)
                                                     }
+                                                    RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+                                                    RSSFeedSourceCloudSyncManager.shared.handleLocalSourceConfigsChanged()
                                                 }
                                             )
                                             .frame(height: 180) // Fixed height for uniformity

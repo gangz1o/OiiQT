@@ -124,6 +124,8 @@ struct AddRSSSourceSheet: View {
         )
 
         modelContext.insert(newSource)
+        RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+        RSSFeedSourceCloudSyncManager.shared.handleLocalSourceConfigsChanged()
         dismiss()
     }
 

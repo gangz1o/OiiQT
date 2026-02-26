@@ -32,6 +32,7 @@ struct TorrentRowView: View, Equatable {
 
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @AppStorage("isProUser") private var isProUser: Bool = false
+    @AppStorage("hideDataNodeName") private var hideDataNodeName: Bool = false
     @Environment(\.displayScale) private var displayScale
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
@@ -72,17 +73,19 @@ struct TorrentRowView: View, Equatable {
                         // Feature 1: Top Status Bar
                         HStack(spacing: 6) {
                             // Tracker
-                            Text(verbatim: displayedTracker)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .minimumScaleFactor(0.8)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .frame(minHeight: Self.headerInlinePillMinHeight)
-                                .background(Color.blue)
-                                .clipShape(Capsule())
+                            if !hideDataNodeName {
+                                Text(verbatim: displayedTracker)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .minimumScaleFactor(0.8)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .frame(minHeight: Self.headerInlinePillMinHeight)
+                                    .background(Color.blue)
+                                    .clipShape(Capsule())
+                            }
 
                             if hasHeaderTaxonomyTags {
                                 headerTaxonomyInlineView

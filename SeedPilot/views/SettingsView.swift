@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("customTMDBApiKey") private var customTMDBApiKey: String = ""
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
+    @AppStorage("hideDataNodeName") private var hideDataNodeName: Bool = false
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
 
     // UI 状态
@@ -271,6 +272,8 @@ struct SettingsView: View {
                 iCloudSyncManager.shared.setSyncEnabled(isEnabled)
                 ServerConfigCloudSyncManager.shared.start(with: modelContext)
                 ServerConfigCloudSyncManager.shared.handleSyncToggleChanged(enabled: isEnabled)
+                RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+                RSSFeedSourceCloudSyncManager.shared.handleSyncToggleChanged(enabled: isEnabled)
             }
             .onReceive(NotificationCenter.default.publisher(for: .iCloudSyncStatusDidChange)) { _ in
                 iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
@@ -349,6 +352,10 @@ struct SettingsView: View {
 
         Toggle(isOn: proDashboardProBinding) {
             SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
+        }
+
+        Toggle(isOn: hideDataNodeNameProBinding) {
+            SettingsRowLabel(title: LanguageManager.shared.localized("Hide Data Node Name"), systemName: "eye.slash", tint: .gray)
         }
 
         Button {
@@ -431,6 +438,21 @@ struct SettingsView: View {
                 }
                 guardProAccess {
                     enableGlobalTaskAggregation = true
+                }
+            }
+        )
+    }
+
+    private var hideDataNodeNameProBinding: Binding<Bool> {
+        Binding(
+            get: { hideDataNodeName },
+            set: { newValue in
+                if !newValue {
+                    hideDataNodeName = false
+                    return
+                }
+                guardProAccess {
+                    hideDataNodeName = true
                 }
             }
         )

@@ -42,7 +42,8 @@ final class iCloudSyncManager {
         "enableGlobalTaskAggregation",
         "appTheme",
         "appLanguage",
-        "useHttpsDefault"
+        "useHttpsDefault",
+        "hideDataNodeName"
     ]
 
     private enum Keys {
@@ -136,7 +137,16 @@ final class iCloudSyncManager {
                 return
             }
             _ = self.cloudStore.synchronize()
-            self.forcePushToCloudLocked()
+            // Fresh install / re-install case:
+            // if cloud already has sync data and this device has never synced before,
+            // bootstrap from cloud first instead of overwriting it with local defaults.
+            let hasPriorSuccessfulSync = self.defaults.object(forKey: Keys.lastSuccessfulSync) != nil
+            let cloudHasExistingSyncData = self.syncableKeys.contains { self.cloudStore.object(forKey: $0) != nil }
+            if !hasPriorSuccessfulSync && cloudHasExistingSyncData {
+                self.pullFromCloud(keys: self.syncableKeys)
+            } else {
+                self.forcePushToCloudLocked()
+            }
             self.markSuccess()
             self.setSyncing(false)
         }

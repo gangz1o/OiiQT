@@ -10,6 +10,7 @@ import SwiftData
 
 struct EditRSSRuleView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(AppStateManager.self) private var appStateManager // To access servers
 
     @Bindable var source: RSSFeedSource
@@ -239,6 +240,10 @@ struct EditRSSRuleView: View {
             .sheet(isPresented: $showingMatchPreview) {
                 RuleMatchPreviewView(source: source)
                     .presentationDetents([.medium, .large])
+            }
+            .onDisappear {
+                RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+                RSSFeedSourceCloudSyncManager.shared.handleLocalSourceConfigsChanged()
             }
         }
     }

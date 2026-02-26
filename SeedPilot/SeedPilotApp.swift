@@ -119,6 +119,8 @@ private struct AppRootView: View {
             guard newPhase == .active else { return }
             ServerConfigCloudSyncManager.shared.start(with: modelContext)
             ServerConfigCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
+            RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+            RSSFeedSourceCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
         }
         .onReceive(NotificationCenter.default.publisher(for: .serverConfigCloudSyncDidApply)) { _ in
             appStateManager.loadServers(context: modelContext)
@@ -134,6 +136,8 @@ private struct AppRootView: View {
         ServerCredentialStore.shared.migrateLegacyPasswords(in: modelContext)
         ServerConfigCloudSyncManager.shared.start(with: modelContext)
         ServerConfigCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
+        RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+        RSSFeedSourceCloudSyncManager.shared.reconcileOnLaunchOrBecomeActive()
         appStateManager.loadServers(context: modelContext)
 
         Task { @MainActor in

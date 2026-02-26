@@ -30,6 +30,7 @@ struct TorrentActionSheetView: View {
     @State private var showingTaxonomyError = false
     @State private var displayPosterURL: URL?
     @State private var isAutoMatching = false
+    @State private var showingSpeedLimitSheet = false
 
     private var presetSavePaths: [String] {
         PresetSavePathsCodec.decode(presetSavePathsRaw)
@@ -145,6 +146,16 @@ struct TorrentActionSheetView: View {
                     } message: {
                         Text(languageManager.localized("Please enter Tracker URL. For multiple URLs, try comma separation if supported by your server."))
                     }
+
+                    Button {
+                        showingSpeedLimitSheet = true
+                    } label: {
+                        sheetMenuRow(
+                            title: languageManager.localized("Speed Limit"),
+                            systemImage: "speedometer"
+                        )
+                    }
+                    .buttonStyle(.plain)
 
                     if showTMDBData {
                         Button {
@@ -289,6 +300,14 @@ struct TorrentActionSheetView: View {
                 }
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingSpeedLimitSheet) {
+            TorrentSpeedLimitSheet(
+                task: task,
+                appStateManager: appStateManager
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
         .alert(languageManager.localized("Error"), isPresented: $showingTaxonomyError) {
             Button(languageManager.localized("OK"), role: .cancel) {}

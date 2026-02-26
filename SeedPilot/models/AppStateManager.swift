@@ -746,6 +746,70 @@ class AppStateManager {
         performTaskAction(task) { client, id in try await client.editTrackers(hash: id, newTrackers: newTrackers) }
     }
 
+    // MARK: - Per-Torrent Speed Limits
+
+    /// Fetch current per-torrent speed limits in KB/s. Returns (dlKBps, upKBps); 0 means unlimited.
+    func fetchTorrentSpeedLimits(for task: TorrentTask) async throws -> (dlKBps: Int, upKBps: Int) {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+        let client = getClient(for: server)
+
+        switch server.type {
+        case .qBittorrent:
+            guard let qbClient = client as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            let limits = try await qbClient.fetchTorrentSpeedLimits(hash: task.hash)
+            // qBittorrent returns Bytes/s → convert to KB/s
+            return (dlKBps: limits.dlLimit / 1024, upKBps: limits.upLimit / 1024)
+
+        case .transmission:
+            guard let trClient = client as? TransmissionClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            let limits = try await trClient.fetchTorrentSpeedLimits(hash: task.hash)
+            // Transmission returns KB/s; 0 if not limited
+            return (
+                dlKBps: limits.dlLimited ? limits.dlLimit : 0,
+                upKBps: limits.upLimited ? limits.upLimit : 0
+            )
+        }
+    }
+
+    /// Set per-torrent speed limits in KB/s. Pass 0 to remove the limit.
+    func setTorrentSpeedLimits(for task: TorrentTask, dlKBps: Int, upKBps: Int) async throws {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+        let client = getClient(for: server)
+
+        switch server.type {
+        case .qBittorrent:
+            guard let qbClient = client as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            // KB/s → Bytes/s
+            try await qbClient.setTorrentSpeedLimits(
+                hash: task.hash,
+                dlLimitBytesPerSec: dlKBps * 1024,
+                upLimitBytesPerSec: upKBps * 1024
+            )
+
+        case .transmission:
+            guard let trClient = client as? TransmissionClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            try await trClient.setTorrentSpeedLimits(
+                hash: task.hash,
+                dlLimitKBps: dlKBps,
+                dlLimited: dlKBps > 0,
+                upLimitKBps: upKBps,
+                upLimited: upKBps > 0
+            )
+        }
+    }
+
     // MARK: - Batch Actions
 
     func pauseTasks(_ tasks: Set<TorrentTask>) {

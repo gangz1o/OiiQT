@@ -809,6 +809,41 @@ extension QBittorrentClient {
         )
     }
 
+    // MARK: - Per-Torrent Speed Limits
+
+    /// Fetch current per-torrent speed limits (Bytes/s). Returns (dlLimit, upLimit).
+    /// A value of 0 means unlimited.
+    func fetchTorrentSpeedLimits(hash: String) async throws -> (dlLimit: Int, upLimit: Int) {
+        let normalizedHash = hash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let data = try await performServerSettingsRequest(
+            path: "properties?hash=\(normalizedHash)"
+        )
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw TorrentClientError.decodingError
+        }
+
+        let dlLimit = (json["dl_limit"] as? Int) ?? 0
+        let upLimit = (json["up_limit"] as? Int) ?? 0
+        return (dlLimit: max(0, dlLimit), upLimit: max(0, upLimit))
+    }
+
+    /// Set per-torrent speed limits (Bytes/s). Pass 0 to remove the limit.
+    func setTorrentSpeedLimits(hash: String, dlLimitBytesPerSec: Int, upLimitBytesPerSec: Int) async throws {
+        let normalizedHash = hash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        try await performAction(
+            endpoint: "setDownloadLimit",
+            hashes: normalizedHash,
+            extraParams: ["limit": "\(dlLimitBytesPerSec)"]
+        )
+        try await performAction(
+            endpoint: "setUploadLimit",
+            hashes: normalizedHash,
+            extraParams: ["limit": "\(upLimitBytesPerSec)"]
+        )
+    }
+
     private func performServerSettingsRequest(
         path: String,
         method: String = "GET",

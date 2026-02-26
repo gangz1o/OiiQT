@@ -401,6 +401,58 @@ class TransmissionClient: NSObject, TorrentClient {
             }
         }
     }
+
+    // MARK: - Per-Torrent Speed Limits
+
+    /// Fetch current per-torrent speed limits (KB/s). Returns limits and whether they are enabled.
+    func fetchTorrentSpeedLimits(hash: String) async throws -> (dlLimit: Int, dlLimited: Bool, upLimit: Int, upLimited: Bool) {
+        struct SpeedLimitGet: Decodable {
+            struct Item: Decodable {
+                let downloadLimit: Int
+                let downloadLimited: Bool
+                let uploadLimit: Int
+                let uploadLimited: Bool
+            }
+            let torrents: [Item]
+        }
+
+        let args = try await performRequest(
+            "torrent-get",
+            arguments: [
+                "ids": [hash],
+                "fields": ["downloadLimit", "downloadLimited", "uploadLimit", "uploadLimited"]
+            ],
+            responseType: SpeedLimitGet.self
+        )
+
+        guard let torrent = args.torrents.first else {
+            throw TorrentClientError.apiError("Torrent not found")
+        }
+
+        return (
+            dlLimit: torrent.downloadLimit,
+            dlLimited: torrent.downloadLimited,
+            upLimit: torrent.uploadLimit,
+            upLimited: torrent.uploadLimited
+        )
+    }
+
+    /// Set per-torrent speed limits (KB/s). Pass 0 to disable the limit.
+    func setTorrentSpeedLimits(hash: String, dlLimitKBps: Int, dlLimited: Bool, upLimitKBps: Int, upLimited: Bool) async throws {
+        var setArgs: [String: Any] = [
+            "ids": [hash],
+            "downloadLimited": dlLimited,
+            "uploadLimited": upLimited
+        ]
+        if dlLimited {
+            setArgs["downloadLimit"] = dlLimitKBps
+        }
+        if upLimited {
+            setArgs["uploadLimit"] = upLimitKBps
+        }
+
+        _ = try await performRequest("torrent-set", arguments: setArgs, responseType: EmptyArgs.self)
+    }
 }
 
 extension TransmissionClient {

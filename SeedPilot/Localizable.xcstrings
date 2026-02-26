@@ -132,6 +132,9 @@
         }
       }
     },
+    "0" : {
+
+    },
     "1 hour" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1075,6 +1078,23 @@
         }
       }
     },
+    "Beta Features" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实验室"
+          }
+        }
+      }
+    },
     "Cache Cleared" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1279,6 +1299,23 @@
         }
       }
     },
+    "Collapse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起"
+          }
+        }
+      }
+    },
     "Comma separated" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1326,23 +1363,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配置"
-          }
-        }
-      }
-    },
-    "Beta Features" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beta"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "实验室"
           }
         }
       }
@@ -1857,6 +1877,23 @@
         }
       }
     },
+    "Download Limit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载限速"
+          }
+        }
+      }
+    },
     "Download Settings" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2282,6 +2319,23 @@
         }
       }
     },
+    "Failed to load speed limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load speed limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载限速失败"
+          }
+        }
+      }
+    },
     "Failed to read file: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2312,6 +2366,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存限速设置失败：%@"
+          }
+        }
+      }
+    },
+    "Failed to save speed limits" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save speed limits"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存限速失败"
           }
         }
       }
@@ -2639,6 +2710,23 @@
         }
       }
     },
+    "Hide Data Node Name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Data Node Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏数据节点名称"
+          }
+        }
+      }
+    },
     "High" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2793,7 +2881,6 @@
       }
     },
     "KB/s" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5320,6 +5407,23 @@
         }
       }
     },
+    "Set to 0 to remove the limit." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set to 0 to remove the limit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设为 0 可取消限制。"
+          }
+        }
+      }
+    },
     "Settings" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5537,6 +5641,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指定下载任务推送到的服务器。"
+          }
+        }
+      }
+    },
+    "Speed Limit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speed Limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "速度限制"
           }
         }
       }
@@ -6948,13 +7069,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Unlock a premium visual experience and take control of your media world."
+            "value" : "Unlock advanced management features to build your exclusive private data hub."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解锁极致视觉体验，掌控你的影音世界。"
+            "value" : "解锁高阶管理特性，打造专属的私有数据中枢。"
           }
         }
       }
@@ -7040,6 +7161,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上传"
+          }
+        }
+      }
+    },
+    "Upload Limit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload Limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传限速"
           }
         }
       }
@@ -7176,6 +7314,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看"
+          }
+        }
+      }
+    },
+    "View All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看全部"
           }
         }
       }
@@ -7545,40 +7700,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无数据"
-          }
-        }
-      }
-    },
-    "View All" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View All"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看全部"
-          }
-        }
-      }
-    },
-    "Collapse" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collapse"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "收起"
           }
         }
       }
