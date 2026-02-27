@@ -27,6 +27,8 @@ struct RSSFeedDetailView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingEditRules = false
+    @State private var refreshNotice: String?
+    @State private var noticeAutoHideTask: Task<Void, Never>?
 
     // Computed sorted items from relationship
     var sortedItems: [RSSItem] {
@@ -73,11 +75,11 @@ struct RSSFeedDetailView: View {
                  }
              }
          }
-         .sheet(isPresented: $showingEditRules) {
+        .sheet(isPresented: $showingEditRules) {
              EditRSSRuleView(source: source)
          }
         .refreshable {
-            await loadData()
+            await loadData(showRefreshNotice: true)
         }
         .task {
             // Refresh Task List to sync download status
@@ -88,9 +90,29 @@ struct RSSFeedDetailView: View {
                 await loadData()
             }
         }
+        .overlay(alignment: .top) {
+            if let refreshNotice {
+                Text(refreshNotice)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: refreshNotice)
+        .onDisappear {
+            noticeAutoHideTask?.cancel()
+        }
     }
 
-    private func loadData() async {
+    private func loadData(showRefreshNotice: Bool = false) async {
         isLoading = true
         errorMessage = nil
         do {
@@ -104,7 +126,8 @@ struct RSSFeedDetailView: View {
             }
 
             // Deduplicate and Persist
-            await MainActor.run {
+            let insertedCount = await MainActor.run { () -> Int in
+                var inserted = 0
                 let existingByLink = Dictionary(source.items.map { ($0.link, $0) }, uniquingKeysWith: { first, _ in first })
                 let existingByTitle = Dictionary(source.items.map { ($0.title, $0) }, uniquingKeysWith: { first, _ in first })
 
@@ -122,9 +145,17 @@ struct RSSFeedDetailView: View {
                         // Truly new item
                         item.source = source
                         modelContext.insert(item)
+                        inserted += 1
                     }
                 }
                 source.lastUpdated = Date()
+                return inserted
+            }
+            
+            if showRefreshNotice {
+                await MainActor.run {
+                    presentRefreshNotice(insertedCount: insertedCount)
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -134,6 +165,24 @@ struct RSSFeedDetailView: View {
             }
         }
         isLoading = false
+    }
+
+    private func presentRefreshNotice(insertedCount: Int) {
+        if LanguageManager.shared.selectedLanguage == .english {
+            refreshNotice = insertedCount > 0 ? "Updated \(insertedCount) items" : "No new items"
+        } else {
+            refreshNotice = insertedCount > 0 ? "本次更新 \(insertedCount) 条" : "暂无新条目"
+        }
+
+        noticeAutoHideTask?.cancel()
+        noticeAutoHideTask = Task {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            await MainActor.run {
+                withAnimation {
+                    refreshNotice = nil
+                }
+            }
+        }
     }
 
     private func downloadItem(_ item: RSSItem) async {
@@ -171,30 +220,11 @@ struct RSSItemRow: View {
 
     @Environment(AppStateManager.self) private var appStateManager
 
-    // Pro Features
-    @AppStorage("isProUser") private var isProUser = false
-    @AppStorage("tmdbPosterEnabled") private var tmdbPosterEnabled = false
-
     // State (Transient)
     @State private var isDownloading = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // Left: Poster/Favicon (Pro Guarded)
-            Group {
-                if isProUser && tmdbPosterEnabled, let posterUrl = item.tmdbPosterUrl {
-                    SimpleCachedImage(url: posterUrl)
-                        .scaleEffect(1.0) // Placeholder to match type expectation if needed, or just let SimpleCachedImage invoke resizable
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    fallbackIcon
-                }
-            }
-            .frame(width: 40, height: 60)
-            .clipped() // Ensure fill doesn't overflow
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
             // Center: Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
@@ -214,7 +244,7 @@ struct RSSItemRow: View {
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
 
-                    Text(item.pubDate, style: .date)
+                    Text(item.pubDate, format: .dateTime.year().month().day().hour().minute())
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -231,11 +261,11 @@ struct RSSItemRow: View {
                         .controlSize(.small)
                 } else if item.isDownloaded {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundStyle(.green)
                 } else {
                     Image(systemName: "icloud.and.arrow.down")
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundStyle(.blue)
                 }
             }
@@ -246,13 +276,6 @@ struct RSSItemRow: View {
         .onAppear {
             checkDownloadStatus()
         }
-    }
-
-    // MARK: - Subviews
-
-    private var fallbackIcon: some View {
-        RSSFaviconImage(url: URL(string: source.resolvedFaviconURLString ?? ""))
-            .aspectRatio(contentMode: .fit)
     }
 
     // MARK: - Actions

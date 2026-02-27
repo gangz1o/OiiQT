@@ -93,12 +93,7 @@ struct RSSView: View {
                             }
                         }
                     } else {
-                        // Placeholder for "All Items"
-                        ContentUnavailableView(
-                            LanguageManager.shared.localized("All Items"),
-                            systemImage: "list.bullet.rectangle.portrait",
-                            description: Text(LanguageManager.shared.localized("View the latest aggregated updates from all sources."))
-                        )
+                        AllActivityView()
                     }
                 }
             }

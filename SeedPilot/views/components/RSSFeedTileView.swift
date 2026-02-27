@@ -97,6 +97,7 @@ struct RSSFeedTileView: View {
     private var lastUpdatedDescription: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
+        formatter.locale = LanguageManager.shared.currentLocale
         let relative = formatter.localizedString(for: source.lastUpdated, relativeTo: Date())
         return String(format: LanguageManager.shared.localized("Updated %@"), relative)
     }
