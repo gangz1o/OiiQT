@@ -17,6 +17,7 @@ struct AddRSSSourceSheet: View {
     @State private var urlString: String = ""
     @State private var nameString: String = ""
     @State private var autoDownload: Bool = false
+    @State private var apiKeyString: String = ""
     @State private var isProcessing = false
 
     var body: some View {
@@ -51,16 +52,30 @@ struct AddRSSSourceSheet: View {
                 } header: {
                     Text(LanguageManager.shared.localized("Feed Details"))
                 } footer: {
-                    Text(LanguageManager.shared.localized("After entering URL, SeedPilot will automatically try to extract the site name."))
+                    Text(LanguageManager.shared.localized("After entering URL, Downix will automatically try to extract the site name."))
                 }
 
                 Section {
                     Toggle(LanguageManager.shared.localized("Auto Download"), isOn: $autoDownload)
+                    Text(LanguageManager.shared.localized("When enabled, newly published compliant items will be automatically pushed to your downloader."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if isMTeamSourceURL {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(LanguageManager.shared.localized("M-Team API Key"))
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            SecureField(LanguageManager.shared.localized("Please enter M-Team API Key"), text: $apiKeyString)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 } header: {
                     Text(LanguageManager.shared.localized("Automation"))
-                } footer: {
-                    Text(LanguageManager.shared.localized("When enabled, newly published compliant items will be automatically pushed to your downloader."))
                 }
+                .animation(.easeInOut, value: isMTeamSourceURL)
             }
             .navigationTitle(LanguageManager.shared.localized("Add RSS Source"))
             .navigationBarTitleDisplayMode(.inline)
@@ -120,7 +135,8 @@ struct AddRSSSourceSheet: View {
             lastUpdated: Date(), // Now
             autoDownload: autoDownload,
             unreadCount: 0,
-            faviconUrl: getFaviconURL(for: urlString)
+            faviconUrl: getFaviconURL(for: urlString),
+            apiKey: normalizedApiKey
         )
 
         modelContext.insert(newSource)
@@ -130,9 +146,23 @@ struct AddRSSSourceSheet: View {
     }
 
     private func getFaviconURL(for urlString: String) -> String? {
+        if urlString.lowercased().contains("m-team.cc") {
+            return "https://m-team.cc/favicon.ico"
+        }
+
         // Naive favicon guess: scheme://host/favicon.ico
         guard let url = URL(string: urlString), let scheme = url.scheme, let host = url.host() else { return nil }
         return "\(scheme)://\(host)/favicon.ico"
+    }
+
+    private var isMTeamSourceURL: Bool {
+        urlString.lowercased().contains("m-team.cc")
+    }
+
+    private var normalizedApiKey: String? {
+        let trimmed = apiKeyString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isMTeamSourceURL, !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 }
 

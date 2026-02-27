@@ -586,19 +586,19 @@
         }
       }
     },
-    "After entering URL, SeedPilot will automatically try to extract the site name." : {
+    "After entering URL, Downix will automatically try to extract the site name." : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "After entering URL, SeedPilot will automatically try to extract the site name."
+            "value" : "After entering URL, Downix will automatically try to extract the site name."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输入 URL 后，SeedPilot 将自动尝试提取站点名称。"
+            "value" : "输入 URL 后，Downix 将自动尝试提取站点名称。"
           }
         }
       }
@@ -1860,6 +1860,99 @@
         }
       }
     },
+    "Downix" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix"
+          }
+        }
+      }
+    },
+    "Downix %@" : {
+
+    },
+    "Downix Privacy Policy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Privacy Policy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix 隐私政策"
+          }
+        }
+      }
+    },
+    "Downix Pro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Pro"
+          }
+        }
+      }
+    },
+    "Downix Pro Active" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Pro Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Pro 已激活"
+          }
+        }
+      }
+    },
+    "Downix Pro has been activated." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Pro has been activated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Pro 已激活。"
+          }
+        }
+      }
+    },
+    "Downix Terms of Service" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix Terms of Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downix 服务条款"
+          }
+        }
+      }
+    },
     "Download" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2693,19 +2786,19 @@
         }
       }
     },
-    "Help SeedPilot continue shipping improvements." : {
+    "Help Downix continue shipping improvements." : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Help SeedPilot continue shipping improvements."
+            "value" : "Help Downix continue shipping improvements."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "助力 SeedPilot 持续迭代更新。"
+            "value" : "助力 Downix 持续迭代更新。"
           }
         }
       }
@@ -3113,6 +3206,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "低"
+          }
+        }
+      }
+    },
+    "M-Team API Key" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "M-Team API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "M-Team 存取令牌 (API Key)"
           }
         }
       }
@@ -3868,6 +3978,23 @@
         }
       }
     },
+    "Please enter M-Team API Key" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please enter M-Team API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 M-Team 控制台获取的存取令牌"
+          }
+        }
+      }
+    },
     "Please enter Tracker URL." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3908,13 +4035,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot is a pure local client tool. We do not collect, upload, or share your server addresses, usernames, passwords, or any download task information. All sensitive information is stored encrypted locally on your device or within the iOS Keychain."
+            "value" : "Downix is a pure local client tool. We do not collect, upload, or share your server addresses, usernames, passwords, or any download task information. All sensitive information is stored encrypted locally on your device or within the iOS Keychain."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot 是一款纯粹的本地客户端工具。我们不收集、不上传、不共享您的服务器地址、用户名、密码或任何下载任务信息。所有敏感信息均加密存储在您设备的本地存储或 iOS 钥匙串（Keychain）中。"
+            "value" : "Downix 是一款纯粹的本地客户端工具。我们不收集、不上传、不共享您的服务器地址、用户名、密码或任何下载任务信息。所有敏感信息均加密存储在您设备的本地存储或 iOS 钥匙串（Keychain）中。"
           }
         }
       }
@@ -4010,13 +4137,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot is a local client app. To provide downloader management features, the app may process the information you explicitly provide, including server address, port, username, password, RSS source URL, and task metadata (such as task name, status, tracker host, save path, and speed statistics)."
+            "value" : "Downix is a local client app. To provide downloader management features, the app may process the information you explicitly provide, including server address, port, username, password, RSS source URL, and task metadata (such as task name, status, tracker host, save path, and speed statistics)."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot 是一款本地客户端应用。为实现下载器管理功能，应用会处理您主动提供的信息，包括服务器地址、端口、用户名、密码、RSS 源地址，以及任务相关元数据（如任务名称、状态、Tracker 域名、保存路径和速率统计）。"
+            "value" : "Downix 是一款本地客户端应用。为实现下载器管理功能，应用会处理您主动提供的信息，包括服务器地址、端口、用户名、密码、RSS 源地址，以及任务相关元数据（如任务名称、状态、Tracker 域名、保存路径和速率统计）。"
           }
         }
       }
@@ -4044,13 +4171,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Configuration and cached data are stored locally on your device within app sandbox storage. SeedPilot does not provide cloud sync for this data by default. Deleting the app will remove local app data according to iOS behavior."
+            "value" : "Configuration and cached data are stored locally on your device within app sandbox storage. Downix does not provide cloud sync for this data by default. Deleting the app will remove local app data according to iOS behavior."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "配置与缓存数据默认保存在您设备本地的应用沙箱中。SeedPilot 默认不提供这类数据的云同步服务。删除应用后，本地应用数据将按 iOS 机制被移除。"
+            "value" : "配置与缓存数据默认保存在您设备本地的应用沙箱中。Downix 默认不提供这类数据的云同步服务。删除应用后，本地应用数据将按 iOS 机制被移除。"
           }
         }
       }
@@ -4078,13 +4205,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot is not designed for children. If you are a minor, please use this app with guidance from a parent or legal guardian and ensure your use complies with applicable law."
+            "value" : "Downix is not designed for children. If you are a minor, please use this app with guidance from a parent or legal guardian and ensure your use complies with applicable law."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot 不是面向未成年人的应用。如您属于未成年人，请在监护人指导下使用，并确保您的使用行为符合适用法律法规。"
+            "value" : "Downix 不是面向未成年人的应用。如您属于未成年人，请在监护人指导下使用，并确保您的使用行为符合适用法律法规。"
           }
         }
       }
@@ -4180,13 +4307,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot relies on iOS sandbox and system security capabilities to protect local data. If you enable options like \"Ignore SSL Certificate Errors\", connection security may be reduced. Please evaluate network trust settings carefully."
+            "value" : "Downix relies on iOS sandbox and system security capabilities to protect local data. If you enable options like \"Ignore SSL Certificate Errors\", connection security may be reduced. Please evaluate network trust settings carefully."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot 依赖 iOS 沙箱与系统安全能力保护本地数据。若您开启“忽略 SSL 证书错误”等选项，连接安全性可能下降，请谨慎评估网络信任设置。"
+            "value" : "Downix 依赖 iOS 沙箱与系统安全能力保护本地数据。若您开启“忽略 SSL 证书错误”等选项，连接安全性可能下降，请谨慎评估网络信任设置。"
           }
         }
       }
@@ -4394,9 +4521,6 @@
           }
         }
       }
-    },
-    "Pro" : {
-
     },
     "Pro Benefits" : {
       "extractionState" : "stale",
@@ -5091,97 +5215,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "做种中"
-          }
-        }
-      }
-    },
-    "SeedPilot" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot"
-          }
-        }
-      }
-    },
-    "SeedPilot %@" : {
-
-    },
-    "SeedPilot Privacy Policy" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Privacy Policy"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot 隐私政策"
-          }
-        }
-      }
-    },
-    "SeedPilot Pro" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Pro"
-          }
-        }
-      }
-    },
-    "SeedPilot Pro Active" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Pro Active"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Pro 已激活"
-          }
-        }
-      }
-    },
-    "SeedPilot Pro has been activated." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Pro has been activated."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Pro 已激活。"
-          }
-        }
-      }
-    },
-    "SeedPilot Terms of Service" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot Terms of Service"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SeedPilot 服务条款"
           }
         }
       }
@@ -6115,13 +6148,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "By downloading or using SeedPilot, you agree to these Terms of Service. If you do not agree, please stop using the app."
+            "value" : "By downloading or using Downix, you agree to these Terms of Service. If you do not agree, please stop using the app."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "当您下载或使用 SeedPilot，即表示您同意本《服务条款》。如您不同意，请停止使用本应用。"
+            "value" : "当您下载或使用 Downix，即表示您同意本《服务条款》。如您不同意，请停止使用本应用。"
           }
         }
       }
@@ -6183,13 +6216,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You agree not to use SeedPilot in restricted jurisdictions or for prohibited purposes under applicable laws, including sanctions, export controls, cybersecurity, and intellectual property regulations."
+            "value" : "You agree not to use Downix in restricted jurisdictions or for prohibited purposes under applicable laws, including sanctions, export controls, cybersecurity, and intellectual property regulations."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您承诺不在适用法律禁止的地区或用途下使用 SeedPilot，并遵守包括制裁、出口管制、网络安全与知识产权在内的相关法律法规。"
+            "value" : "您承诺不在适用法律禁止的地区或用途下使用 Downix，并遵守包括制裁、出口管制、网络安全与知识产权在内的相关法律法规。"
           }
         }
       }
@@ -6285,13 +6318,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You must use SeedPilot in compliance with applicable laws and regulations. You must not use the app for copyright infringement, unauthorized distribution, credential abuse, or any illegal activity."
+            "value" : "You must use Downix in compliance with applicable laws and regulations. You must not use the app for copyright infringement, unauthorized distribution, credential abuse, or any illegal activity."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您应在适用法律法规允许范围内使用 SeedPilot，不得将本应用用于侵权下载、未经授权传播、凭据滥用或任何违法行为。"
+            "value" : "您应在适用法律法规允许范围内使用 Downix，不得将本应用用于侵权下载、未经授权传播、凭据滥用或任何违法行为。"
           }
         }
       }
@@ -6353,13 +6386,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot is a local client tool and does not actively review, monitor, or verify the legality, authenticity, or completeness of server-side tasks, tracker content, or transmitted data under your control."
+            "value" : "Downix is a local client tool and does not actively review, monitor, or verify the legality, authenticity, or completeness of server-side tasks, tracker content, or transmitted data under your control."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot 作为本地客户端工具，不对您控制范围内的服务器任务、Tracker 内容或传输数据进行主动审查、监控或合法性核验，也不对其真实性与完整性作出保证。"
+            "value" : "Downix 作为本地客户端工具，不对您控制范围内的服务器任务、Tracker 内容或传输数据进行主动审查、监控或合法性核验，也不对其真实性与完整性作出保证。"
           }
         }
       }
@@ -6421,13 +6454,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot integrates or connects to third-party services and infrastructures (including downloader backends, trackers, and metadata providers). We are not responsible for the legality, accuracy, availability, security, or policy compliance of third-party services or content."
+            "value" : "Downix integrates or connects to third-party services and infrastructures (including downloader backends, trackers, and metadata providers). We are not responsible for the legality, accuracy, availability, security, or policy compliance of third-party services or content."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SeedPilot 集成或连接第三方服务与基础设施（包括下载器后端、Tracker、元数据提供方等）。对于第三方服务或内容的合法性、准确性、可用性、安全性及其合规性，开发者不承担责任。"
+            "value" : "Downix 集成或连接第三方服务与基础设施（包括下载器后端、Tracker、元数据提供方等）。对于第三方服务或内容的合法性、准确性、可用性、安全性及其合规性，开发者不承担责任。"
           }
         }
       }
@@ -6602,19 +6635,19 @@
         }
       }
     },
-    "This feature requires SeedPilot Pro." : {
+    "This feature requires Downix Pro." : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This feature requires SeedPilot Pro."
+            "value" : "This feature requires Downix Pro."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此功能需要 SeedPilot Pro。"
+            "value" : "此功能需要 Downix Pro。"
           }
         }
       }
@@ -7131,19 +7164,19 @@
         }
       }
     },
-    "Upgrade to SeedPilot Pro" : {
+    "Upgrade to Downix Pro" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Upgrade to SeedPilot Pro"
+            "value" : "Upgrade to Downix Pro"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "升级到 SeedPilot Pro"
+            "value" : "升级到 Downix Pro"
           }
         }
       }
@@ -7403,7 +7436,7 @@
         }
       }
     },
-    "Welcome to SeedPilot" : {
+    "Welcome to Downix" : {
 
     },
     "When enabled, newly published compliant items will be automatically pushed to your downloader." : {
@@ -7590,18 +7623,18 @@
         }
       }
     },
-    "助力 SeedPilot 持续迭代更新，解锁未来所有专属功能。" : {
+    "助力 Downix 持续迭代更新，解锁未来所有专属功能。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Support SeedPilot's continuous evolution and unlock future exclusive features."
+            "value" : "Support Downix's continuous evolution and unlock future exclusive features."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "助力 SeedPilot 持续迭代更新，解锁未来所有专属功能。"
+            "value" : "助力 Downix 持续迭代更新，解锁未来所有专属功能。"
           }
         }
       }
@@ -7704,7 +7737,7 @@
         }
       }
     },
-    "欢迎使用SeedPilot" : {
+    "欢迎使用Downix" : {
 
     },
     "自动匹配高清海报与剧情简介，无缝适配您的系统语言。" : {

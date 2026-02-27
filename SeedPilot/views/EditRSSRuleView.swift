@@ -210,6 +210,18 @@ struct EditRSSRuleView: View {
                 Section(LanguageManager.shared.localized("Task Strategy")) {
                     Toggle(LanguageManager.shared.localized("Auto Download"), isOn: $source.autoDownload)
 
+                    if isMTeamSourceURL {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(LanguageManager.shared.localized("M-Team API Key"))
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            SecureField(LanguageManager.shared.localized("Please enter M-Team API Key"), text: apiKeyBinding)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
                     Toggle(LanguageManager.shared.localized("Add in Paused State"), isOn: $source.addPaused)
 
                     Picker(LanguageManager.shared.localized("Priority"), selection: $source.priority) {
@@ -218,6 +230,7 @@ struct EditRSSRuleView: View {
                         Text(LanguageManager.shared.localized("High")).tag(1)
                     }
                 }
+                .animation(.easeInOut, value: isMTeamSourceURL)
 
                 // Section 6: Testing
                 Section(footer: Text(LanguageManager.shared.localized("After saving, newly published compliant items will be automatically pushed to the server."))) {
@@ -260,6 +273,20 @@ struct EditRSSRuleView: View {
             source.excludeKeywords.append(exclude)
             newExcludeKeyword = ""
         }
+    }
+
+    private var isMTeamSourceURL: Bool {
+        source.url.lowercased().contains("m-team.cc")
+    }
+
+    private var apiKeyBinding: Binding<String> {
+        Binding(
+            get: { source.apiKey ?? "" },
+            set: { newValue in
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                source.apiKey = trimmed.isEmpty ? nil : trimmed
+            }
+        )
     }
 }
 

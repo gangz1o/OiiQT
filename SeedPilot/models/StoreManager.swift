@@ -102,12 +102,8 @@ final class StoreManager: ObservableObject {
         beginSubscriptionStatusLoading()
         defer { endSubscriptionStatusLoading() }
 
-        // Rebuild the entire entitlement state from current valid transactions.
-        purchasedProductIDs = []
-        isProUser = false
-        isLifetime = false
-        expirationDate = nil
-
+        // Rebuild entitlement state off-screen and commit once, so observers
+        // never see a transient "non-Pro" value during foreground refresh.
         var purchased = Set<String>()
         var hasProAccess = false
         var hasLifetimeAccess = false

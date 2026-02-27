@@ -19,7 +19,7 @@ struct RSSFeedTileView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Top: Favicon + refresh indicator
             HStack {
-                SimpleCachedImage(url: URL(string: source.faviconUrl ?? ""))
+                RSSFaviconImage(url: URL(string: source.resolvedFaviconURLString ?? ""))
                     .scaledToFit()
                     .frame(width: 44, height: 44)
                     .background(Color(uiColor: .systemBackground))

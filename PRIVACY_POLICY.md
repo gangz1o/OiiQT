@@ -1,13 +1,13 @@
-# SeedPilot 隐私政策 / Privacy Policy
+# Downix 隐私政策 / Privacy Policy
 
 本文档为中英文对照版本。
 This document is provided in both Chinese and English.
 
 ## 1. 数据收集与使用 / Data Collection & Use
 
-中文：SeedPilot 是一款纯粹的本地客户端工具。我们不收集、不上传、不共享您的服务器地址、用户名、密码或任何下载任务信息。所有敏感信息均加密存储在您设备的本地存储或 iOS 钥匙串（Keychain）中。
+中文：Downix 是一款纯粹的本地客户端工具。我们不收集、不上传、不共享您的服务器地址、用户名、密码或任何下载任务信息。所有敏感信息均加密存储在您设备的本地存储或 iOS 钥匙串（Keychain）中。
 
-English: SeedPilot is a pure local client tool. We do not collect, upload, or share your server addresses, usernames, passwords, or any download task information. All sensitive information is stored encrypted locally on your device or within the iOS Keychain.
+English: Downix is a pure local client tool. We do not collect, upload, or share your server addresses, usernames, passwords, or any download task information. All sensitive information is stored encrypted locally on your device or within the iOS Keychain.
 
 ## 2. 第三方服务 / Third-Party Services
 

@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  SeedPilot
+//  Downix
 //
 //  Created by gangz1o on 2026/2/13.
 //
@@ -89,8 +89,8 @@ struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(
                                     isProUser
-                                    ? LanguageManager.shared.localized("SeedPilot Pro Active")
-                                    : LanguageManager.shared.localized("Upgrade to SeedPilot Pro")
+                                    ? LanguageManager.shared.localized("Downix Pro Active")
+                                    : LanguageManager.shared.localized("Upgrade to Downix Pro")
                                 )
                                     .font(.headline)
                                 Text(
@@ -289,12 +289,12 @@ struct SettingsView: View {
             LanguageManager.shared.localized("Pro Required"),
             isPresented: $showingProRequiredDialog,
         ) {
-            Button(LanguageManager.shared.localized("Upgrade to SeedPilot Pro")) {
+            Button(LanguageManager.shared.localized("Upgrade to Downix Pro")) {
                 showingProPaywallSheet = true
             }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
         } message: {
-            Text(LanguageManager.shared.localized("This feature requires SeedPilot Pro."))
+            Text(LanguageManager.shared.localized("This feature requires Downix Pro."))
         }
         .sheet(isPresented: $showingProPaywallSheet) {
             NavigationStack {
@@ -582,13 +582,13 @@ struct SettingsView: View {
     }
 
     private var versionTextInline: some View {
-        Text("SeedPilot \(appVersionDisplayText)")
+        Text("Downix \(appVersionDisplayText)")
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
     }
 
     private var versionTextStacked: some View {
-        Text("SeedPilot \(appVersionDisplayText)")
+        Text("Downix \(appVersionDisplayText)")
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .multilineTextAlignment(.center)
@@ -715,13 +715,13 @@ private struct FontSizeSettingsView: View {
                         .font(.headline)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("欢迎使用SeedPilot")
+                        Text("欢迎使用Downix")
                             .font(.system(size: 20 * fontScale, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
 
-                        Text("Welcome to SeedPilot")
+                        Text("Welcome to Downix")
                             .font(.system(size: 19 * fontScale, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
@@ -985,7 +985,7 @@ struct PrivacyPolicySheetView: View {
     var body: some View {
         LegalDocumentSheetView(
             navigationTitleKey: "Privacy Policy",
-            documentTitleKey: "SeedPilot Privacy Policy",
+            documentTitleKey: "Downix Privacy Policy",
             effectiveDateKey: "Legal Effective Date",
             sections: sections
         )
@@ -1011,7 +1011,7 @@ struct TermsOfServiceSheetView: View {
     var body: some View {
         LegalDocumentSheetView(
             navigationTitleKey: "Terms of Service",
-            documentTitleKey: "SeedPilot Terms of Service",
+            documentTitleKey: "Downix Terms of Service",
             effectiveDateKey: "Legal Effective Date",
             sections: sections
         )

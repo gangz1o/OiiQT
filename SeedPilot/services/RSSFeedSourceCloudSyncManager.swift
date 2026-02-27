@@ -23,6 +23,7 @@ final class RSSFeedSourceCloudSyncManager {
         let url: String
         let isEnabled: Bool
         let autoDownload: Bool
+        let apiKey: String?
         let faviconUrl: String?
         let includeKeywords: [String]
         let excludeKeywords: [String]
@@ -186,6 +187,7 @@ final class RSSFeedSourceCloudSyncManager {
                     url: source.url,
                     isEnabled: source.isEnabled,
                     autoDownload: source.autoDownload,
+                    apiKey: source.apiKey,
                     faviconUrl: source.faviconUrl,
                     includeKeywords: source.includeKeywords,
                     excludeKeywords: source.excludeKeywords,
@@ -226,6 +228,7 @@ final class RSSFeedSourceCloudSyncManager {
         source.url = record.url
         source.isEnabled = record.isEnabled
         source.autoDownload = record.autoDownload
+        source.apiKey = record.apiKey
         source.faviconUrl = record.faviconUrl
         source.includeKeywords = record.includeKeywords
         source.excludeKeywords = record.excludeKeywords
@@ -248,6 +251,7 @@ final class RSSFeedSourceCloudSyncManager {
             autoDownload: record.autoDownload,
             unreadCount: 0,
             faviconUrl: record.faviconUrl,
+            apiKey: record.apiKey,
             includeKeywords: record.includeKeywords,
             excludeKeywords: record.excludeKeywords
         )

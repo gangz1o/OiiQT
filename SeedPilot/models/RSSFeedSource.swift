@@ -9,6 +9,7 @@ final class RSSFeedSource {
     var isEnabled: Bool = true
     var lastUpdated: Date = Date()
     var autoDownload: Bool = false
+    var apiKey: String?
     var unreadCount: Int = 0
     var faviconUrl: String?
 
@@ -30,13 +31,25 @@ final class RSSFeedSource {
     @Relationship(deleteRule: .cascade, inverse: \RSSItem.source)
     var items: [RSSItem] = []
 
-    init(name: String, url: String, isEnabled: Bool, lastUpdated: Date, autoDownload: Bool, unreadCount: Int, faviconUrl: String?, includeKeywords: [String] = [], excludeKeywords: [String] = []) {
+    init(
+        name: String,
+        url: String,
+        isEnabled: Bool,
+        lastUpdated: Date,
+        autoDownload: Bool,
+        unreadCount: Int,
+        faviconUrl: String?,
+        apiKey: String? = nil,
+        includeKeywords: [String] = [],
+        excludeKeywords: [String] = []
+    ) {
         self.id = UUID()
         self.name = name
         self.url = url
         self.isEnabled = isEnabled
         self.lastUpdated = lastUpdated
         self.autoDownload = autoDownload
+        self.apiKey = apiKey
         self.unreadCount = unreadCount
         self.faviconUrl = faviconUrl
         self.includeKeywords = includeKeywords
@@ -50,5 +63,26 @@ final class RSSFeedSource {
             RSSFeedSource(name: "AudiosNews", url: "https://audionews.org/rss.php", isEnabled: true, lastUpdated: Date().addingTimeInterval(-3600), autoDownload: false, unreadCount: 5, faviconUrl: "https://audionews.org/favicon.ico"),
             RSSFeedSource(name: "Nyaa.si", url: "https://nyaa.si/?page=rss", isEnabled: true, lastUpdated: Date().addingTimeInterval(-86400), autoDownload: true, unreadCount: 0, faviconUrl: "https://nyaa.si/static/favicon.png")
         ]
+    }
+
+    /// Runtime favicon resolver with M-Team override for rss subdomain feeds.
+    var resolvedFaviconURLString: String? {
+        if url.lowercased().contains("m-team.cc") {
+            return "https://m-team.cc/favicon.ico"
+        }
+
+        if let faviconUrl {
+            let trimmed = faviconUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        guard let feedURL = URL(string: url),
+              let scheme = feedURL.scheme,
+              let host = feedURL.host() else {
+            return nil
+        }
+        return "\(scheme)://\(host)/favicon.ico"
     }
 }

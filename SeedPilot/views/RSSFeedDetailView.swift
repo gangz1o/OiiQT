@@ -251,15 +251,8 @@ struct RSSItemRow: View {
     // MARK: - Subviews
 
     private var fallbackIcon: some View {
-        Group {
-            if let favicon = source.faviconUrl, let url = URL(string: favicon) {
-                SimpleCachedImage(url: url)
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                Image(systemName: "doc.text")
-                    .foregroundStyle(.secondary)
-            }
-        }
+        RSSFaviconImage(url: URL(string: source.resolvedFaviconURLString ?? ""))
+            .aspectRatio(contentMode: .fit)
     }
 
     // MARK: - Actions

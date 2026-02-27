@@ -31,6 +31,12 @@ class RSSManager: NSObject, XMLParserDelegate {
 
         var request = URLRequest(url: url)
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        if source.url.lowercased().contains("m-team.cc") {
+            let apiKey = source.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !apiKey.isEmpty {
+                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            }
+        }
         let (data, _) = try await URLSession.shared.data(for: request)
 
         // Reset state
