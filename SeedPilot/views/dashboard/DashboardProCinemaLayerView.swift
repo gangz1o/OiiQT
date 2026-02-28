@@ -13,17 +13,12 @@ struct DashboardProCinemaLayerView: View {
 
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var languageManager = LanguageManager.shared
-    @State private var posterItems: [PosterModel] = []
+    @State private var backdropItems: [BackdropModel] = []
     @State private var showDebugFallback = false
-    @State private var trackIndex = 0
-    @State private var dragOffset: CGFloat = 0
+    @State private var currentIndex = 0
 
     private let slideDuration: Double = 0.32
-    private let cardWidth: CGFloat = 120
-    private let cardSpacing: CGFloat = 14
-    private let dragThreshold: CGFloat = 40
-
-    private var step: CGFloat { cardWidth + cardSpacing }
+    private let autoSlideInterval: UInt64 = 5_000_000_000
 
     private var refreshKey: String {
         tasks
@@ -34,123 +29,74 @@ struct DashboardProCinemaLayerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !posterItems.isEmpty || showDebugFallback {
-                let displayItems = showDebugFallback ? PosterModel.debugPlaceholders : posterItems
-                let loopItems = loopedItems(for: displayItems)
+            if !backdropItems.isEmpty || showDebugFallback {
+                let displayItems = showDebugFallback ? BackdropModel.debugPlaceholders : backdropItems
+                let carouselKey = displayItems.map(\.id).joined(separator: "|")
 
-                GeometryReader { geo in
-                    let idsKey = loopItems.map(\.id).joined(separator: "|")
-                    let safeIndex = trackIndex.clamped(to: 0...(max(loopItems.count - 1, 0)))
-                    let baseOffset = (geo.size.width - cardWidth) / 2
-                    let trackOffset = baseOffset - CGFloat(safeIndex) * step + dragOffset
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: cardSpacing) {
-                            ForEach(Array(loopItems.enumerated()), id: \.element.id) { index, loopItem in
-                                DashboardProPosterCard(item: loopItem.item)
-                                    .frame(width: cardWidth, height: 180)
-                                    .scaleEffect(index == safeIndex ? 1.08 : 0.94)
-                                    .opacity(index == safeIndex ? 1.0 : 0.9)
-                            }
-                        }
-                        .offset(x: trackOffset)
-                        .contentShape(Rectangle())
-                    }
-                    .scrollDisabled(true)
-                    .gesture(dragGesture(displayItems: displayItems, loopItems: loopItems))
-                    .task(id: idsKey) {
-                        guard !displayItems.isEmpty else { return }
-                        trackIndex = displayItems.count > 1 ? 1 : 0
-                        dragOffset = 0
-                        guard displayItems.count > 1 else { return }
-                        let count = displayItems.count
-
-                        while !Task.isCancelled {
-                            try? await Task.sleep(nanoseconds: 5_000_000_000)
-                            guard !Task.isCancelled else { return }
-                            // Use animation completion to snap seamlessly — no Task.sleep guessing
-                            withAnimation(.easeInOut(duration: slideDuration)) {
-                                trackIndex += 1
-                            } completion: {
-                                snapIfNeeded(displayCount: count)
-                            }
-                        }
-                    }
-                    .onChange(of: idsKey) { _, _ in
-                        trackIndex = displayItems.count > 1 ? 1 : 0
-                        dragOffset = 0
+                TabView(selection: $currentIndex) {
+                    ForEach(Array(displayItems.enumerated()), id: \.element.id) { index, item in
+                        DashboardProBackdropCard(item: item)
+                            .tag(index)
                     }
                 }
-                .frame(height: 188)
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .frame(maxWidth: .infinity)
+                .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                .onChange(of: carouselKey) { _, _ in
+                    if currentIndex >= displayItems.count {
+                        currentIndex = 0
+                    }
+                }
+                .task(id: carouselKey) {
+                    guard !displayItems.isEmpty else {
+                        currentIndex = 0
+                        return
+                    }
+
+                    if currentIndex >= displayItems.count {
+                        currentIndex = 0
+                    }
+
+                    guard displayItems.count > 1 else { return }
+
+                    while !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: autoSlideInterval)
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.easeInOut(duration: slideDuration)) {
+                            currentIndex = (currentIndex + 1) % displayItems.count
+                        }
+                    }
+                }
+                .padding(.bottom, 10)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: refreshKey) {
-            await refreshPosters()
-        }
-    }
-
-    // MARK: - Carousel helpers
-
-    private func dragGesture(displayItems: [PosterModel], loopItems: [LoopPosterItem]) -> some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                dragOffset = value.translation.width
-            }
-            .onEnded { value in
-                guard displayItems.count > 1 else {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { dragOffset = 0 }
-                    return
-                }
-
-                let safeIndex = trackIndex.clamped(to: 0...(max(loopItems.count - 1, 0)))
-                var next = safeIndex
-                if value.translation.width <= -dragThreshold      { next += 1 }
-                else if value.translation.width >= dragThreshold  { next -= 1 }
-                next = next.clamped(to: 0...(max(loopItems.count - 1, 0)))
-
-                let count = displayItems.count
-                withAnimation(.easeInOut(duration: slideDuration)) {
-                    trackIndex = next
-                    dragOffset = 0
-                } completion: {
-                    snapIfNeeded(displayCount: count)
-                }
-            }
-    }
-
-    /// Instantly teleport from ghost-copy boundary back to the real item.
-    /// Called in `withAnimation completion:` so it fires only after the slide fully finishes.
-    @MainActor
-    private func snapIfNeeded(displayCount: Int) {
-        guard displayCount > 1 else { return }
-        guard trackIndex == 0 || trackIndex == displayCount + 1 else { return }
-        var t = Transaction(animation: nil)
-        t.disablesAnimations = true
-        withTransaction(t) {
-            trackIndex = trackIndex == 0 ? displayCount : 1
+            await refreshBackdrops()
         }
     }
 
     @MainActor
-    private func refreshPosters() async {
+    private func refreshBackdrops() async {
         let latestTorrents = latestOrderedTorrents(from: tasks)
         showDebugFallback = false
 
         guard !latestTorrents.isEmpty else {
-            posterItems = []
-            print("Dashboard: No movie torrents with poster found")
+            backdropItems = []
+            currentIndex = 0
+            print("Dashboard: No movie torrents with backdrop found")
             #if DEBUG
             showDebugFallback = true
             #endif
             return
         }
 
-        let resolved = await getLatestUniquePosters(from: latestTorrents)
-        posterItems = resolved
+        let resolved = await getLatestUniqueBackdrops(from: latestTorrents)
+        backdropItems = resolved
+        currentIndex = resolved.isEmpty ? 0 : min(currentIndex, resolved.count - 1)
 
         if resolved.isEmpty {
-            print("Dashboard: No movie torrents with poster found")
+            print("Dashboard: No movie torrents with backdrop found")
             #if DEBUG
             showDebugFallback = true
             #endif
@@ -166,11 +112,12 @@ struct DashboardProCinemaLayerView: View {
     }
 
     // Input torrents must already be ordered by latest-added/latest-active.
-    private func getLatestUniquePosters(from torrents: [TorrentTask]) async -> [PosterModel] {
-        var result: [PosterModel] = []
-        var seenIdentifiers = Set<String>()
+    @MainActor
+    private func getLatestUniqueBackdrops(from torrents: [TorrentTask]) async -> [BackdropModel] {
+        var result: [BackdropModel] = []
+        var seenTMDBIDs = Set<Int>()
         result.reserveCapacity(7)
-        seenIdentifiers.reserveCapacity(7)
+        seenTMDBIDs.reserveCapacity(7)
 
         for torrent in torrents {
             guard !Task.isCancelled else { return result }
@@ -178,7 +125,8 @@ struct DashboardProCinemaLayerView: View {
             // Fast pre-filter for obvious non-media files.
             if torrent.name.hasKnownNonMediaExtension { continue }
 
-            guard let posterURL = await TMDBService.shared.fetchPoster(
+            // TMDB 无结果视为非影视/不可匹配资源，直接跳过。
+            guard let details = await TMDBService.shared.fetchDetails(
                 hash: torrent.hash,
                 name: torrent.name,
                 context: modelContext
@@ -186,18 +134,23 @@ struct DashboardProCinemaLayerView: View {
                 continue
             }
 
-            guard isValidTMDBPosterURL(posterURL) else { continue }
+            guard let backdropPath = details.backdropPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !backdropPath.isEmpty,
+                  let backdropURL = URL(string: "https://image.tmdb.org/t/p/w780" + backdropPath) else {
+                continue
+            }
 
-            let identifier = posterURL.absoluteString.lowercased()
-            if seenIdentifiers.contains(identifier) { continue }
+            guard isValidTMDBBackdropURL(backdropURL) else { continue }
+            if seenTMDBIDs.contains(details.id) { continue }
 
-            seenIdentifiers.insert(identifier)
+            seenTMDBIDs.insert(details.id)
             result.append(
-                PosterModel(
-                    id: identifier,
+                BackdropModel(
+                    id: "tmdb-\(details.id)",
                     sourceTaskID: torrent.id,
                     taskName: torrent.name,
-                    posterURL: posterURL
+                    tmdbID: details.id,
+                    backdropURL: backdropURL
                 )
             )
 
@@ -207,52 +160,29 @@ struct DashboardProCinemaLayerView: View {
         return result
     }
 
-    private func isValidTMDBPosterURL(_ url: URL) -> Bool {
+    private func isValidTMDBBackdropURL(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         return host.contains("image.tmdb.org")
     }
 
-    private func loopedItems(for items: [PosterModel]) -> [LoopPosterItem] {
-        guard items.count > 1, let first = items.first, let last = items.last else {
-            return items.map { LoopPosterItem(id: $0.id, item: $0) }
-        }
-
-        var result: [LoopPosterItem] = []
-        result.reserveCapacity(items.count + 2)
-        result.append(LoopPosterItem(id: "loop-head-\(last.id)", item: last))
-        result.append(contentsOf: items.map { LoopPosterItem(id: $0.id, item: $0) })
-        result.append(LoopPosterItem(id: "loop-tail-\(first.id)", item: first))
-        return result
-    }
-
 }
 
-private struct PosterModel: Identifiable {
+private struct BackdropModel: Identifiable {
     let id: String
     let sourceTaskID: String
     let taskName: String
-    let posterURL: URL?
+    let tmdbID: Int
+    let backdropURL: URL?
 
-    static let debugPlaceholders: [PosterModel] = [
-        PosterModel(id: "debug-1", sourceTaskID: "debug-1", taskName: "", posterURL: nil),
-        PosterModel(id: "debug-2", sourceTaskID: "debug-2", taskName: "", posterURL: nil),
-        PosterModel(id: "debug-3", sourceTaskID: "debug-3", taskName: "", posterURL: nil)
+    static let debugPlaceholders: [BackdropModel] = [
+        BackdropModel(id: "debug-1", sourceTaskID: "debug-1", taskName: "", tmdbID: -1, backdropURL: nil),
+        BackdropModel(id: "debug-2", sourceTaskID: "debug-2", taskName: "", tmdbID: -2, backdropURL: nil),
+        BackdropModel(id: "debug-3", sourceTaskID: "debug-3", taskName: "", tmdbID: -3, backdropURL: nil)
     ]
 }
 
-private extension PosterModel {
-    var isDebugPlaceholder: Bool { posterURL == nil }
-}
-
-private struct LoopPosterItem: Identifiable {
-    let id: String
-    let item: PosterModel
-}
-
-private extension Comparable {
-    func clamped(to range: ClosedRange<Self>) -> Self {
-        min(max(self, range.lowerBound), range.upperBound)
-    }
+private extension BackdropModel {
+    var isDebugPlaceholder: Bool { backdropURL == nil }
 }
 
 private extension String {
@@ -269,8 +199,8 @@ private extension String {
     }
 }
 
-private struct DashboardProPosterCard: View {
-    let item: PosterModel
+private struct DashboardProBackdropCard: View {
+    let item: BackdropModel
 
     var body: some View {
         ZStack {
@@ -282,12 +212,13 @@ private struct DashboardProPosterCard: View {
                             .foregroundStyle(.white.opacity(0.9))
                     }
             } else {
-                SimpleCachedImage(url: item.posterURL)
-                    .scaledToFit()
-                    .frame(width: 120, height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                SimpleCachedImage(url: item.backdropURL)
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         // 性能优化：shadow 应用在纯背景形状上，避免对海报图片做 alpha 遮罩计算
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

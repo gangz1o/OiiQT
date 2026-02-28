@@ -43,9 +43,17 @@ private struct DashboardServerStatusTile: View {
     var body: some View {
         DashboardTile(minHeight: 118) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
+                HStack(spacing: 8) {
                     DashboardCachedServerIconView(type: server.type)
                         .frame(width: 22, height: 22)
+
+                    Text(server.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? server.type.rawValue : server.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .truncationMode(.tail)
+                        .allowsTightening(true)
 
                     Spacer(minLength: 8)
 
