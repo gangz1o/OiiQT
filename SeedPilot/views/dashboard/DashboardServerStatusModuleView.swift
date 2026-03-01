@@ -6,21 +6,16 @@
 //
 
 import SwiftUI
+import Combine
 import Kingfisher
 import UIKit
 
 struct DashboardServerStatusModuleView: View {
     let servers: [ServerConfig]
     let tasks: [TorrentTask]
+    let tasksRevision: Int
 
-    private var speedByServerID: [UUID: DashboardServerSpeedSnapshot] {
-        Dictionary(grouping: tasks, by: \.serverID).mapValues { serverTasks in
-            DashboardServerSpeedSnapshot(
-                downloadSpeed: serverTasks.reduce(0) { $0 + $1.downloadSpeed },
-                uploadSpeed: serverTasks.reduce(0) { $0 + $1.uploadSpeed }
-            )
-        }
-    }
+    @StateObject private var speedViewModel = DashboardServerStatusModuleViewModel()
 
     var body: some View {
         if !servers.isEmpty {
@@ -28,9 +23,12 @@ struct DashboardServerStatusModuleView: View {
                 ForEach(servers) { server in
                     DashboardServerStatusTile(
                         server: server,
-                        runtimeSpeed: speedByServerID[server.id] ?? .zero
+                        runtimeSpeed: speedViewModel.speedByServerID[server.id] ?? .zero
                     )
                 }
+            }
+            .task(id: tasksRevision) {
+                speedViewModel.refreshSpeeds(tasks: tasks)
             }
         }
     }
@@ -189,9 +187,49 @@ private struct DashboardServerMetric: View {
     }
 }
 
-private struct DashboardServerSpeedSnapshot {
+private struct DashboardServerSpeedSnapshot: Sendable {
     let downloadSpeed: Int64
     let uploadSpeed: Int64
 
     static let zero = DashboardServerSpeedSnapshot(downloadSpeed: 0, uploadSpeed: 0)
+}
+
+@MainActor
+private final class DashboardServerStatusModuleViewModel: ObservableObject {
+    @Published private(set) var speedByServerID: [UUID: DashboardServerSpeedSnapshot] = [:]
+
+    private var speedAggregationTask: Task<Void, Never>?
+
+    deinit {
+        speedAggregationTask?.cancel()
+    }
+
+    func refreshSpeeds(tasks: [TorrentTask]) {
+        speedAggregationTask?.cancel()
+        speedAggregationTask = Task { [tasks] in
+            let aggregated = await Task.detached(priority: .utility) {
+                DashboardServerStatusModuleViewModel.aggregateSpeeds(tasks: tasks)
+            }.value
+
+            guard !Task.isCancelled else { return }
+            speedByServerID = aggregated
+        }
+    }
+
+    nonisolated private static func aggregateSpeeds(tasks: [TorrentTask]) -> [UUID: DashboardServerSpeedSnapshot] {
+        var result: [UUID: DashboardServerSpeedSnapshot] = [:]
+        result.reserveCapacity(max(tasks.count / 6, 1))
+
+        for task in tasks {
+            let serverID = task.serverID
+            let existingDownload = result[serverID]?.downloadSpeed ?? 0
+            let existingUpload = result[serverID]?.uploadSpeed ?? 0
+            result[serverID] = DashboardServerSpeedSnapshot(
+                downloadSpeed: existingDownload + task.downloadSpeed,
+                uploadSpeed: existingUpload + task.uploadSpeed
+            )
+        }
+
+        return result
+    }
 }

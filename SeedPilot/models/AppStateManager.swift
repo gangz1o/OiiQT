@@ -26,6 +26,27 @@ struct SpeedPoint: Identifiable {
     let upload: Int64
 }
 
+private struct ServerSpeedTotals {
+    let download: Int64
+    let upload: Int64
+}
+
+private struct ServerTaskStats {
+    let seedingCount: Int
+    let downloadingCount: Int
+    let seedingSize: Int64
+    let totalUploaded: Int64
+    let totalDownloaded: Int64
+    let totalDownloadSpeed: Int64
+    let totalUploadSpeed: Int64
+    let hasRecentFinishedTask: Bool
+}
+
+private struct ServerSeedingTotals {
+    let count: Int
+    let size: Int64
+}
+
 @Observable
 class AppStateManager {
     var servers: [ServerConfig] = []
@@ -43,6 +64,12 @@ class AppStateManager {
 
     // Analytics
     var speedHistory: [SpeedPoint] = []
+    var hasRecentFinishedTasks: Bool {
+        if let activeServerId {
+            return hasRecentFinishedByServerID[activeServerId] ?? false
+        }
+        return hasRecentFinishedTasksAll
+    }
 
     // Client Cache
     private var clients: [UUID: TorrentClient] = [:]
@@ -50,6 +77,14 @@ class AppStateManager {
     private var serverStatusFailureStreak: [UUID: Int] = [:]
     private var autoRefreshTask: Task<Void, Never>?
     private var refreshDataInFlightCount: Int = 0
+    private var totalDownloadSpeedCache: Int64 = 0
+    private var totalUploadSpeedCache: Int64 = 0
+    private var speedTotalsByServerID: [UUID: ServerSpeedTotals] = [:]
+    private var totalSeedingCountCache: Int = 0
+    private var totalSeedingSizeCache: Int64 = 0
+    private var seedingTotalsByServerID: [UUID: ServerSeedingTotals] = [:]
+    private var hasRecentFinishedTasksAll: Bool = false
+    private var hasRecentFinishedByServerID: [UUID: Bool] = [:]
 
     // MARK: - Computed Properties
 
@@ -72,12 +107,18 @@ class AppStateManager {
 
     /// 显示的任务总下载速度 (Bytes/s)
     var displayedDownloadSpeed: Int64 {
-        displayedTasks.reduce(0) { $0 + $1.downloadSpeed }
+        if let id = activeServerId {
+            return speedTotalsByServerID[id]?.download ?? 0
+        }
+        return totalDownloadSpeedCache
     }
 
     /// 显示的任务总上传速度 (Bytes/s)
     var displayedUploadSpeed: Int64 {
-        displayedTasks.reduce(0) { $0 + $1.uploadSpeed }
+        if let id = activeServerId {
+            return speedTotalsByServerID[id]?.upload ?? 0
+        }
+        return totalUploadSpeedCache
     }
 
     // Deprecated exact totals if we only use displayed
@@ -86,11 +127,17 @@ class AppStateManager {
 
     // MARK: - Asset Stats
     var displayedSeedingCount: Int {
-        displayedTasks.filter { $0.status == .seeding }.count
+        if let activeServerId {
+            return seedingTotalsByServerID[activeServerId]?.count ?? 0
+        }
+        return totalSeedingCountCache
     }
 
     var displayedSeedingSize: Int64 {
-        displayedTasks.filter { $0.status == .seeding }.reduce(0) { $0 + $1.size }
+        if let activeServerId {
+            return seedingTotalsByServerID[activeServerId]?.size ?? 0
+        }
+        return totalSeedingSizeCache
     }
 
     // MARK: - Data Management
@@ -117,6 +164,9 @@ class AppStateManager {
         let validServerIDs = Set(newServers.map(\.id))
         lastKnownServerStatus = lastKnownServerStatus.filter { validServerIDs.contains($0.key) }
         serverStatusFailureStreak = serverStatusFailureStreak.filter { validServerIDs.contains($0.key) }
+        speedTotalsByServerID = speedTotalsByServerID.filter { validServerIDs.contains($0.key) }
+        seedingTotalsByServerID = seedingTotalsByServerID.filter { validServerIDs.contains($0.key) }
+        hasRecentFinishedByServerID = hasRecentFinishedByServerID.filter { validServerIDs.contains($0.key) }
     }
 
     /// 启动自动刷新 (每 2 秒)
@@ -155,6 +205,46 @@ class AppStateManager {
         }
 
         var gatheredTasks: [TorrentTask] = []
+        var aggregatedDownloadSpeed: Int64 = 0
+        var aggregatedUploadSpeed: Int64 = 0
+        var aggregatedDownloadingCount = 0
+        var aggregatedSeedingCount = 0
+        var aggregatedSeedingSize: Int64 = 0
+        var aggregatedHasRecentFinishedTasks = false
+        var aggregatedHasRecentFinishedByServerID: [UUID: Bool] = [:]
+        var aggregatedSpeedByServerID: [UUID: ServerSpeedTotals] = [:]
+        var aggregatedSeedingByServerID: [UUID: ServerSeedingTotals] = [:]
+        aggregatedSpeedByServerID.reserveCapacity(max(servers.count, 1))
+        aggregatedSeedingByServerID.reserveCapacity(max(servers.count, 1))
+        aggregatedHasRecentFinishedByServerID.reserveCapacity(max(servers.count, 1))
+
+        func ingestServerTasks(_ tasks: [TorrentTask], for server: ServerConfig) async {
+            gatheredTasks.append(contentsOf: tasks)
+
+            let serverStats = Self.buildServerTaskStats(from: tasks)
+            aggregatedDownloadSpeed += serverStats.totalDownloadSpeed
+            aggregatedUploadSpeed += serverStats.totalUploadSpeed
+            aggregatedDownloadingCount += serverStats.downloadingCount
+            aggregatedSeedingCount += serverStats.seedingCount
+            aggregatedSeedingSize += serverStats.seedingSize
+            if serverStats.hasRecentFinishedTask {
+                aggregatedHasRecentFinishedTasks = true
+            }
+            aggregatedHasRecentFinishedByServerID[server.id] = serverStats.hasRecentFinishedTask
+            aggregatedSpeedByServerID[server.id] = ServerSpeedTotals(
+                download: serverStats.totalDownloadSpeed,
+                upload: serverStats.totalUploadSpeed
+            )
+            aggregatedSeedingByServerID[server.id] = ServerSeedingTotals(
+                count: serverStats.seedingCount,
+                size: serverStats.seedingSize
+            )
+
+            await MainActor.run {
+                markServerOnline(server)
+                applyServerTaskStats(serverStats, to: server)
+            }
+        }
 
         // Parallel fetching could be done with TaskGroup, but for now serial is safer for debug
         for server in servers {
@@ -162,48 +252,14 @@ class AppStateManager {
             do {
                 // Try fetch
                 let tasks = try await client.fetchTorrents()
-                gatheredTasks.append(contentsOf: tasks)
-
-                // Mark online
-                await MainActor.run {
-                    markServerOnline(server)
-
-                    // Update stats
-                    server.totalSeedingCount = tasks.filter { $0.status == .seeding }.count
-                    server.totalDownloadingCount = tasks.filter { $0.status == .downloading }.count
-                    server.totalSeedingSize = tasks.filter { $0.status == .seeding }.reduce(0) { $0 + $1.size }
-
-                    let totalUploaded = tasks.reduce(0) { $0 + $1.uploaded }
-                    let totalDownloaded = tasks.reduce(0) { $0 + $1.downloaded }
-
-                    if totalDownloaded > 0 {
-                        server.totalRatio = Double(totalUploaded) / Double(totalDownloaded)
-                    } else {
-                        server.totalRatio = 0.0
-                    }
-                }
+                await ingestServerTasks(tasks, for: server)
             } catch let error as TorrentClientError {
                 // If auth failed, try login and retry
                 if case .authenticationFailed = error {
                     do {
                         try await client.login()
                         let tasks = try await client.fetchTorrents()
-                        gatheredTasks.append(contentsOf: tasks)
-
-                        // Mark online after retry success
-                        await MainActor.run {
-                            markServerOnline(server)
-
-                            server.totalSeedingCount = tasks.filter { $0.status == .seeding }.count
-                            server.totalDownloadingCount = tasks.filter { $0.status == .downloading }.count
-                            server.totalSeedingSize = tasks.filter { $0.status == .seeding }.reduce(0) { $0 + $1.size }
-
-                            let totalUploaded = tasks.reduce(0) { $0 + $1.uploaded }
-                            let totalDownloaded = tasks.reduce(0) { $0 + $1.downloaded }
-                            server.totalRatio = totalDownloaded > 0
-                                ? Double(totalUploaded) / Double(totalDownloaded)
-                                : 0.0
-                        }
+                        await ingestServerTasks(tasks, for: server)
                     } catch {
                         if isBenignCancellationError(error) {
                             continue
@@ -241,21 +297,31 @@ class AppStateManager {
         }
         // Essential state flags must update immediately (not deferred)
         await MainActor.run {
-            let newDownloadingCount = finalTasks.filter { $0.status == .downloading }.count
-            if self.downloadingTaskBadgeCount != newDownloadingCount {
-                self.downloadingTaskBadgeCount = newDownloadingCount
+            if self.downloadingTaskBadgeCount != aggregatedDownloadingCount {
+                self.downloadingTaskBadgeCount = aggregatedDownloadingCount
             }
+            self.totalDownloadSpeedCache = aggregatedDownloadSpeed
+            self.totalUploadSpeedCache = aggregatedUploadSpeed
+            self.speedTotalsByServerID = aggregatedSpeedByServerID
+            self.totalSeedingCountCache = aggregatedSeedingCount
+            self.totalSeedingSizeCache = aggregatedSeedingSize
+            self.seedingTotalsByServerID = aggregatedSeedingByServerID
+            self.hasRecentFinishedTasksAll = aggregatedHasRecentFinishedTasks
+            self.hasRecentFinishedByServerID = aggregatedHasRecentFinishedByServerID
             self.hasInitialDataLoaded = true
 
             // Record History
             let now = Date()
-            let down = finalTasks.reduce(0) { $0 + $1.downloadSpeed }
-            let up = finalTasks.reduce(0) { $0 + $1.uploadSpeed }
-
             if self.speedHistory.count > 60 {
                 self.speedHistory.removeFirst()
             }
-            self.speedHistory.append(SpeedPoint(date: now, download: down, upload: up))
+            self.speedHistory.append(
+                SpeedPoint(
+                    date: now,
+                    download: aggregatedDownloadSpeed,
+                    upload: aggregatedUploadSpeed
+                )
+            )
         }
     }
 
@@ -321,6 +387,57 @@ class AppStateManager {
         }
         clients[server.id] = client
         return client
+    }
+
+    @MainActor
+    private func applyServerTaskStats(_ stats: ServerTaskStats, to server: ServerConfig) {
+        server.totalSeedingCount = stats.seedingCount
+        server.totalDownloadingCount = stats.downloadingCount
+        server.totalSeedingSize = stats.seedingSize
+        server.totalRatio = stats.totalDownloaded > 0
+            ? Double(stats.totalUploaded) / Double(stats.totalDownloaded)
+            : 0.0
+    }
+
+    private static func buildServerTaskStats(from tasks: [TorrentTask]) -> ServerTaskStats {
+        var seedingCount = 0
+        var downloadingCount = 0
+        var seedingSize: Int64 = 0
+        var totalUploaded: Int64 = 0
+        var totalDownloaded: Int64 = 0
+        var totalDownloadSpeed: Int64 = 0
+        var totalUploadSpeed: Int64 = 0
+        var hasRecentFinishedTask = false
+
+        for task in tasks {
+            if task.status == .seeding {
+                seedingCount += 1
+                seedingSize += task.size
+            } else if task.status == .downloading {
+                downloadingCount += 1
+            }
+
+            totalUploaded += task.uploaded
+            totalDownloaded += task.downloaded
+            totalDownloadSpeed += task.downloadSpeed
+            totalUploadSpeed += task.uploadSpeed
+
+            if !hasRecentFinishedTask &&
+                (task.status == .completed || task.completionDate != nil || task.progress >= 1) {
+                hasRecentFinishedTask = true
+            }
+        }
+
+        return ServerTaskStats(
+            seedingCount: seedingCount,
+            downloadingCount: downloadingCount,
+            seedingSize: seedingSize,
+            totalUploaded: totalUploaded,
+            totalDownloaded: totalDownloaded,
+            totalDownloadSpeed: totalDownloadSpeed,
+            totalUploadSpeed: totalUploadSpeed,
+            hasRecentFinishedTask: hasRecentFinishedTask
+        )
     }
 
     // MARK: - Server Category / Tag Settings
@@ -813,6 +930,26 @@ class AppStateManager {
                 upLimited: upKBps > 0
             )
         }
+    }
+
+    // MARK: - File Management
+
+    func fetchFiles(for task: TorrentTask) async throws -> [TorrentFile] {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+        let client = getClient(for: server)
+        try await client.login()
+        return try await client.getFiles(hash: task.hash)
+    }
+
+    func setFilePriority(for task: TorrentTask, fileIndices: [Int], priority: FilePriority) async throws {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+        let client = getClient(for: server)
+        try await client.login()
+        try await client.setFilePriority(hash: task.hash, fileIndices: fileIndices, priority: priority)
     }
 
     // MARK: - Batch Actions

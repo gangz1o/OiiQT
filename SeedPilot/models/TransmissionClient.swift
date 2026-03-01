@@ -220,16 +220,6 @@ class TransmissionClient: NSObject, TorrentClient {
                     .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
                 }
 
-                func mapStatus(_ status: Int) -> TorrentStatus {
-                    switch status {
-                    case 0: return .paused
-                    case 1, 2: return .checking
-                    case 3, 4: return .downloading
-                    case 5, 6: return .seeding
-                    default: return .error
-                    }
-                }
-
                 let mapped = args.torrents.map { item in
                     let trackerURL = pickTrackerURL(primary: item.tracker, trackers: item.trackers)
                     let progress = (item.percentDone * 1000).rounded() / 1000   // 0.1% granularity
@@ -265,7 +255,7 @@ class TransmissionClient: NSObject, TorrentClient {
                         downloadSpeed: downloadSpeed,
                         uploadSpeed: uploadSpeed,
                         remainingTime: TimeInterval(item.eta),
-                        status: mapStatus(item.status),
+                        status: Self.mapTransmissionStatus(item.status),
                         serverID: serverID,
                         tracker: trackerURL,
                         savePath: item.downloadDir,
@@ -365,7 +355,12 @@ class TransmissionClient: NSObject, TorrentClient {
     }
 
     func forceStartTask(hash: String) async throws {
-         _ = try await performRequest("torrent-start-now", arguments: ["ids": [hash]], responseType: EmptyArgs.self)
+        do {
+            _ = try await performRequest("torrent-start-now", arguments: ["ids": [hash]], responseType: EmptyArgs.self)
+        } catch {
+            // Compatibility fallback for Transmission variants that don't expose "start-now".
+            _ = try await performRequest("torrent-start", arguments: ["ids": [hash]], responseType: EmptyArgs.self)
+        }
     }
 
     func setLocation(hash: String, newLocation: String) async throws {
@@ -407,16 +402,104 @@ class TransmissionClient: NSObject, TorrentClient {
         _ = try await performRequest("torrent-set", arguments: setArguments, responseType: EmptyArgs.self)
     }
 
+    // MARK: - File Management
+
+    func getFiles(hash: String) async throws -> [TorrentFile] {
+        struct FileGet: Decodable {
+            struct Item: Decodable {
+                struct FileEntry: Decodable {
+                    let name: String
+                    let length: Int64
+                    let bytesCompleted: Int64
+                }
+                struct FileStat: Decodable {
+                    let wanted: Bool
+                    let priority: Int // -1 = low, 0 = normal, 1 = high
+                }
+                let files: [FileEntry]?
+                let fileStats: [FileStat]?
+            }
+            let torrents: [Item]
+        }
+
+        let args = try await performRequest(
+            "torrent-get",
+            arguments: [
+                "ids": [hash],
+                "fields": ["files", "fileStats"]
+            ],
+            responseType: FileGet.self
+        )
+
+        guard let torrent = args.torrents.first,
+              let files = torrent.files else {
+            return []
+        }
+
+        let stats = torrent.fileStats ?? []
+
+        return files.enumerated().map { index, file in
+            let progress = file.length > 0 ? Double(file.bytesCompleted) / Double(file.length) : 0
+            let priority: FilePriority
+            if index < stats.count {
+                if !stats[index].wanted {
+                    priority = .doNotDownload
+                } else {
+                    switch stats[index].priority {
+                    case 1:  priority = .high
+                    case -1: priority = .normal
+                    default: priority = .normal
+                    }
+                }
+            } else {
+                priority = .normal
+            }
+            return TorrentFile(
+                index: index,
+                name: file.name,
+                size: file.length,
+                downloaded: file.bytesCompleted,
+                progress: progress,
+                priority: priority
+            )
+        }
+    }
+
+    func setFilePriority(hash: String, fileIndices: [Int], priority: FilePriority) async throws {
+        var setArgs: [String: Any] = ["ids": [hash]]
+
+        switch priority {
+        case .doNotDownload:
+            setArgs["files-unwanted"] = fileIndices
+        case .normal:
+            setArgs["files-wanted"] = fileIndices
+            setArgs["priority-normal"] = fileIndices
+        case .high:
+            setArgs["files-wanted"] = fileIndices
+            setArgs["priority-high"] = fileIndices
+        case .maximum:
+            setArgs["files-wanted"] = fileIndices
+            setArgs["priority-high"] = fileIndices
+        }
+
+        _ = try await performRequest("torrent-set", arguments: setArgs, responseType: EmptyArgs.self)
+    }
+
     // MARK: - Helpers
 
     private func mapStatus(_ status: Int) -> TorrentStatus {
+        Self.mapTransmissionStatus(status)
+    }
+
+    private static func mapTransmissionStatus(_ status: Int) -> TorrentStatus {
         // Transmission Status:
         // 0: Stopped, 1: Check Wait, 2: Check, 3: Download Wait, 4: Download, 5: Seed Wait, 6: Seed
         switch status {
         case 0: return .paused
         case 1, 2: return .checking
-        case 3, 4: return .downloading
-        case 5, 6: return .seeding
+        case 3, 5: return .queued
+        case 4: return .downloading
+        case 6: return .seeding
         default: return .error
         }
     }

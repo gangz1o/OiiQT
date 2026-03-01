@@ -10,6 +10,9 @@ import SwiftUI
 struct DashboardStorageAuditModuleView: View {
     let servers: [ServerConfig]
     let snapshot: GlobalStatsSnapshot
+    let onFirstAppear: (() -> Void)?
+
+    @State private var hasTriggeredFirstAppear = false
 
     var body: some View {
         Group {
@@ -32,6 +35,11 @@ struct DashboardStorageAuditModuleView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            guard !hasTriggeredFirstAppear else { return }
+            hasTriggeredFirstAppear = true
+            onFirstAppear?()
         }
     }
 }

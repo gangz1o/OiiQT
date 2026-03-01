@@ -9,25 +9,12 @@ import SwiftUI
 
 struct DashboardRecentFinishedModuleView: View {
     let tasks: [TorrentTask]
+    let refreshKey: String
+
     @State private var isExpanded = false
+    @State private var recentFinishedTasks: [TorrentTask] = []
 
     private let collapsedLimit = 3
-
-    static func hasRecentFinishedTasks(in tasks: [TorrentTask]) -> Bool {
-        tasks.contains { $0.status == .completed || $0.completionDate != nil || $0.progress >= 1 }
-    }
-
-    private var recentFinishedTasks: [TorrentTask] {
-        tasks
-            .filter { $0.status == .completed || $0.completionDate != nil || $0.progress >= 1 }
-            .sorted {
-                let lhsDate = $0.completionDate ?? $0.addedTime
-                let rhsDate = $1.completionDate ?? $1.addedTime
-                return lhsDate > rhsDate
-            }
-            .prefix(10)
-            .map { $0 }
-    }
 
     private var displayedTasks: [TorrentTask] {
         if isExpanded {
@@ -84,12 +71,39 @@ struct DashboardRecentFinishedModuleView: View {
             }
             .background(Color(uiColor: .secondarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .onChange(of: recentFinishedTasks.count) { _, newCount in
-                if newCount <= collapsedLimit, isExpanded {
+            .task(id: refreshKey) {
+                let latest = await Task.detached(priority: .utility) {
+                    DashboardRecentFinishedModuleView.computeRecentFinishedTasks(from: tasks)
+                }.value
+                guard !Task.isCancelled else { return }
+                recentFinishedTasks = latest
+                if latest.count <= collapsedLimit, isExpanded {
                     isExpanded = false
                 }
             }
         }
+    }
+
+    nonisolated private static func computeRecentFinishedTasks(from tasks: [TorrentTask]) -> [TorrentTask] {
+        var finishedTasks: [TorrentTask] = []
+        finishedTasks.reserveCapacity(min(max(tasks.count / 8, 8), 256))
+
+        for task in tasks {
+            if task.status == .completed || task.completionDate != nil || task.progress >= 1 {
+                finishedTasks.append(task)
+            }
+        }
+
+        finishedTasks.sort {
+            let lhsDate = $0.completionDate ?? $0.addedTime
+            let rhsDate = $1.completionDate ?? $1.addedTime
+            return lhsDate > rhsDate
+        }
+
+        if finishedTasks.count > 10 {
+            finishedTasks.removeSubrange(10..<finishedTasks.count)
+        }
+        return finishedTasks
     }
 }
 

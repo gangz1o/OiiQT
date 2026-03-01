@@ -23,13 +23,6 @@ struct TrackerTransferData: Identifiable {
     }
 }
 
-private struct TrackerTransferSample: Sendable {
-    let taskID: String
-    let tracker: String
-    let uploaded: Int64
-    let downloaded: Int64
-}
-
 private struct TrackerTransferAggregate: Sendable {
     let trackerName: String
     let uploadedBytes: Int64
@@ -55,6 +48,19 @@ private struct TrackerTransferComputationResult: Sendable {
     let aggregates: [TrackerTransferAggregate]
     let baselineSnapshot: TrackerTransferBaselineSnapshot
     let rollingSnapshots: [TrackerTransferRollingSnapshot]
+}
+
+private struct DashboardServerRuntimeInput: Sendable {
+    let id: UUID
+    let name: String
+    let isOnline: Bool?
+    let totalSeedingCount: Int
+    let totalDownloadingCount: Int
+}
+
+private struct DashboardGlobalStatsMergeResult: Sendable {
+    let snapshot: GlobalStatsSnapshot
+    let updatedStorageByServer: [UUID: DashboardServerStorageEntry]
 }
 
 @MainActor
@@ -100,16 +106,6 @@ final class DashboardViewModel: ObservableObject {
     func calculateTrackerStats(from tasks: [TorrentTask]) {
         trackerStatsComputationTask?.cancel()
 
-        // Create a lightweight snapshot on MainActor, then aggregate off-main.
-        let samples = tasks.map {
-            TrackerTransferSample(
-                taskID: $0.id,
-                tracker: $0.tracker,
-                uploaded: max($0.uploaded, 0),
-                downloaded: max($0.downloaded, 0)
-            )
-        }
-
         let dayStamp = Self.trackerStatsDayStampFormatter.string(from: Date())
         let now = Date()
         let baselineSnapshot = Self.decodeTrackerBaselineSnapshot(from: trackerStatsBaselineSnapshotData)
@@ -119,10 +115,10 @@ final class DashboardViewModel: ObservableObject {
             : [:]
 
         trackerStatsComputationTask = Task {
-            [samples, dayStamp, now, baselineSnapshot, rollingSnapshots, trackerAliasMapSnapshot] in
+            [tasks, dayStamp, now, baselineSnapshot, rollingSnapshots, trackerAliasMapSnapshot] in
             let result = await Task.detached(priority: .utility) {
                 DashboardViewModel.computeTrackerStats(
-                    samples: samples,
+                    tasks: tasks,
                     dayStamp: dayStamp,
                     now: now,
                     baselineSnapshot: baselineSnapshot,
@@ -219,22 +215,54 @@ final class DashboardViewModel: ObservableObject {
             return
         }
 
+        let serverInputs = Self.buildServerRuntimeInputs(from: servers)
+        var cachedStorageByServer = lastKnownStorageByServer
+
         isRefreshing = true
         await statsManager.refresh(servers: servers, force: force)
-        let latestSnapshot = mergeSnapshot(statsManager.snapshot, with: servers, tasks: tasks)
+        let apiSnapshot = statsManager.snapshot
+        let latestStorageSnapshot = cachedStorageByServer
+        let latestResult = await Task.detached(priority: .utility) {
+            DashboardViewModel.computeMergedGlobalSnapshot(
+                apiSnapshot: apiSnapshot,
+                servers: serverInputs,
+                tasks: tasks,
+                lastKnownStorageByServer: latestStorageSnapshot
+            )
+        }.value
+        cachedStorageByServer = latestResult.updatedStorageByServer
 
         // Retry both full outage and partial server failures.
-        let shouldRetry = latestSnapshot.hasConnectionIssue || latestSnapshot.failedServerCount > 0
+        let shouldRetry = latestResult.snapshot.hasConnectionIssue || latestResult.snapshot.failedServerCount > 0
 
-        var resolvedSnapshot = latestSnapshot
+        var resolvedSnapshot = latestResult.snapshot
         if shouldRetry, let retried = await retryGlobalStats(servers: servers, retryCount: 2) {
-            let mergedRetried = mergeSnapshot(retried, with: servers, tasks: tasks)
-            resolvedSnapshot = betterSnapshot(lhs: resolvedSnapshot, rhs: mergedRetried)
+            let retryStorageSnapshot = cachedStorageByServer
+            let retryResult = await Task.detached(priority: .utility) {
+                DashboardViewModel.computeMergedGlobalSnapshot(
+                    apiSnapshot: retried,
+                    servers: serverInputs,
+                    tasks: tasks,
+                    lastKnownStorageByServer: retryStorageSnapshot
+                )
+            }.value
+            cachedStorageByServer = retryResult.updatedStorageByServer
+            resolvedSnapshot = betterSnapshot(lhs: resolvedSnapshot, rhs: retryResult.snapshot)
         }
 
         if resolvedSnapshot.hasConnectionIssue {
             if let cached = lastSuccessfulSnapshot {
-                globalSnapshot = mergeSnapshot(cached, with: servers, tasks: tasks)
+                let fallbackStorageSnapshot = cachedStorageByServer
+                let cachedResult = await Task.detached(priority: .utility) {
+                    DashboardViewModel.computeMergedGlobalSnapshot(
+                        apiSnapshot: cached,
+                        servers: serverInputs,
+                        tasks: tasks,
+                        lastKnownStorageByServer: fallbackStorageSnapshot
+                    )
+                }.value
+                cachedStorageByServer = cachedResult.updatedStorageByServer
+                globalSnapshot = cachedResult.snapshot
                 isUsingCachedFallback = true
             } else {
                 globalSnapshot = resolvedSnapshot
@@ -246,6 +274,7 @@ final class DashboardViewModel: ObservableObject {
             isUsingCachedFallback = false
         }
 
+        lastKnownStorageByServer = cachedStorageByServer
         isRefreshing = false
         hasLoadedInitialSnapshot = true
     }
@@ -277,83 +306,6 @@ final class DashboardViewModel: ObservableObject {
         }
 
         return bestSnapshot
-    }
-
-    private func mergeSnapshot(_ apiSnapshot: GlobalStatsSnapshot, with servers: [ServerConfig], tasks: [TorrentTask]) -> GlobalStatsSnapshot {
-        let onlineServers = servers.filter { server in
-            if server.isOnline == true { return true }
-            if server.isOnline == false {
-                // Keep server in aggregation when runtime stats still indicate activity.
-                return server.totalSeedingCount > 0 || server.totalDownloadingCount > 0
-            }
-            return true
-        }
-        let onlineServerIDs = Set(onlineServers.map(\.id))
-
-        var totalSeedingCount = 0
-        var totalDownloadingCount = 0
-        for server in onlineServers {
-            totalSeedingCount += server.totalSeedingCount
-            totalDownloadingCount += server.totalDownloadingCount
-        }
-
-        let tasksByServer = Dictionary(grouping: tasks, by: \.serverID)
-        var totalBandwidth: Int64 = 0
-        for serverID in onlineServerIDs {
-            guard let serverTasks = tasksByServer[serverID] else { continue }
-            totalBandwidth += serverTasks.reduce(Int64(0)) { $0 + $1.downloadSpeed + $1.uploadSpeed }
-        }
-        if totalBandwidth <= 0 {
-            totalBandwidth = apiSnapshot.totalBandwidth
-        }
-
-        var storageByServer = Dictionary(uniqueKeysWithValues: apiSnapshot.serverStorage.map { ($0.id, $0) })
-        for (serverID, cachedEntry) in lastKnownStorageByServer {
-            guard storageByServer[serverID] == nil || storageByServer[serverID]?.remainingSpace == nil else { continue }
-            storageByServer[serverID] = cachedEntry
-        }
-
-        var mergedStorage: [DashboardServerStorageEntry] = []
-        mergedStorage.reserveCapacity(servers.count)
-
-        var totalRemainingSpace: Int64 = 0
-        for server in servers {
-            let serverID = server.id
-            let isOnline = onlineServerIDs.contains(serverID)
-            let apiEntry = storageByServer[serverID]
-
-            let mergedEntry = DashboardServerStorageEntry(
-                id: serverID,
-                serverName: server.name,
-                defaultSavePath: apiEntry?.defaultSavePath ?? "--",
-                remainingSpace: apiEntry?.remainingSpace,
-                isOnline: isOnline,
-                statusMessage: isOnline ? "在线" : "连接异常"
-            )
-            mergedStorage.append(mergedEntry)
-
-            if let remainingSpace = mergedEntry.remainingSpace, isOnline {
-                totalRemainingSpace += remainingSpace
-            }
-            if mergedEntry.remainingSpace != nil {
-                lastKnownStorageByServer[serverID] = mergedEntry
-            }
-        }
-
-        let onlineServerCount = onlineServers.count
-        let failedServerCount = max(servers.count - onlineServerCount, 0)
-
-        return GlobalStatsSnapshot(
-            totalSeedingCount: totalSeedingCount,
-            totalDownloadingCount: totalDownloadingCount,
-            totalBandwidth: totalBandwidth,
-            totalRemainingSpace: totalRemainingSpace,
-            onlineServerCount: onlineServerCount,
-            failedServerCount: failedServerCount,
-            hasConnectionIssue: onlineServerCount == 0,
-            serverStorage: mergedStorage,
-            lastUpdatedAt: Date()
-        )
     }
 
     private func betterSnapshot(lhs: GlobalStatsSnapshot, rhs: GlobalStatsSnapshot) -> GlobalStatsSnapshot {
@@ -415,6 +367,25 @@ final class DashboardViewModel: ObservableObject {
         guard moduleOrderStorageData != serialized else { return }
         moduleOrderStorageData = serialized
     }
+
+    private static func buildServerRuntimeInputs(from servers: [ServerConfig]) -> [DashboardServerRuntimeInput] {
+        var inputs: [DashboardServerRuntimeInput] = []
+        inputs.reserveCapacity(max(servers.count, 1))
+
+        for server in servers {
+            inputs.append(
+                DashboardServerRuntimeInput(
+                    id: server.id,
+                    name: server.name,
+                    isOnline: server.isOnline,
+                    totalSeedingCount: server.totalSeedingCount,
+                    totalDownloadingCount: server.totalDownloadingCount
+                )
+            )
+        }
+
+        return inputs
+    }
 }
 
 private extension DashboardViewModel {
@@ -428,8 +399,114 @@ private extension DashboardViewModel {
         .mint, .teal, .red, .cyan, .brown
     ]
 
+    nonisolated static func computeMergedGlobalSnapshot(
+        apiSnapshot: GlobalStatsSnapshot,
+        servers: [DashboardServerRuntimeInput],
+        tasks: [TorrentTask],
+        lastKnownStorageByServer: [UUID: DashboardServerStorageEntry]
+    ) -> DashboardGlobalStatsMergeResult {
+        var onlineServerIDs = Set<UUID>()
+        onlineServerIDs.reserveCapacity(max(servers.count, 1))
+
+        var totalSeedingCount = 0
+        var totalDownloadingCount = 0
+
+        for server in servers {
+            let isOnline: Bool
+            if server.isOnline == true {
+                isOnline = true
+            } else if server.isOnline == false {
+                isOnline = server.totalSeedingCount > 0 || server.totalDownloadingCount > 0
+            } else {
+                isOnline = true
+            }
+
+            if isOnline {
+                onlineServerIDs.insert(server.id)
+                totalSeedingCount += server.totalSeedingCount
+                totalDownloadingCount += server.totalDownloadingCount
+            }
+        }
+
+        var totalBandwidth: Int64 = 0
+        if !onlineServerIDs.isEmpty {
+            for task in tasks {
+                if onlineServerIDs.contains(task.serverID) {
+                    totalBandwidth += task.downloadSpeed + task.uploadSpeed
+                }
+            }
+        }
+        if totalBandwidth <= 0 {
+            totalBandwidth = apiSnapshot.totalBandwidth
+        }
+
+        var storageByServer: [UUID: DashboardServerStorageEntry] = [:]
+        storageByServer.reserveCapacity(
+            max(apiSnapshot.serverStorage.count + lastKnownStorageByServer.count, 1)
+        )
+
+        for entry in apiSnapshot.serverStorage {
+            storageByServer[entry.id] = entry
+        }
+        for (serverID, cachedEntry) in lastKnownStorageByServer {
+            if let existing = storageByServer[serverID], existing.remainingSpace != nil {
+                continue
+            }
+            storageByServer[serverID] = cachedEntry
+        }
+
+        var mergedStorage: [DashboardServerStorageEntry] = []
+        mergedStorage.reserveCapacity(max(servers.count, 1))
+
+        var updatedStorageByServer = lastKnownStorageByServer
+        var totalRemainingSpace: Int64 = 0
+
+        for server in servers {
+            let serverID = server.id
+            let isOnline = onlineServerIDs.contains(serverID)
+            let apiEntry = storageByServer[serverID]
+
+            let mergedEntry = DashboardServerStorageEntry(
+                id: serverID,
+                serverName: server.name,
+                defaultSavePath: apiEntry?.defaultSavePath ?? "--",
+                remainingSpace: apiEntry?.remainingSpace,
+                isOnline: isOnline,
+                statusMessage: isOnline ? "在线" : "连接异常"
+            )
+            mergedStorage.append(mergedEntry)
+
+            if let remainingSpace = mergedEntry.remainingSpace, isOnline {
+                totalRemainingSpace += remainingSpace
+            }
+            if mergedEntry.remainingSpace != nil {
+                updatedStorageByServer[serverID] = mergedEntry
+            }
+        }
+
+        let onlineServerCount = onlineServerIDs.count
+        let failedServerCount = max(servers.count - onlineServerCount, 0)
+
+        let mergedSnapshot = GlobalStatsSnapshot(
+            totalSeedingCount: totalSeedingCount,
+            totalDownloadingCount: totalDownloadingCount,
+            totalBandwidth: totalBandwidth,
+            totalRemainingSpace: totalRemainingSpace,
+            onlineServerCount: onlineServerCount,
+            failedServerCount: failedServerCount,
+            hasConnectionIssue: onlineServerCount == 0,
+            serverStorage: mergedStorage,
+            lastUpdatedAt: Date()
+        )
+
+        return DashboardGlobalStatsMergeResult(
+            snapshot: mergedSnapshot,
+            updatedStorageByServer: updatedStorageByServer
+        )
+    }
+
     nonisolated static func computeTrackerStats(
-        samples: [TrackerTransferSample],
+        tasks: [TorrentTask],
         dayStamp: String,
         now: Date,
         baselineSnapshot: TrackerTransferBaselineSnapshot?,
@@ -437,13 +514,14 @@ private extension DashboardViewModel {
         trackerAliasMap: [String: String]
     ) -> TrackerTransferComputationResult {
         var currentTaskCounters: [String: TrackerTransferBaselineEntry] = [:]
-        currentTaskCounters.reserveCapacity(max(samples.count, 8))
-        for sample in samples {
-            let uploaded = max(sample.uploaded, 0)
-            let downloaded = max(sample.downloaded, 0)
+        currentTaskCounters.reserveCapacity(max(tasks.count, 8))
+        for task in tasks {
+            let taskID = "\(task.serverID.uuidString)_\(task.hash)"
+            let uploaded = max(task.uploaded, 0)
+            let downloaded = max(task.downloaded, 0)
             // Keep zero counters in rolling snapshots so midnight interpolation can preserve
             // "0 -> positive" transfers that start after midnight.
-            currentTaskCounters[sample.taskID] = TrackerTransferBaselineEntry(uploaded: uploaded, downloaded: downloaded)
+            currentTaskCounters[taskID] = TrackerTransferBaselineEntry(uploaded: uploaded, downloaded: downloaded)
         }
 
         let updatedRollingSnapshots = normalizedRollingSnapshots(
@@ -461,13 +539,14 @@ private extension DashboardViewModel {
         )
 
         var grouped: [String: (uploaded: Int64, downloaded: Int64)] = [:]
-        grouped.reserveCapacity(max(samples.count / 2, 4))
+        grouped.reserveCapacity(max(tasks.count / 2, 4))
 
-        for sample in samples {
-            let currentUploaded = max(sample.uploaded, 0)
-            let currentDownloaded = max(sample.downloaded, 0)
+        for task in tasks {
+            let taskID = "\(task.serverID.uuidString)_\(task.hash)"
+            let currentUploaded = max(task.uploaded, 0)
+            let currentDownloaded = max(task.downloaded, 0)
 
-            let baselineEntry = baselineTasks[sample.taskID]
+            let baselineEntry = baselineTasks[taskID]
             let effectiveBaseline: TrackerTransferBaselineEntry
 
             if let baselineEntry,
@@ -480,19 +559,19 @@ private extension DashboardViewModel {
                     uploaded: currentUploaded,
                     downloaded: currentDownloaded
                 )
-                baselineTasks[sample.taskID] = resetBaseline
+                baselineTasks[taskID] = resetBaseline
                 effectiveBaseline = resetBaseline
             }
 
             if baselineEntry == nil {
-                baselineTasks[sample.taskID] = effectiveBaseline
+                baselineTasks[taskID] = effectiveBaseline
             }
 
             let uploadDelta = max(currentUploaded - effectiveBaseline.uploaded, 0)
             let downloadDelta = max(currentDownloaded - effectiveBaseline.downloaded, 0)
             guard uploadDelta > 0 || downloadDelta > 0 else { continue }
 
-            let trackerName = TrackerNameManager.displayName(for: sample.tracker, aliasMap: trackerAliasMap)
+            let trackerName = TrackerNameManager.displayName(for: task.tracker, aliasMap: trackerAliasMap)
             guard trackerName != "--" else { continue }
 
             var bucket = grouped[trackerName] ?? (0, 0)
@@ -501,11 +580,15 @@ private extension DashboardViewModel {
             grouped[trackerName] = bucket
         }
 
-        let aggregates = grouped.map { key, value in
-            TrackerTransferAggregate(
-                trackerName: key,
-                uploadedBytes: max(value.uploaded, 0),
-                downloadedBytes: max(value.downloaded, 0)
+        var aggregates: [TrackerTransferAggregate] = []
+        aggregates.reserveCapacity(grouped.count)
+        for (key, value) in grouped {
+            aggregates.append(
+                TrackerTransferAggregate(
+                    trackerName: key,
+                    uploadedBytes: max(value.uploaded, 0),
+                    downloadedBytes: max(value.downloaded, 0)
+                )
             )
         }
 
@@ -521,27 +604,35 @@ private extension DashboardViewModel {
         aggregates: [TrackerTransferAggregate],
         direction: TrackerTransferDirection
     ) -> [TrackerTransferData] {
-        aggregates
-            .map { aggregate in
-                let bytes: Int64
-                switch direction {
-                case .upload:
-                    bytes = aggregate.uploadedBytes
-                case .download:
-                    bytes = aggregate.downloadedBytes
-                }
+        var output: [TrackerTransferData] = []
+        output.reserveCapacity(aggregates.count)
 
-                return TrackerTransferData(
-                    trackerName: aggregate.trackerName,
-                    bytes: bytes,
-                    color: trackerColor(for: aggregate.trackerName)
+        for aggregate in aggregates {
+            let bytes: Int64
+            switch direction {
+            case .upload:
+                bytes = aggregate.uploadedBytes
+            case .download:
+                bytes = aggregate.downloadedBytes
+            }
+
+            if bytes > 0 {
+                output.append(
+                    TrackerTransferData(
+                        trackerName: aggregate.trackerName,
+                        bytes: bytes,
+                        color: trackerColor(for: aggregate.trackerName)
+                    )
                 )
             }
-            .filter { $0.bytes > 0 }
-            .sorted { lhs, rhs in
-                if lhs.bytes != rhs.bytes { return lhs.bytes > rhs.bytes }
-                return lhs.trackerName.localizedCaseInsensitiveCompare(rhs.trackerName) == .orderedAscending
-            }
+        }
+
+        output.sort { lhs, rhs in
+            if lhs.bytes != rhs.bytes { return lhs.bytes > rhs.bytes }
+            return lhs.trackerName.localizedCaseInsensitiveCompare(rhs.trackerName) == .orderedAscending
+        }
+
+        return output
     }
 
     static func trackerColor(for trackerName: String) -> Color {

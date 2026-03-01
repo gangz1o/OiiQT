@@ -271,6 +271,7 @@ struct TorrentRowView: View, Equatable {
     private var statusColor: Color {
         switch task.status {
         case .downloading: return .blue
+        case .queued: return .indigo
         case .seeding: return .green
         case .checking: return .orange
         case .error: return .red
@@ -418,6 +419,7 @@ struct VerticalEdgeProgressBar: View {
     private var progressColor: Color {
         switch status {
         case .downloading: return .blue
+        case .queued: return .indigo
         case .seeding: return .green
         case .checking: return .orange
         case .error: return .red

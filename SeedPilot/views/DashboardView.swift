@@ -30,18 +30,19 @@ struct DashboardView: View {
     @State private var draggedModule: DashboardModuleType?
     @State private var highlightedDropTarget: DashboardModuleType?
     @State private var activeHoverTarget: DashboardModuleType?
+    @State private var hasActivatedStorageAudit = false
     private let trackerStatsSilentRefreshTimer = Timer.publish(every: 1800, on: .main, in: .common).autoconnect()
 
     private var isProCinemaEnabled: Bool {
         proDashboardBackgroundEnabled || UserDefaults.standard.bool(forKey: "proDashboardBackgroundEnabled")
     }
 
-    private var needsGlobalStatsData: Bool {
-        showGlobalAssets || showStorageAudit
+    private var shouldStartGlobalStatsRefresh: Bool {
+        showGlobalAssets || (showStorageAudit && hasActivatedStorageAudit)
     }
 
     private var shouldShowStatsSkeleton: Bool {
-        needsGlobalStatsData &&
+        shouldStartGlobalStatsRefresh &&
         !appStateManager.servers.isEmpty &&
         !dashboardViewModel.hasLoadedInitialSnapshot
     }
@@ -137,6 +138,7 @@ struct DashboardView: View {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         ForEach(visibleModules) { module in
                             moduleContent(for: module)
+                                .frame(minHeight: estimatedModuleMinHeight(for: module), alignment: .top)
                                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 .opacity(draggedModule == module ? 0.6 : 1)
                                 .scaleEffect(draggedModule == module ? 1.01 : 1)
@@ -179,13 +181,13 @@ struct DashboardView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .task(id: "\(globalStatsRefreshKey)|\(needsGlobalStatsData)|\(isDashboardTabActive)") {
+        .task(id: "\(globalStatsRefreshKey)|\(shouldStartGlobalStatsRefresh)|\(isDashboardTabActive)") {
             guard isDashboardTabActive else {
                 dashboardViewModel.stopAutoRefresh()
                 return
             }
 
-            if needsGlobalStatsData {
+            if shouldStartGlobalStatsRefresh {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
                     tasksProvider: { appStateManager.allTasks }
@@ -212,6 +214,9 @@ struct DashboardView: View {
             refreshTrackerStatsIfNeeded()
         }
         .onChange(of: enabledModuleKey) { _, _ in
+            if !showStorageAudit {
+                hasActivatedStorageAudit = false
+            }
             dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
         }
         .onChange(of: appStateManager.tasksRevision) { _, _ in
@@ -247,7 +252,7 @@ struct DashboardView: View {
             dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
             refreshTrackerStatsIfNeeded()
 
-            if needsGlobalStatsData {
+            if shouldStartGlobalStatsRefresh {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
                     tasksProvider: { appStateManager.allTasks }
@@ -268,9 +273,34 @@ struct DashboardView: View {
     private func isModuleRenderable(_ module: DashboardModuleType) -> Bool {
         switch module {
         case .recentFinished:
-            return DashboardRecentFinishedModuleView.hasRecentFinishedTasks(in: appStateManager.displayedTasks)
+            return appStateManager.hasRecentFinishedTasks
         default:
             return true
+        }
+    }
+
+    private func markStorageAuditVisible() {
+        guard showStorageAudit else { return }
+        guard !hasActivatedStorageAudit else { return }
+        hasActivatedStorageAudit = true
+    }
+
+    private func estimatedModuleMinHeight(for module: DashboardModuleType) -> CGFloat {
+        switch module {
+        case .proPosterWall:
+            return 236
+        case .liveTraffic:
+            return 134
+        case .todayTransfer:
+            return 244
+        case .globalAssets:
+            return 200
+        case .serverStatus:
+            return 234
+        case .storageAudit:
+            return 214
+        case .recentFinished:
+            return 176
         }
     }
 
@@ -284,8 +314,9 @@ struct DashboardView: View {
         case .liveTraffic:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Traffic Monitoring")) {
                 DashboardLiveTrafficModuleView(
-                    downloadSpeed: appStateManager.displayedDownloadSpeed,
-                    uploadSpeed: appStateManager.displayedUploadSpeed
+                    tasks: appStateManager.allTasks,
+                    activeServerID: appStateManager.activeServerId,
+                    tasksRevision: appStateManager.tasksRevision
                 )
             }
         case .todayTransfer:
@@ -314,7 +345,8 @@ struct DashboardView: View {
                 } else {
                     DashboardServerStatusModuleView(
                         servers: appStateManager.servers,
-                        tasks: appStateManager.allTasks
+                        tasks: appStateManager.allTasks,
+                        tasksRevision: appStateManager.tasksRevision
                     )
                 }
             }
@@ -325,13 +357,17 @@ struct DashboardView: View {
                 } else {
                     DashboardStorageAuditModuleView(
                         servers: appStateManager.servers,
-                        snapshot: dashboardViewModel.globalSnapshot
+                        snapshot: dashboardViewModel.globalSnapshot,
+                        onFirstAppear: markStorageAuditVisible
                     )
                 }
             }
         case .recentFinished:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Recently Finished")) {
-                DashboardRecentFinishedModuleView(tasks: appStateManager.displayedTasks)
+                DashboardRecentFinishedModuleView(
+                    tasks: appStateManager.displayedTasks,
+                    refreshKey: "\(appStateManager.tasksRevision)|\(appStateManager.activeServerId?.uuidString ?? "all")"
+                )
             }
         }
     }

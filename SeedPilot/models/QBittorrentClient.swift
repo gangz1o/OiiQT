@@ -117,27 +117,6 @@ class QBittorrentClient: NSObject, TorrentClient {
                         let decoder = JSONDecoder()
                         let qbTasks = try decoder.decode([QBTask].self, from: data)
 
-                        func mapStatus(_ state: String) -> TorrentStatus {
-                            switch state {
-                            case "metaDL", "allocating", "downloading", "dl", "stalledDL":
-                                return .downloading
-                            case "uploading", "stalledUP", "forcedUP", "up":
-                                return .seeding
-                            case "pausedDL", "pausedUP", "paused":
-                                return .paused
-                            case "checkingDL", "checkingUP", "checkingResumeData", "moving":
-                                return .checking
-                            case "error", "missingFiles":
-                                return .error
-                            case "completed":
-                                return .completed
-                            case "queuedDL", "queuedUP":
-                                return .downloading
-                            default:
-                                return .paused
-                            }
-                        }
-
                         let mapped = qbTasks.map { task -> TorrentTask in
                             let progress = task.progress
                             let size = Int64(task.size)
@@ -172,7 +151,7 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 downloadSpeed: downloadSpeed,
                                 uploadSpeed: uploadSpeed,
                                 remainingTime: task.eta == 8640000 ? -1 : TimeInterval(task.eta),
-                                status: mapStatus(task.state),
+                                status: Self.mapQBState(task.state),
                                 serverID: serverID,
                                 tracker: task.tracker ?? "",
                                 savePath: task.save_path ?? "",
@@ -404,7 +383,16 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Core Control Logic
 
     func forceStartTask(hash: String) async throws {
-        try await performAction(endpoint: "setForceStart", hashes: hash, extraParams: ["value": "true"])
+        do {
+            try await performAction(endpoint: "setForceStart", hashes: hash, extraParams: ["value": "true"])
+        } catch {
+            // Compatibility fallback for older qB variants/proxies.
+            do {
+                try await performAction(endpoint: "resume", hashes: hash)
+            } catch {
+                try await performAction(endpoint: "start", hashes: hash)
+            }
+        }
     }
 
     func setLocation(hash: String, newLocation: String) async throws {
@@ -605,12 +593,73 @@ class QBittorrentClient: NSObject, TorrentClient {
         return "Unknown"
     }
 
+    // MARK: - File Management
+
+    func getFiles(hash: String) async throws -> [TorrentFile] {
+        let normalizedHash = hash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let data = try await performServerSettingsRequest(path: "files?hash=\(normalizedHash)")
+
+        struct QBFile: Decodable {
+            let name: String
+            let size: Int64
+            let progress: Double
+            let priority: Int
+        }
+
+        let qbFiles = try JSONDecoder().decode([QBFile].self, from: data)
+        return qbFiles.enumerated().map { index, file in
+            let downloaded = Int64(Double(file.size) * file.progress)
+            let priority: FilePriority
+            switch file.priority {
+            case 0:  priority = .doNotDownload
+            case 6:  priority = .high
+            case 7:  priority = .maximum
+            default: priority = .normal
+            }
+            return TorrentFile(
+                index: index,
+                name: file.name,
+                size: file.size,
+                downloaded: downloaded,
+                progress: file.progress,
+                priority: priority
+            )
+        }
+    }
+
+    func setFilePriority(hash: String, fileIndices: [Int], priority: FilePriority) async throws {
+        let normalizedHash = hash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let qbPriority: Int
+        switch priority {
+        case .doNotDownload: qbPriority = 0
+        case .normal:        qbPriority = 1
+        case .high:          qbPriority = 6
+        case .maximum:       qbPriority = 7
+        }
+
+        try await performAction(
+            endpoint: "filePrio",
+            hashes: normalizedHash,
+            hashParameterKey: "hash",
+            extraParams: [
+                "id": fileIndices.map(String.init).joined(separator: "|"),
+                "priority": "\(qbPriority)"
+            ]
+        )
+    }
+
     // MARK: - Helpers
 
     private func mapStatus(state: String) -> TorrentStatus {
+        Self.mapQBState(state)
+    }
+
+    private static func mapQBState(_ state: String) -> TorrentStatus {
         switch state {
-        case "metaDL", "allocating", "downloading", "dl", "stalledDL":
+        case "metaDL", "allocating", "downloading", "dl", "stalledDL", "forcedDL", "forcedMetaDL":
             return .downloading
+        case "queuedDL", "queuedUP":
+            return .queued
         case "uploading", "stalledUP", "forcedUP", "up":
             return .seeding
         case "pausedDL", "pausedUP", "paused":
@@ -621,8 +670,6 @@ class QBittorrentClient: NSObject, TorrentClient {
             return .error
         case "completed":
             return .completed
-        case "queuedDL", "queuedUP":
-            return .downloading // View as downloading/active
         default:
             return .paused
         }

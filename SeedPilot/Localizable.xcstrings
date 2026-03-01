@@ -1843,6 +1843,23 @@
         }
       }
     },
+    "Do Not Download" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do Not Download"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不下载"
+          }
+        }
+      }
+    },
     "Done" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2548,6 +2565,23 @@
         }
       }
     },
+    "Files" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看文件"
+          }
+        }
+      }
+    },
     "Filter Tracker" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3176,6 +3210,23 @@
         }
       }
     },
+    "Loading" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载中…"
+          }
+        }
+      }
+    },
     "Loading..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3325,6 +3376,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最大"
+          }
+        }
+      }
+    },
+    "Maximum" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高"
           }
         }
       }
@@ -3719,6 +3787,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无 Tracker 别名"
+          }
+        }
+      }
+    },
+    "Normal" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
           }
         }
       }
@@ -4981,6 +5066,23 @@
         }
       }
     },
+    "Retry" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        }
+      }
+    },
     "Routing" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5219,6 +5321,23 @@
         }
       }
     },
+    "Select" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多选"
+          }
+        }
+      }
+    },
     "Select .torrent File" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5266,6 +5385,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请选择项目"
+          }
+        }
+      }
+    },
+    "Selected %d" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d selected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已选 %d 项"
           }
         }
       }
@@ -5419,6 +5555,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置分类"
+          }
+        }
+      }
+    },
+    "Set Priority" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Priority"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置优先级"
           }
         }
       }

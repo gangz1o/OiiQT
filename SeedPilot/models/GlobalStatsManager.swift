@@ -8,7 +8,7 @@
 import Foundation
 import Observation
 
-struct DashboardServerStorageEntry: Identifiable, Hashable {
+struct DashboardServerStorageEntry: Identifiable, Hashable, Sendable {
     let id: UUID
     let serverName: String
     let defaultSavePath: String
@@ -17,7 +17,7 @@ struct DashboardServerStorageEntry: Identifiable, Hashable {
     let statusMessage: String
 }
 
-struct GlobalStatsSnapshot {
+struct GlobalStatsSnapshot: Sendable {
     var totalSeedingCount: Int = 0
     var totalDownloadingCount: Int = 0
     var totalBandwidth: Int64 = 0

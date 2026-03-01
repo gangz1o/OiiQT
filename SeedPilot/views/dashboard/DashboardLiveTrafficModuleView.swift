@@ -6,25 +6,39 @@
 //
 
 import SwiftUI
+import Combine
 
 struct DashboardLiveTrafficModuleView: View {
-    let downloadSpeed: Int64
-    let uploadSpeed: Int64
+    let tasks: [TorrentTask]
+    let activeServerID: UUID?
+    let tasksRevision: Int
+
+    @StateObject private var trafficViewModel = DashboardTrafficModuleViewModel()
+
+    private var refreshKey: String {
+        "\(tasksRevision)|\(activeServerID?.uuidString ?? "all")"
+    }
 
     var body: some View {
         LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
             // 性能优化：使用 EquatableView 包裹，高频速度更新仅触发文本局部刷新
             EquatableView(content: DashboardTrafficTile(
-                value: formatBytes(downloadSpeed),
+                value: formatBytes(trafficViewModel.downloadSpeed),
                 icon: "arrow.down.circle.fill",
                 tint: .blue
             ))
 
             EquatableView(content: DashboardTrafficTile(
-                value: formatBytes(uploadSpeed),
+                value: formatBytes(trafficViewModel.uploadSpeed),
                 icon: "arrow.up.circle.fill",
                 tint: .green
             ))
+        }
+        .task(id: refreshKey) {
+            trafficViewModel.refresh(
+                tasks: tasks,
+                activeServerID: activeServerID
+            )
         }
     }
 }
@@ -57,5 +71,51 @@ private struct DashboardTrafficTile: View, Equatable {
                 }
             }
         }
+    }
+}
+
+@MainActor
+private final class DashboardTrafficModuleViewModel: ObservableObject {
+    @Published private(set) var downloadSpeed: Int64 = 0
+    @Published private(set) var uploadSpeed: Int64 = 0
+
+    private var refreshTask: Task<Void, Never>?
+
+    deinit {
+        refreshTask?.cancel()
+    }
+
+    func refresh(tasks: [TorrentTask], activeServerID: UUID?) {
+        refreshTask?.cancel()
+        refreshTask = Task { [tasks, activeServerID] in
+            let summary = await Task.detached(priority: .utility) {
+                DashboardTrafficModuleViewModel.aggregateSpeed(
+                    tasks: tasks,
+                    activeServerID: activeServerID
+                )
+            }.value
+
+            guard !Task.isCancelled else { return }
+            downloadSpeed = summary.download
+            uploadSpeed = summary.upload
+        }
+    }
+
+    nonisolated private static func aggregateSpeed(
+        tasks: [TorrentTask],
+        activeServerID: UUID?
+    ) -> (download: Int64, upload: Int64) {
+        var totalDownloadSpeed: Int64 = 0
+        var totalUploadSpeed: Int64 = 0
+
+        for task in tasks {
+            if let activeServerID, task.serverID != activeServerID {
+                continue
+            }
+            totalDownloadSpeed += task.downloadSpeed
+            totalUploadSpeed += task.uploadSpeed
+        }
+
+        return (download: totalDownloadSpeed, upload: totalUploadSpeed)
     }
 }

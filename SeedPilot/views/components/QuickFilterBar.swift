@@ -56,7 +56,7 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable {
         case .seeding:
             return status == .seeding
         case .paused:
-            return status == .paused
+            return status == .paused || status == .queued
         case .error:
             return status == .error
         }

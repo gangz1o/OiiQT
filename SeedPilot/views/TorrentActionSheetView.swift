@@ -31,6 +31,7 @@ struct TorrentActionSheetView: View {
     @State private var displayPosterURL: URL?
     @State private var isAutoMatching = false
     @State private var showingSpeedLimitSheet = false
+    @State private var showingFilesSheet = false
 
     private var presetSavePaths: [String] {
         PresetSavePathsCodec.decode(presetSavePathsRaw)
@@ -96,6 +97,16 @@ struct TorrentActionSheetView: View {
                         sheetMenuRow(
                             title: languageManager.localized("Set Save Path"),
                             systemImage: "folder.badge.gear"
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        showingFilesSheet = true
+                    } label: {
+                        sheetMenuRow(
+                            title: languageManager.localized("Files"),
+                            systemImage: "doc.text.magnifyingglass"
                         )
                     }
                     .buttonStyle(.plain)
@@ -307,6 +318,14 @@ struct TorrentActionSheetView: View {
                 appStateManager: appStateManager
             )
             .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingFilesSheet) {
+            TaskFilesView(
+                task: task,
+                appStateManager: appStateManager
+            )
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .alert(languageManager.localized("Error"), isPresented: $showingTaxonomyError) {

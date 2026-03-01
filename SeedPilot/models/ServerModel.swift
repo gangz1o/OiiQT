@@ -3,13 +3,14 @@ import SwiftUI
 import SwiftData
 
 // MARK: - 1. 服务器类型与状态
-enum ServerType: String, Codable, CaseIterable {
+enum ServerType: String, Codable, CaseIterable, Sendable {
     case qBittorrent = "qBittorrent"
     case transmission = "Transmission"
 }
 
-enum TorrentStatus: String, Codable, CaseIterable, Equatable {
+enum TorrentStatus: String, Codable, CaseIterable, Equatable, Sendable {
     case downloading = "下载中"
+    case queued = "排队中"
     case seeding = "做种中"
     case paused = "已暂停"
     case checking = "校验中"
@@ -19,10 +20,12 @@ enum TorrentStatus: String, Codable, CaseIterable, Equatable {
     var color: Color {
         switch self {
         case .downloading: return .blue
+        case .queued: return .indigo
         case .seeding: return .green
         case .paused: return .gray
+        case .checking: return .orange
         case .error: return .red
-        default: return .secondary
+        case .completed: return .secondary
         }
     }
 
@@ -30,6 +33,9 @@ enum TorrentStatus: String, Codable, CaseIterable, Equatable {
         switch self {
         case .downloading:
             return LanguageManager.shared.localized("Downloading")
+        case .queued:
+            let localized = LanguageManager.shared.localized("Queued")
+            return localized == "Queued" ? rawValue : localized
         case .seeding:
             return LanguageManager.shared.localized("Seeding")
         case .paused:
@@ -245,7 +251,7 @@ extension ServerConfig {
 
 // MARK: - 3. 统一的任务模型 (UI 展现层)
 /// 无论后端是 qB 还是 TR，UI 只看这个模型
-enum ResolutionBadge: String, Codable, Hashable {
+enum ResolutionBadge: String, Codable, Hashable, Sendable {
     case ultraHD
     case fullHD
     case hd
@@ -267,7 +273,7 @@ enum ResolutionBadge: String, Codable, Hashable {
     }
 }
 
-struct TorrentTaskDisplayText: Hashable {
+struct TorrentTaskDisplayText: Hashable, Sendable {
     let title: String
     let percent: String
     let seedingTime: String
@@ -305,7 +311,7 @@ struct TorrentTaskDisplayText: Hashable {
     }
 }
 
-struct TorrentTask: Identifiable, Hashable {
+struct TorrentTask: Identifiable, Hashable, Sendable {
     let hash: String         // 原始任务 Hash（网络请求使用）
     let name: String         // 文件名
     let progress: Double     // 0.0 到 1.0
@@ -407,6 +413,64 @@ func formatDuration(_ seconds: TimeInterval) -> String {
     FormatHelper.formatDuration(seconds)
 }
 
+// MARK: - 3.5 种子文件模型
+
+enum FilePriority: Int, Codable, CaseIterable, Hashable, Sendable {
+    case doNotDownload = 0
+    case normal = 1
+    case high = 6
+    case maximum = 7
+
+    var localizedName: String {
+        switch self {
+        case .doNotDownload: return LanguageManager.shared.localized("Do Not Download")
+        case .normal:        return LanguageManager.shared.localized("Normal")
+        case .high:          return LanguageManager.shared.localized("High")
+        case .maximum:       return LanguageManager.shared.localized("Maximum")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .doNotDownload: return "nosign"
+        case .normal:        return "arrow.down.circle"
+        case .high:          return "arrow.down.circle.fill"
+        case .maximum:       return "flame.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .doNotDownload: return .gray
+        case .normal:        return .blue
+        case .high:          return .orange
+        case .maximum:       return .red
+        }
+    }
+}
+
+struct TorrentFile: Identifiable, Hashable, Sendable {
+    let index: Int
+    let name: String
+    let size: Int64
+    let downloaded: Int64
+    let progress: Double
+    var priority: FilePriority
+
+    var id: Int { index }
+
+    var sizeString: String { FormatHelper.formatBytes(size) }
+    var downloadedString: String { FormatHelper.formatBytes(downloaded) }
+
+    var progressText: String {
+        "\(downloadedString) / \(sizeString) (\(Int(progress * 100))%)"
+    }
+
+    var fileName: String {
+        (name as NSString).lastPathComponent
+    }
+}
+
 // MARK: - 4. 抽象客户端协议
 /// 定义了管理器必须实现的功能
 protocol TorrentClient {
@@ -439,4 +503,8 @@ protocol TorrentClient {
     func forceStartTask(hash: String) async throws
     func setLocation(hash: String, newLocation: String) async throws
     func editTrackers(hash: String, newTrackers: String) async throws
+
+    // MARK: - File Management
+    func getFiles(hash: String) async throws -> [TorrentFile]
+    func setFilePriority(hash: String, fileIndices: [Int], priority: FilePriority) async throws
 }
