@@ -654,6 +654,23 @@
         }
       }
     },
+    "All Categories" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Categories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部分类"
+          }
+        }
+      }
+    },
     "All Items" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -735,6 +752,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部服务器离线，无法汇总统计数据"
+          }
+        }
+      }
+    },
+    "All Tags" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Tags"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部标签"
           }
         }
       }

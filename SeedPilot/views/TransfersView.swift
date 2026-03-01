@@ -7,6 +7,14 @@
 
 import SwiftUI
 
+enum ActiveFilterSheet: String, Identifiable {
+    case status
+    case category
+    case tag
+    case tracker
+
+    var id: String { rawValue }
+}
 
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -20,23 +28,29 @@ struct TransfersView: View {
     @State private var selectedTaskHashes = Set<String>()
     @State private var hasAttemptedInitialLoad = false
     @State private var filteredTasks: [TorrentTask] = []
+    @State private var uniqueCategoriesCache: [String] = [Self.allCategoriesToken]
+    @State private var uniqueTagsCache: [String] = [Self.allTagsToken]
     @State private var uniqueTrackersCache: [String] = [Self.allTrackersToken]
     @State private var isFilteringTasks = false
     @State private var shouldHintOverlayLoadingForCurrentFilterPass = false
     @State private var isOverlayLoadingVisible = false
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var filterComputationTask: Task<Void, Never>?
-    @State private var trackerListComputationTask: Task<Void, Never>?
+    @State private var filterOptionsComputationTask: Task<Void, Never>?
     @State private var overlayLoadingDelayTask: Task<Void, Never>?
 
     // 状态筛选
-    @State private var selectedStatus: TaskStatusFilter = .all
-    // NEW: Sorting
+    @State private var selectedStatuses: Set<TaskStatusFilter> = []
+    @State private var selectedCategories: Set<String> = []
+    @State private var selectedTags: Set<String> = []
+    @State private var selectedTrackers: Set<String> = []
+    @State private var activeSheet: ActiveFilterSheet?
+
     @State private var sortOption: SortOption = .dateAdded
     @State private var sortAscending: Bool = false // Default Descending (Newest first)
-    // NEW: Tracker Filter
-    @State private var selectedTracker: String = Self.allTrackersToken
 
+    private static let allCategoriesToken = "__ALL_CATEGORIES__"
+    private static let allTagsToken = "__ALL_TAGS__"
     private static let allTrackersToken = "__ALL_TRACKERS__"
 
     // Batch Action States
@@ -47,7 +61,16 @@ struct TransfersView: View {
     @State private var selectedTorrentForAction: TorrentTask?
     @State private var selectedTorrentPosterURL: URL?
 
-    // Helper to extract unique trackers
+    var uniqueCategories: [String] {
+        guard isTransfersTabActive else { return [Self.allCategoriesToken] }
+        return uniqueCategoriesCache
+    }
+
+    var uniqueTags: [String] {
+        guard isTransfersTabActive else { return [Self.allTagsToken] }
+        return uniqueTagsCache
+    }
+
     var uniqueTrackers: [String] {
         guard isTransfersTabActive else { return [Self.allTrackersToken] }
         return uniqueTrackersCache
@@ -71,9 +94,8 @@ struct TransfersView: View {
         editMode?.wrappedValue == .active
     }
 
-    // Check if any filter is active for the badge
-    private var isFilterActive: Bool {
-        selectedStatus != .all || selectedTracker != Self.allTrackersToken || sortOption != .dateAdded || sortAscending != false
+    private var isCategoryFilterSupported: Bool {
+        appStateManager.activeServerType != .transmission
     }
 
     private var canUseGlobalTaskAggregation: Bool {
@@ -137,11 +159,22 @@ struct TransfersView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(item: $activeSheet) { sheet in
+                filterSheetView(for: sheet)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
     }
 
     private var transfersLifecycleBoundView: some View {
         transfersLifecycleBoundViewPart1
-            .onChange(of: selectedStatus) { _, _ in
+            .onChange(of: selectedStatuses) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: selectedCategories) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: selectedTags) { _, _ in
                 scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: sortOption) { _, _ in
@@ -150,7 +183,7 @@ struct TransfersView: View {
             .onChange(of: sortAscending) { _, _ in
                 scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
-            .onChange(of: selectedTracker) { _, _ in
+            .onChange(of: selectedTrackers) { _, _ in
                 scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: searchText) { _, _ in
@@ -187,10 +220,17 @@ struct TransfersView: View {
             }
             .onChange(of: appStateManager.tasksRevision) { _, _ in
                 scheduleFilteredTasksRecompute()
-                scheduleUniqueTrackersRecompute()
+                scheduleFilterOptionsRecompute()
             }
             .onChange(of: appStateManager.activeServerId) { _, _ in
+                if !isCategoryFilterSupported {
+                    selectedCategories.removeAll()
+                    if activeSheet == .category {
+                        activeSheet = nil
+                    }
+                }
                 scheduleFilteredTasksRecompute(showOverlayHint: true)
+                scheduleFilterOptionsRecompute()
             }
             .onChange(of: appStateManager.selectedTab) { _, newValue in
                 handleSelectedTabChanged(newValue)
@@ -259,7 +299,7 @@ struct TransfersView: View {
         triggerInitialLoadIfNeeded()
         debouncedSearchText = searchText
         scheduleFilteredTasksRecompute()
-        scheduleUniqueTrackersRecompute()
+        scheduleFilterOptionsRecompute()
         syncOverlayLoadingVisibility()
     }
 
@@ -268,14 +308,14 @@ struct TransfersView: View {
             triggerInitialLoadIfNeeded()
         }
         scheduleFilteredTasksRecompute(showOverlayHint: newValue == .transfers)
-        scheduleUniqueTrackersRecompute()
+        scheduleFilterOptionsRecompute()
         syncOverlayLoadingVisibility()
     }
 
     private func handleTransfersViewDisappear() {
         searchDebounceTask?.cancel()
         filterComputationTask?.cancel()
-        trackerListComputationTask?.cancel()
+        filterOptionsComputationTask?.cancel()
         overlayLoadingDelayTask?.cancel()
         isFilteringTasks = false
         shouldHintOverlayLoadingForCurrentFilterPass = false
@@ -296,17 +336,24 @@ struct TransfersView: View {
                 ServerStatusBar(appStateManager: appStateManager)
                     .background(Color(uiColor: .systemBackground))
 
-                // 0.5. Quick Filter Bar (Capsule) - Hide when editing
+                // 0.5. Top Filter Menus - Fixed Position
                 if !isEditing {
-                    QuickFilterBar(selectedStatus: $selectedStatus)
-                        .padding(.bottom, 8)
-                        .background(Color(uiColor: .systemBackground))
-                        .overlay(
-                            Rectangle()
-                                .frame(height: 0.5)
-                                .foregroundColor(Color(uiColor: .separator)),
-                            alignment: .bottom
-                        )
+                    TorrentFilterMenuBar(
+                        selectedStatuses: $selectedStatuses,
+                        selectedCategories: $selectedCategories,
+                        selectedTags: $selectedTags,
+                        selectedTrackers: $selectedTrackers,
+                        activeSheet: $activeSheet,
+                        isCategoryFilterSupported: isCategoryFilterSupported
+                    )
+                    .padding(.bottom, 8)
+                    .background(Color(uiColor: .systemBackground))
+                    .overlay(
+                        Rectangle()
+                            .frame(height: 0.5)
+                            .foregroundColor(Color(uiColor: .separator)),
+                        alignment: .bottom
+                    )
                 }
 
                 // 1. 任务列表
@@ -398,13 +445,9 @@ struct TransfersView: View {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
                 if !isEditing {
-                    FilterMenuView(
+                    SortMenuView(
                         sortOption: $sortOption,
-                        sortAscending: $sortAscending,
-                        selectedTracker: $selectedTracker,
-                        uniqueTrackers: uniqueTrackers,
-                        isFilterActive: isFilterActive,
-                        allTrackersToken: Self.allTrackersToken
+                        sortAscending: $sortAscending
                     )
                 }
 
@@ -601,12 +644,16 @@ struct TransfersView: View {
         filterComputationTask?.cancel()
 
         let sourceTasks = isTransfersTabActive ? appStateManager.displayedTasks : []
-        let status = selectedStatus
+        let statuses = selectedStatuses
+        let categories = selectedCategories
+        let tags = selectedTags
         let search = debouncedSearchText
-        let tracker = selectedTracker
+        let trackers = selectedTrackers
         let sort = sortOption
         let ascending = sortAscending
+        let categoryFilterSupported = isCategoryFilterSupported
         let aliasMapSnapshot = TrackerAliasManager.shared.aliasMap
+        let startUptime = DispatchTime.now().uptimeNanoseconds
 
         shouldHintOverlayLoadingForCurrentFilterPass = showOverlayHint
         isFilteringTasks = true
@@ -614,15 +661,26 @@ struct TransfersView: View {
         filterComputationTask = Task {
             let computed = await Self.computeFilteredTasksOnBackground(
                 sourceTasks: sourceTasks,
-                selectedStatus: status,
+                selectedStatuses: statuses,
+                selectedCategories: categories,
+                selectedTags: tags,
                 searchText: search,
-                selectedTracker: tracker,
-                allTrackersToken: Self.allTrackersToken,
+                selectedTrackers: trackers,
+                isCategoryFilterSupported: categoryFilterSupported,
                 sortOption: sort,
                 sortAscending: ascending,
                 aliasMap: aliasMapSnapshot
             )
             guard !Task.isCancelled else { return }
+            let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
+#if DEBUG
+            if sourceTasks.count >= 50_000 {
+                let elapsedText = String(format: "%.1f", elapsedMs)
+                print(
+                    "Transfers filter pass: source=\(sourceTasks.count) result=\(computed.count) elapsedMs=\(elapsedText)"
+                )
+            }
+#endif
             await MainActor.run {
                 filteredTasks = computed
                 isFilteringTasks = false
@@ -652,96 +710,298 @@ struct TransfersView: View {
         }
     }
 
-    private func scheduleUniqueTrackersRecompute() {
-        trackerListComputationTask?.cancel()
+    private func scheduleFilterOptionsRecompute() {
+        filterOptionsComputationTask?.cancel()
 
         guard isTransfersTabActive else {
+            uniqueCategoriesCache = [Self.allCategoriesToken]
+            uniqueTagsCache = [Self.allTagsToken]
             uniqueTrackersCache = [Self.allTrackersToken]
             return
         }
 
-        let sourceTasks = appStateManager.allTasks
+        let sourceTasks = appStateManager.displayedTasks
 
-        trackerListComputationTask = Task {
-            let computed = await Self.computeUniqueTrackersOnBackground(
+        filterOptionsComputationTask = Task {
+            let computed = await Self.computeFilterOptionsOnBackground(
                 sourceTasks: sourceTasks,
+                allCategoriesToken: Self.allCategoriesToken,
+                allTagsToken: Self.allTagsToken,
                 allTrackersToken: Self.allTrackersToken
             )
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                uniqueTrackersCache = computed
+                uniqueCategoriesCache = computed.categories
+                uniqueTagsCache = computed.tags
+                uniqueTrackersCache = computed.trackers
+
+                if !isCategoryFilterSupported {
+                    selectedCategories.removeAll()
+                } else {
+                    let categoryOptions = Set(computed.categories.dropFirst())
+                    selectedCategories = Set(selectedCategories.filter(categoryOptions.contains))
+                }
+
+                let tagOptions = Set(computed.tags.dropFirst())
+                let trackerOptions = Set(computed.trackers.dropFirst())
+                selectedTags = Set(selectedTags.filter(tagOptions.contains))
+                selectedTrackers = Set(selectedTrackers.filter(trackerOptions.contains))
             }
         }
     }
 
     private static func computeFilteredTasksOnBackground(
         sourceTasks: [TorrentTask],
-        selectedStatus: TaskStatusFilter,
+        selectedStatuses: Set<TaskStatusFilter>,
+        selectedCategories: Set<String>,
+        selectedTags: Set<String>,
         searchText: String,
-        selectedTracker: String,
-        allTrackersToken: String,
+        selectedTrackers: Set<String>,
+        isCategoryFilterSupported: Bool,
         sortOption: SortOption,
         sortAscending: Bool,
         aliasMap: [String: String] = [:]
     ) async -> [TorrentTask] {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                var tasks = sourceTasks
-
-                if selectedStatus != .all {
-                    tasks = tasks.filter { selectedStatus.matches($0) }
-                }
-
-                if !searchText.isEmpty {
-                    tasks = tasks.filter { task in
-                        if task.name.localizedCaseInsensitiveContains(searchText) ||
-                           task.trackerHost.localizedCaseInsensitiveContains(searchText) {
-                            return true
-                        }
-                        let alias = aliasMap[task.trackerHost.lowercased()] ?? ""
-                        return !alias.isEmpty && alias.localizedCaseInsensitiveContains(searchText)
-                    }
-                }
-
-                if selectedTracker != allTrackersToken {
-                    tasks = tasks.filter { $0.trackerHost == selectedTracker }
-                }
-
-                let sorted = tasks.sorted { t1, t2 in
-                    let result: Bool
-                    switch sortOption {
-                    case .dateAdded:
-                        result = t1.addedTime < t2.addedTime
-                    case .name:
-                        result = t1.name.localizedStandardCompare(t2.name) == .orderedAscending
-                    case .downloadSpeed:
-                        result = t1.downloadSpeed < t2.downloadSpeed
-                    case .uploadSpeed:
-                        result = t1.uploadSpeed < t2.uploadSpeed
-                    case .size:
-                        result = t1.size < t2.size
-                    case .progress:
-                        result = t1.progress < t2.progress
-                    }
-                    return sortAscending ? result : !result
-                }
-
-                continuation.resume(returning: sorted)
+                let computed = Self.computeFilteredTasks(
+                    sourceTasks: sourceTasks,
+                    selectedStatuses: selectedStatuses,
+                    selectedCategories: selectedCategories,
+                    selectedTags: selectedTags,
+                    searchText: searchText,
+                    selectedTrackers: selectedTrackers,
+                    isCategoryFilterSupported: isCategoryFilterSupported,
+                    sortOption: sortOption,
+                    sortAscending: sortAscending,
+                    aliasMap: aliasMap
+                )
+                continuation.resume(returning: computed)
             }
         }
     }
 
-    private static func computeUniqueTrackersOnBackground(
+    private static func computeFilteredTasks(
         sourceTasks: [TorrentTask],
-        allTrackersToken: String
-    ) async -> [String] {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let hosts = sourceTasks.map(\.trackerHost)
-                let unique = Set(hosts)
-                continuation.resume(returning: [allTrackersToken] + unique.sorted())
+        selectedStatuses: Set<TaskStatusFilter>,
+        selectedCategories: Set<String>,
+        selectedTags: Set<String>,
+        searchText: String,
+        selectedTrackers: Set<String>,
+        isCategoryFilterSupported: Bool,
+        sortOption: SortOption,
+        sortAscending: Bool,
+        aliasMap: [String: String] = [:]
+    ) -> [TorrentTask] {
+        guard !sourceTasks.isEmpty else { return [] }
+
+        let effectiveStatuses = selectedStatuses.filter { $0 != .all }
+        let statusFilterEnabled = !effectiveStatuses.isEmpty
+        let normalizedCategories = Set(
+            selectedCategories
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        let categoryFilterEnabled = isCategoryFilterSupported && !normalizedCategories.isEmpty
+
+        let normalizedTags = Set(
+            selectedTags
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        let tagFilterEnabled = !normalizedTags.isEmpty
+
+        let normalizedTrackers = Set(
+            selectedTrackers
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        let trackerFilterEnabled = !normalizedTrackers.isEmpty
+
+        let normalizedSearch = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let searchEnabled = !normalizedSearch.isEmpty
+        let normalizedAliasMap: [String: String] = searchEnabled
+            ? aliasMap.reduce(into: [String: String](minimumCapacity: aliasMap.count)) { partial, entry in
+                partial[entry.key.lowercased()] = entry.value.lowercased()
+            }
+            : [:]
+
+        var filtered: [TorrentTask] = []
+        filtered.reserveCapacity(sourceTasks.count)
+
+        for task in sourceTasks {
+            if statusFilterEnabled && !effectiveStatuses.contains(where: { $0.matches(task) }) {
+                continue
+            }
+
+            if categoryFilterEnabled {
+                let taskCategory = task.category
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                if !normalizedCategories.contains(taskCategory) {
+                    continue
+                }
+            }
+
+            if tagFilterEnabled && !containsAnyTag(task.tags, normalizedTags: normalizedTags) {
+                continue
+            }
+
+            let trackerHostLower = task.trackerHost.lowercased()
+            if trackerFilterEnabled && !normalizedTrackers.contains(trackerHostLower) {
+                continue
+            }
+
+            if searchEnabled {
+                if task.name.lowercased().contains(normalizedSearch) ||
+                    trackerHostLower.contains(normalizedSearch) {
+                    filtered.append(task)
+                    continue
+                }
+
+                let alias = normalizedAliasMap[trackerHostLower] ?? ""
+                if alias.contains(normalizedSearch) {
+                    filtered.append(task)
+                    continue
+                }
+
+                continue
+            }
+
+            filtered.append(task)
+        }
+
+        sortTasks(
+            &filtered,
+            by: sortOption,
+            ascending: sortAscending
+        )
+        return filtered
+    }
+
+    private static func sortTasks(
+        _ tasks: inout [TorrentTask],
+        by sortOption: SortOption,
+        ascending: Bool
+    ) {
+        tasks.sort { lhs, rhs in
+            switch sortOption {
+            case .dateAdded:
+                if lhs.addedTime == rhs.addedTime { return lhs.id < rhs.id }
+                return ascending ? lhs.addedTime < rhs.addedTime : lhs.addedTime > rhs.addedTime
+            case .name:
+                let compare = lhs.name.localizedStandardCompare(rhs.name)
+                if compare == .orderedSame { return lhs.id < rhs.id }
+                return ascending ? compare == .orderedAscending : compare == .orderedDescending
+            case .downloadSpeed:
+                if lhs.downloadSpeed == rhs.downloadSpeed { return lhs.id < rhs.id }
+                return ascending ? lhs.downloadSpeed < rhs.downloadSpeed : lhs.downloadSpeed > rhs.downloadSpeed
+            case .uploadSpeed:
+                if lhs.uploadSpeed == rhs.uploadSpeed { return lhs.id < rhs.id }
+                return ascending ? lhs.uploadSpeed < rhs.uploadSpeed : lhs.uploadSpeed > rhs.uploadSpeed
+            case .size:
+                if lhs.size == rhs.size { return lhs.id < rhs.id }
+                return ascending ? lhs.size < rhs.size : lhs.size > rhs.size
+            case .progress:
+                if lhs.progress == rhs.progress { return lhs.id < rhs.id }
+                return ascending ? lhs.progress < rhs.progress : lhs.progress > rhs.progress
             }
         }
+    }
+
+    private static func splitTags(_ rawTags: String) -> [String] {
+        rawTags
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func containsAnyTag(_ rawTags: String, normalizedTags: Set<String>) -> Bool {
+        guard !normalizedTags.isEmpty else { return true }
+
+        for token in rawTags.split(separator: ",") {
+            let normalized = token
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if normalizedTags.contains(normalized) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private struct TaskFilterOptions: Sendable {
+        let categories: [String]
+        let tags: [String]
+        let trackers: [String]
+    }
+
+    private static func computeFilterOptionsOnBackground(
+        sourceTasks: [TorrentTask],
+        allCategoriesToken: String,
+        allTagsToken: String,
+        allTrackersToken: String
+    ) async -> TaskFilterOptions {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let computed = Self.computeFilterOptions(
+                    sourceTasks: sourceTasks,
+                    allCategoriesToken: allCategoriesToken,
+                    allTagsToken: allTagsToken,
+                    allTrackersToken: allTrackersToken
+                )
+                continuation.resume(returning: computed)
+            }
+        }
+    }
+
+    private static func computeFilterOptions(
+        sourceTasks: [TorrentTask],
+        allCategoriesToken: String,
+        allTagsToken: String,
+        allTrackersToken: String
+    ) -> TaskFilterOptions {
+        var categories = Set<String>()
+        var tags = Set<String>()
+        var trackers = Set<String>()
+        categories.reserveCapacity(min(sourceTasks.count, 2048))
+        tags.reserveCapacity(min(sourceTasks.count, 4096))
+        trackers.reserveCapacity(min(sourceTasks.count, 4096))
+
+        for task in sourceTasks {
+            let category = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !category.isEmpty {
+                categories.insert(category)
+            }
+
+            let taskTags = splitTags(task.tags)
+            if !taskTags.isEmpty {
+                tags.formUnion(taskTags)
+            }
+
+            let host = task.trackerHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !host.isEmpty, host != "--" {
+                trackers.insert(host)
+            }
+        }
+
+        let sortedCategories = categories.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+        let sortedTags = tags.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+        let sortedTrackers = trackers.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+
+        return TaskFilterOptions(
+            categories: [allCategoriesToken] + sortedCategories,
+            tags: [allTagsToken] + sortedTags,
+            trackers: [allTrackersToken] + sortedTrackers
+        )
     }
 
     // MARK: - Subviews
@@ -761,20 +1021,330 @@ struct TransfersView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
     }
+
+    private func filterSheetView(for sheet: ActiveFilterSheet) -> some View {
+        NavigationStack {
+            List {
+                switch sheet {
+                case .status:
+                    filterSheetRow(
+                        title: TaskStatusFilter.all.title,
+                        isSelected: selectedStatuses.isEmpty
+                    ) {
+                        selectedStatuses.removeAll()
+                    }
+
+                    ForEach(TaskStatusFilter.allCases.filter { $0 != .all }) { status in
+                        filterSheetRow(
+                            title: status.title,
+                            isSelected: selectedStatuses.contains(status)
+                        ) {
+                            if selectedStatuses.contains(status) {
+                                selectedStatuses.remove(status)
+                            } else {
+                                selectedStatuses.insert(status)
+                            }
+                        }
+                    }
+                case .category:
+                    filterSheetRow(
+                        title: LanguageManager.shared.localized("All Categories"),
+                        isSelected: selectedCategories.isEmpty
+                    ) {
+                        selectedCategories.removeAll()
+                    }
+
+                    ForEach(uniqueCategories.filter { $0 != Self.allCategoriesToken }, id: \.self) { category in
+                        filterSheetRow(
+                            title: category,
+                            isSelected: selectedCategories.contains(category)
+                        ) {
+                            if selectedCategories.contains(category) {
+                                selectedCategories.remove(category)
+                            } else {
+                                selectedCategories.insert(category)
+                            }
+                        }
+                    }
+                case .tag:
+                    filterSheetRow(
+                        title: LanguageManager.shared.localized("All Tags"),
+                        isSelected: selectedTags.isEmpty
+                    ) {
+                        selectedTags.removeAll()
+                    }
+
+                    ForEach(uniqueTags.filter { $0 != Self.allTagsToken }, id: \.self) { tag in
+                        filterSheetRow(
+                            title: tag,
+                            isSelected: selectedTags.contains(tag)
+                        ) {
+                            if selectedTags.contains(tag) {
+                                selectedTags.remove(tag)
+                            } else {
+                                selectedTags.insert(tag)
+                            }
+                        }
+                    }
+                case .tracker:
+                    filterSheetRow(
+                        title: LanguageManager.shared.localized("All Trackers"),
+                        isSelected: selectedTrackers.isEmpty
+                    ) {
+                        selectedTrackers.removeAll()
+                    }
+
+                    ForEach(uniqueTrackers.filter { $0 != Self.allTrackersToken }, id: \.self) { tracker in
+                        filterSheetRow(
+                            title: tracker,
+                            isSelected: selectedTrackers.contains(tracker)
+                        ) {
+                            if selectedTrackers.contains(tracker) {
+                                selectedTrackers.remove(tracker)
+                            } else {
+                                selectedTrackers.insert(tracker)
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle(filterSheetTitle(for: sheet))
+            .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(LanguageManager.shared.localized("Done")) {
+                            activeSheet = nil
+                        }
+                    }
+                }
+        }
+    }
+
+    private func filterSheetRow(
+        title: String,
+        isSelected: Bool,
+        onSelect: @escaping () -> Void
+    ) -> some View {
+        Button {
+            onSelect()
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Text(title)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 8)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.blue)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func filterSheetTitle(for sheet: ActiveFilterSheet) -> String {
+        switch sheet {
+        case .status:
+            return LanguageManager.shared.localized("Status")
+        case .category:
+            return LanguageManager.shared.localized("Category")
+        case .tag:
+            return LanguageManager.shared.localized("Tags")
+        case .tracker:
+            return LanguageManager.shared.localized("Tracker")
+        }
+    }
+
 }
 
-// MARK: - Filter Menu Component
-struct FilterMenuView: View {
+// MARK: - Top Filter Menus
+struct TorrentFilterMenuBar: View {
+    @Binding var selectedStatuses: Set<TaskStatusFilter>
+    @Binding var selectedCategories: Set<String>
+    @Binding var selectedTags: Set<String>
+    @Binding var selectedTrackers: Set<String>
+    @Binding var activeSheet: ActiveFilterSheet?
+
+    let isCategoryFilterSupported: Bool
+
+    private var selectedStatusCount: Int {
+        selectedStatuses.filter { $0 != .all }.count
+    }
+
+    private var statusTitle: String {
+        let base = LanguageManager.shared.localized("Status")
+        if selectedStatusCount > 1 {
+            return "\(base)(\(selectedStatusCount))"
+        }
+        guard selectedStatusCount == 1,
+              let only = selectedStatuses.first(where: { $0 != .all }) else {
+            return base
+        }
+        return only.title
+    }
+
+    private var categoryTitle: String {
+        let base = LanguageManager.shared.localized("Category")
+        if selectedCategories.count > 1 {
+            return "\(base)(\(selectedCategories.count))"
+        }
+        guard selectedCategories.count == 1, let only = selectedCategories.first else {
+            return base
+        }
+        return only
+    }
+
+    private var tagTitle: String {
+        let base = LanguageManager.shared.localized("Tags")
+        if selectedTags.count > 1 {
+            return "\(base)(\(selectedTags.count))"
+        }
+        guard selectedTags.count == 1, let only = selectedTags.first else {
+            return base
+        }
+        return only
+    }
+
+    private var trackerTitle: String {
+        let base = LanguageManager.shared.localized("Tracker")
+        if selectedTrackers.count > 1 {
+            return "\(base)(\(selectedTrackers.count))"
+        }
+        guard selectedTrackers.count == 1, let only = selectedTrackers.first else {
+            return base
+        }
+        return only
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            statusButton
+            filterDivider
+
+            if isCategoryFilterSupported {
+                categoryButton
+                filterDivider
+            }
+
+            tagButton
+            filterDivider
+            trackerButton
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 40)
+        .background(.ultraThinMaterial)
+        .background(Color.primary.opacity(0.03))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.6),
+                            .clear,
+                            .white.opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.5
+                )
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
+    }
+
+    private var filterDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(width: 0.5, height: 12)
+            .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var statusButton: some View {
+        buttonContainer {
+            activeSheet = .status
+        } label: {
+            FilterMenuControl(title: statusTitle, isActive: !selectedStatuses.isEmpty)
+        }
+    }
+
+    @ViewBuilder
+    private var categoryButton: some View {
+        buttonContainer {
+            activeSheet = .category
+        } label: {
+            FilterMenuControl(title: categoryTitle, isActive: !selectedCategories.isEmpty)
+        }
+    }
+
+    @ViewBuilder
+    private var tagButton: some View {
+        buttonContainer {
+            activeSheet = .tag
+        } label: {
+            FilterMenuControl(title: tagTitle, isActive: !selectedTags.isEmpty)
+        }
+    }
+
+    @ViewBuilder
+    private var trackerButton: some View {
+        buttonContainer {
+            activeSheet = .tracker
+        } label: {
+            FilterMenuControl(title: trackerTitle, isActive: !selectedTrackers.isEmpty)
+        }
+    }
+
+    private func buttonContainer(
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> some View
+    ) -> some View {
+        Button(action: action) {
+            label()
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct FilterMenuControl: View {
+    let title: String
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .font(.footnote.weight(.medium))
+        .foregroundStyle(isActive ? .blue : .secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Sort Menu
+struct SortMenuView: View {
     @Binding var sortOption: SortOption
     @Binding var sortAscending: Bool
-    @Binding var selectedTracker: String
-    let uniqueTrackers: [String]
-    let isFilterActive: Bool
-    let allTrackersToken: String
 
     var body: some View {
         Menu {
-            // Section 1: Sort
             Section(LanguageManager.shared.localized("Sort")) {
                 Picker(LanguageManager.shared.localized("Sort By"), selection: $sortOption) {
                     ForEach(SortOption.allCases) { option in
@@ -786,35 +1356,9 @@ struct FilterMenuView: View {
                     Label(LanguageManager.shared.localized("Ascending"), systemImage: "arrow.up.arrow.down")
                 }
             }
-
-            // Section 2: Filter
-            Section(LanguageManager.shared.localized("Filter Tracker")) {
-                Picker(LanguageManager.shared.localized("Tracker"), selection: $selectedTracker) {
-                    ForEach(uniqueTrackers, id: \.self) { tracker in
-                        Text(
-                            tracker == allTrackersToken
-                            ? LanguageManager.shared.localized("All Trackers")
-                            : tracker
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .tag(tracker)
-                    }
-                }
-            }
-
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 17, weight: .semibold))
-
-                if isFilterActive {
-                    Circle()
-                        .fill(.red)
-                        .frame(width: 8, height: 8)
-                        .offset(x: 2, y: -2)
-                }
-            }
+            Image(systemName: "arrow.up.arrow.down.circle")
+                .font(.system(size: 17, weight: .semibold))
         }
     }
 }

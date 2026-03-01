@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-enum TaskStatusFilter: String, CaseIterable, Identifiable {
+enum TaskStatusFilter: String, CaseIterable, Identifiable, Hashable {
     case all
     case active
     case downloading

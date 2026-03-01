@@ -34,52 +34,54 @@ struct DashboardRecentFinishedModuleView: View {
     }
 
     var body: some View {
-        if !recentFinishedTasks.isEmpty {
-            // 性能优化：使用 LazyVStack 懒加载，仅实例化可见行
-            LazyVStack(spacing: 0) {
-                ForEach(Array(displayedTasks.enumerated()), id: \.element.id) { index, task in
-                    DashboardRecentFinishedListRow(task: task)
+        Group {
+            if !recentFinishedTasks.isEmpty {
+                // 性能优化：使用 LazyVStack 懒加载，仅实例化可见行
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(displayedTasks.enumerated()), id: \.element.id) { index, task in
+                        DashboardRecentFinishedListRow(task: task)
 
-                    if index < displayedTasks.count - 1 {
+                        if index < displayedTasks.count - 1 {
+                            Divider()
+                                .padding(.leading, 46)
+                        }
+                    }
+
+                    if canToggleExpand {
                         Divider()
-                            .padding(.leading, 46)
+                            .padding(.leading, 14)
+
+                        Button {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(toggleButtonTitle)
+                                    .font(.footnote.weight(.semibold))
+
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-
-                if canToggleExpand {
-                    Divider()
-                        .padding(.leading, 14)
-
-                    Button {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(toggleButtonTitle)
-                                .font(.footnote.weight(.semibold))
-
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption.weight(.semibold))
-                        }
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.plain)
-                }
+                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .task(id: refreshKey) {
-                let latest = await Task.detached(priority: .utility) {
-                    DashboardRecentFinishedModuleView.computeRecentFinishedTasks(from: tasks)
-                }.value
-                guard !Task.isCancelled else { return }
-                recentFinishedTasks = latest
-                if latest.count <= collapsedLimit, isExpanded {
-                    isExpanded = false
-                }
+        }
+        .task(id: refreshKey) {
+            let latest = await Task.detached(priority: .utility) {
+                DashboardRecentFinishedModuleView.computeRecentFinishedTasks(from: tasks)
+            }.value
+            guard !Task.isCancelled else { return }
+            recentFinishedTasks = latest
+            if latest.count <= collapsedLimit, isExpanded {
+                isExpanded = false
             }
         }
     }
