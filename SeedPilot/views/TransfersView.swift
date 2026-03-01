@@ -1241,33 +1241,16 @@ struct TorrentFilterMenuBar: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 40)
-        .background(.ultraThinMaterial)
-        .background(Color.primary.opacity(0.03))
+        .background(Color(uiColor: .tertiarySystemFill))
         .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            .white.opacity(0.6),
-                            .clear,
-                            .white.opacity(0.2)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.5
-                )
-        )
-        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
     }
 
     private var filterDivider: some View {
-        Rectangle()
-            .fill(Color.primary.opacity(0.12))
-            .frame(width: 0.5, height: 12)
+        Divider()
+            .frame(height: 14)
+            .overlay(Color(uiColor: .separator).opacity(0.3))
             .allowsHitTesting(false)
     }
 
@@ -1314,7 +1297,7 @@ struct TorrentFilterMenuBar: View {
         Button(action: action) {
             label()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.automatic)
         .frame(maxWidth: .infinity)
     }
 }
@@ -1331,8 +1314,8 @@ struct FilterMenuControl: View {
             Image(systemName: "chevron.down")
                 .font(.system(size: 10, weight: .semibold))
         }
-        .font(.footnote.weight(.medium))
-        .foregroundStyle(isActive ? .blue : .secondary)
+        .font(isActive ? .subheadline.weight(.semibold) : .subheadline.weight(.regular))
+        .foregroundColor(isActive ? .accentColor : .secondary)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
     }
