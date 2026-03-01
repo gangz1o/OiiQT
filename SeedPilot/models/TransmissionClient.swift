@@ -373,7 +373,38 @@ class TransmissionClient: NSObject, TorrentClient {
     }
 
     func editTrackers(hash: String, newTrackers: String) async throws {
-         // Complex: 'torrent-set' with 'trackerAdd', 'trackerRemove', or 'trackerReplace'
+        let trackerURLs = normalizedTrackerURLs(from: newTrackers)
+        guard !trackerURLs.isEmpty else {
+            throw TorrentClientError.apiError("No valid tracker URL provided")
+        }
+
+        struct TrackerGet: Decodable {
+            struct Item: Decodable {
+                struct Tracker: Decodable {
+                    let id: Int
+                }
+                let trackers: [Tracker]?
+            }
+            let torrents: [Item]
+        }
+
+        let trackerGet = try await performRequest(
+            "torrent-get",
+            arguments: ["ids": [hash], "fields": ["trackers"]],
+            responseType: TrackerGet.self
+        )
+
+        let existingTrackerIDs = trackerGet.torrents.first?.trackers?.map(\.id) ?? []
+
+        var setArguments: [String: Any] = [
+            "ids": [hash],
+            "trackerAdd": trackerURLs
+        ]
+        if !existingTrackerIDs.isEmpty {
+            setArguments["trackerRemove"] = existingTrackerIDs
+        }
+
+        _ = try await performRequest("torrent-set", arguments: setArguments, responseType: EmptyArgs.self)
     }
 
     // MARK: - Helpers
@@ -388,6 +419,35 @@ class TransmissionClient: NSObject, TorrentClient {
         case 5, 6: return .seeding
         default: return .error
         }
+    }
+
+    private func normalizedTrackerURLs(from raw: String) -> [String] {
+        let normalizedSeparators = raw.replacingOccurrences(of: "\r\n", with: "\n")
+        let chunks = normalizedSeparators.split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" })
+
+        var seen = Set<String>()
+        var result: [String] = []
+        for chunk in chunks {
+            let candidate = String(chunk).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !candidate.isEmpty else { continue }
+            guard isLikelyTrackerURL(candidate) else { continue }
+            let key = candidate.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(candidate)
+        }
+        return result
+    }
+
+    private func isLikelyTrackerURL(_ raw: String) -> Bool {
+        guard let components = URLComponents(string: raw),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host,
+              !host.isEmpty else {
+            return false
+        }
+
+        return ["http", "https", "udp", "ws", "wss"].contains(scheme)
     }
 
     private func decodeOnBackground<T: Decodable>(_ type: T.Type, from data: Data) async throws -> T {

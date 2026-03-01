@@ -109,7 +109,7 @@ struct BatchActionPanel: View {
                 ActionButton(
                     icon: "link.badge.plus",
                     text: LanguageManager.shared.localized("Edit Tracker"),
-                    isDisabled: isMixedServerSelection
+                    isDisabled: selectedTasks.isEmpty
                 ) {
                     showingBatchTrackerAlert = true
                 }
@@ -181,18 +181,17 @@ struct BatchActionPanel: View {
             }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
         }
-        .alert(LanguageManager.shared.localized("Batch Add Tracker"), isPresented: $showingBatchTrackerAlert) {
+        .alert(LanguageManager.shared.localized("Edit Tracker"), isPresented: $showingBatchTrackerAlert) {
             TextField(LanguageManager.shared.localized("Tracker URL"), text: $newBatchTrackers)
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
             Button(LanguageManager.shared.localized("Confirm")) {
-                guard !isMixedServerSelection else { return }
                 performAction {
                     appStateManager.editTrackersBatch(Set(selectedTasks), newTrackers: newBatchTrackers)
                 }
                 newBatchTrackers = ""
             }
         } message: {
-            Text(LanguageManager.shared.localized("Please enter Tracker URL."))
+            Text(LanguageManager.shared.localized("Please enter Tracker URL. For multiple URLs, try comma separation if supported by your server."))
         }
         .confirmationDialog(LanguageManager.shared.localized("Batch Delete"), isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
             Button(LanguageManager.shared.localized("Delete Task (Keep Data)"), role: .destructive) {

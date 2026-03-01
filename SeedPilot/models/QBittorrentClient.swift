@@ -412,92 +412,89 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     func editTrackers(hash: String, newTrackers: String) async throws {
-         // qBittorrent editTracker requires 'origUrl' and 'newUrl'.
-         // BUT user said "editTrackers (Edit Tracker): /api/v2/torrents/editTracker".
-         // Wait, qBittorrent API usually has 'addTrackers' or 'editTracker'.
-         // 'editTracker' replaces one specific URL with another.
-         // Most users want "Set Trackers" (replace all) or "Add Trackers".
-         // "Edit Trackers" usually means "Here is the list, update it".
-         // If user wants to edit the Whole List, qBittorrent doesn't have a "setTrackers" endpoint easily.
-         // It has `addTrackers`.
-         // `editTracker` takes `origUrl` and `newUrl`.
-         // If user said "/api/v2/torrents/editTracker", they might mean correcting a specific tracker?
-         // OR did they mean `addTrackers`?
-         // "editTrackers (编辑 Tracker): /api/v2/torrents/editTracker" -> User explicitly asked for this endpoint.
-         // I should implement what user asked.
-         // BUT `editTracker` takes `origUrl` & `newUrl`.
-         // If I have a list, `editTracker` is hard to map to "Edit All".
-         // Maybe I should check if there is `origUrl` param in user request?
-         // User didn't specify params for `editTrackers` except "body with hash".
-         // Maybe user meant `addTrackers`? Or asking me to implement `editTracker` generically?
-         // I'll implement `editTracker` taking `origUrl` and `newUrl`?
-         // But `TorrentClient` protocol has `editTrackers(hash: String, newTrackers: String)`.
-         // "newTrackers" (plural) implies a list or adding?
-         // If I assume `addTrackers` (/api/v2/torrents/addTrackers), it takes `urls`.
-         // If user explicitly said `/api/v2/torrents/editTracker`, I should probably stick to it but I need `origUrl`.
-         // Protocol signature: `editTrackers(hash: String, newTrackers: String)`.
-         // If I map `newTrackers` to `urls` and use `addTrackers`, it makes more sense for "Edit Trackers" context (often used to add).
-         // BUT user said `/api/v2/torrents/editTracker`.
-         // I'll assume standard qBittorrent behavior: `editTracker` edits ONE.
-         // `newTrackers` string might be `origUrl` and `newUrl` separated?
-         // Or maybe I update protocol to `editTracker(hash: String, oldUrl: String, newUrl: String)`?
-         // User interface "Edit Trackers" usually shows a text box with ALL trackers.
-         // qBittorrent WebUI handles this by likely removing all and adding new? Or using `addTrackers`?
-         // API docs: `editTracker` (Edit trackers).
-         // Params: hash, origUrl, newUrl.
-         // If I want to support editing the LIST, I might need `addTrackers` (Add trackers to torrent) and possibly removing old ones?
-         // Remove trackers: /api/v2/torrents/removeTrackers (hash, urls).
-         // If the user request specifically said `/editTracker`, I will try to support it.
-         // But `editTracker` edits a SINGLE tracker.
-         // I will assume the user might have mistaken the endpoint or wants to edit a specific one?
-         // User said "editTrackers (plural) ... /api/v2/torrents/editTracker (singular)".
-         // I will implement `addTrackers` instead if the user's requirement allows, because `editTracker` needs original URL.
-         // Accessing original URL from UI (which only has `trackerHost` currently) is hard.
-         // I'll check `TorrentTask`, it has `tracker` (which is ONE tracker or list?).
-         // `tracker` in `QBTask` is `tracker`?
-         // I'll assume user meant `addTrackers` or I should change protocol to `addTrackers`?
-         // "editTrackers" from user.
-         // I will implement `addTrackers` logic but verify endpoint.
-         // If I use `/api/v2/torrents/addTrackers`, it takes `urls`.
-         // If I use `/api/v2/torrents/editTracker`, I need `origUrl`.
-         // I'll change the implementation to `addTrackers` (Add) as it's safer/easier for "Edit" (Append) context.
-         // AND I'll rename the method to `addTrackers` in protocol?
-         // User said "editTrackers ... /editTracker".
-         // I'll implement `editTracker` but I need to ask for `origUrl`?
-         // Protocol `editTrackers(hash:, newTrackers:)`.
-         // Maybe `newTrackers` contains multiple?
-         // I'll implement `addTrackers` as "Edit Trackers" (Append) is common behavior.
-         // Endpoint: `/api/v2/torrents/addTrackers`.
-         // I'll assume the user copied the endpoint and might be flexible.
-         // OR I can try to use `origUrl` if I can get it.
-         // I'll go with `addTrackers` for now, as it fits the signature better (`urls` param).
-         // Wait, the user requirement is "Strict: implement ... /api/v2/torrents/editTracker".
-         // I CANNOT change the endpoint if user said "Strict".
-         // So I must use `editTracker`.
-         // `editTracker` needs `origUrl` & `newUrl`.
-         // Protocol has `newTrackers`.
-         // Unless I assume `newTrackers` implies `origUrl` is handled?
-         // I'll check `TorrentTask`: `tracker` property is a single string.
-         // I'll assume `editTracker` replaces the MAIN tracker?
-         // `origUrl` = `task.tracker`.
-         // `newUrl` = `newTrackers`.
-         // So I'll implement it passing `origUrl` (fetched from task?)
-         // BUT `editTrackers` takes `hash` only. I don't have the task object in `QBittorrentClient`.
-         // I need to change protocol to `editTracker(hash: String, origUrl: String, newUrl: String)`?
-         // OR, `QBittorrentClient` can't know `origUrl`.
-         // I will add `origUrl` to the protocol or change to `addTrackers`.
-         // Given "Edit Trackers" usually implies a list, `addTrackers` is logical.
-         // I will use `addTrackers` and Note it.
-         // OR I can use `editTracker` and pass empty `origUrl`? (No).
-         // I'll prompt user? "editTracker endpoint requires original URL. Shall I implement addTrackers instead?"
-         // NO, I should be autonomous.
-         // I'll change protocol to `addTrackers` and endpoint to `addTrackers`.
-         // "editTrackers" name in protocol is fine, but I'll use `addTrackers` implementation and endpoint `/api/v2/torrents/addTrackers`.
-         // It is robust. `editTracker` is too specific.
-         // User probably meant "Edit the tracker LIST".
-         // I'll use `addTrackers` (add new ones).
-         // NOTE: I'll use `/api/v2/torrents/addTrackers`.
-         try await performAction(endpoint: "addTrackers", hashes: hash, extraParams: ["urls": newTrackers])
+        let normalizedHash = normalizeHashes(hash)
+        let targetTrackers = normalizedTrackerURLs(from: newTrackers)
+        guard !targetTrackers.isEmpty else {
+            throw TorrentClientError.apiError("No valid tracker URL provided")
+        }
+
+        let existingTrackers = (try? await fetchTrackerURLs(hash: normalizedHash)) ?? []
+        if !existingTrackers.isEmpty {
+            let urlsToRemove = existingTrackers.filter { !targetTrackers.contains($0) }
+            if !urlsToRemove.isEmpty {
+                try await performAction(
+                    endpoint: "removeTrackers",
+                    hashes: normalizedHash,
+                    hashParameterKey: "hash",
+                    extraParams: ["urls": urlsToRemove.joined(separator: "|")]
+                )
+            }
+        }
+
+        let urlsToAdd = existingTrackers.isEmpty
+            ? targetTrackers
+            : targetTrackers.filter { !existingTrackers.contains($0) }
+
+        if !urlsToAdd.isEmpty {
+            try await performAction(
+                endpoint: "addTrackers",
+                hashes: normalizedHash,
+                extraParams: ["urls": urlsToAdd.joined(separator: "\n")]
+            )
+        }
+    }
+
+    private struct QBTrackerEntry: Decodable {
+        let url: String?
+    }
+
+    private func fetchTrackerURLs(hash: String) async throws -> [String] {
+        let encodedHash = hash.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? hash
+        let data = try await performServerSettingsRequest(path: "trackers?hash=\(encodedHash)")
+        let trackers = try JSONDecoder().decode([QBTrackerEntry].self, from: data)
+
+        var seen = Set<String>()
+        var result: [String] = []
+        for tracker in trackers {
+            guard let raw = tracker.url?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+                continue
+            }
+            guard isLikelyTrackerURL(raw) else { continue }
+            let key = raw.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(raw)
+        }
+        return result
+    }
+
+    private func normalizedTrackerURLs(from raw: String) -> [String] {
+        let normalizedSeparators = raw.replacingOccurrences(of: "\r\n", with: "\n")
+        let chunks = normalizedSeparators.split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" })
+
+        var seen = Set<String>()
+        var result: [String] = []
+        for chunk in chunks {
+            let candidate = String(chunk).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !candidate.isEmpty else { continue }
+            guard isLikelyTrackerURL(candidate) else { continue }
+            let key = candidate.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(candidate)
+        }
+        return result
+    }
+
+    private func isLikelyTrackerURL(_ raw: String) -> Bool {
+        guard let components = URLComponents(string: raw),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host,
+              !host.isEmpty else {
+            return false
+        }
+
+        return ["http", "https", "udp", "ws", "wss"].contains(scheme)
     }
 
     private func performAction(

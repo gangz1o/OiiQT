@@ -125,7 +125,7 @@ struct TorrentActionSheetView: View {
                     }
 
                     Button {
-                        newTrackers = task.tracker
+                        newTrackers = trackerDraftValue(from: task.tracker)
                         showingTrackersAlert = true
                     } label: {
                         sheetMenuRow(
@@ -506,6 +506,24 @@ struct TorrentActionSheetView: View {
             )
         )
         .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func trackerDraftValue(from raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        guard isLikelyTrackerURL(trimmed) else { return "" }
+        return trimmed
+    }
+
+    private func isLikelyTrackerURL(_ raw: String) -> Bool {
+        guard let components = URLComponents(string: raw),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host,
+              !host.isEmpty else {
+            return false
+        }
+
+        return ["http", "https", "udp", "ws", "wss"].contains(scheme)
     }
 
     private func localizedErrorMessage(_ error: Error) -> String {

@@ -743,7 +743,12 @@ class AppStateManager {
     }
 
     func editTrackers(_ task: TorrentTask, newTrackers: String) {
-        performTaskAction(task) { client, id in try await client.editTrackers(hash: id, newTrackers: newTrackers) }
+        let trimmed = newTrackers.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        performTaskAction(task) { client, id in
+            try await client.editTrackers(hash: id, newTrackers: trimmed)
+            await self.refreshData()
+        }
     }
 
     // MARK: - Per-Torrent Speed Limits
@@ -831,12 +836,10 @@ class AppStateManager {
     }
 
     func editTrackersBatch(_ tasks: Set<TorrentTask>, newTrackers: String) {
-        guard canPerformServerScopedBatchMutation(tasks) else {
-            print("Batch edit trackers blocked: mixed server selection.")
-            return
-        }
+        let trimmed = newTrackers.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         performBatchAction(tasks) { client, hash in
-            try await client.editTrackers(hash: hash, newTrackers: newTrackers)
+            try await client.editTrackers(hash: hash, newTrackers: trimmed)
         }
     }
 
