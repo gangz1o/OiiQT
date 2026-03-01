@@ -288,12 +288,18 @@ class AppStateManager {
         }
 
         let finalTasks = gatheredTasks
+        let finalHasRecentFinished = aggregatedHasRecentFinishedTasks
+        let finalHasRecentByServer = aggregatedHasRecentFinishedByServerID
         // Defer heavy list data update to RunLoop.default — auto-pauses during scroll
+        // hasRecentFinished flags must live in the same deferred block so that when
+        // the module becomes visible, displayedTasks already contains the latest data.
         RunLoop.main.perform(inModes: [.default]) { [self] in
             if self.allTasks != finalTasks {
                 self.allTasks = finalTasks
                 self.tasksRevision &+= 1
             }
+            self.hasRecentFinishedTasksAll = finalHasRecentFinished
+            self.hasRecentFinishedByServerID = finalHasRecentByServer
         }
         // Essential state flags must update immediately (not deferred)
         await MainActor.run {
@@ -306,8 +312,7 @@ class AppStateManager {
             self.totalSeedingCountCache = aggregatedSeedingCount
             self.totalSeedingSizeCache = aggregatedSeedingSize
             self.seedingTotalsByServerID = aggregatedSeedingByServerID
-            self.hasRecentFinishedTasksAll = aggregatedHasRecentFinishedTasks
-            self.hasRecentFinishedByServerID = aggregatedHasRecentFinishedByServerID
+
             self.hasInitialDataLoaded = true
 
             // Record History
@@ -423,7 +428,7 @@ class AppStateManager {
             totalUploadSpeed += task.uploadSpeed
 
             if !hasRecentFinishedTask &&
-                (task.status == .completed || task.completionDate != nil || task.progress >= 1) {
+                (task.status == .completed || task.status == .seeding || task.completionDate != nil || task.progress >= 0.999) {
                 hasRecentFinishedTask = true
             }
         }

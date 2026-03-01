@@ -143,6 +143,16 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 ratio: ratio
                             )
 
+                            let completionTimestamp: Int? = {
+                                if let completionOn = task.completion_on, completionOn > 0 {
+                                    return completionOn
+                                }
+                                if let seenComplete = task.seen_complete, seenComplete > 0 {
+                                    return seenComplete
+                                }
+                                return nil
+                            }()
+
                             return TorrentTask(
                                 hash: task.hash,
                                 name: task.name,
@@ -161,7 +171,7 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 uploaded: task.uploaded ?? 0,
                                 isSequential: task.seq_dl,
                                 isFirstLastPiecePriority: task.f_l_piece_prio,
-                                completionDate: (task.completion_on != nil && task.completion_on! > 0) ? Date(timeIntervalSince1970: TimeInterval(task.completion_on!)) : nil,
+                                completionDate: completionTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) },
                                 seedingTime: seedingTime,
                                 addedTime: Date(timeIntervalSince1970: TimeInterval(task.added_on ?? 0)),
                                 resolutionBadge: ResolutionExtractor.extractBadge(from: task.name),
@@ -981,6 +991,7 @@ struct QBTask: Decodable {
     let seq_dl: Bool?
     let f_l_piece_prio: Bool?
     let completion_on: Int? // Timestamp
+    let seen_complete: Int? // Timestamp
     let added_on: Int?
     let num_seeds: Int?
     let num_complete: Int?

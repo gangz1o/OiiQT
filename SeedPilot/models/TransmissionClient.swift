@@ -160,6 +160,7 @@ class TransmissionClient: NSObject, TorrentClient {
                 let status: Int
                 let downloadDir: String
                 let percentDone: Double
+                let doneDate: Int?
                 let eta: Int
                 let downloadedEver: Int64
                 let uploadedEver: Int64
@@ -176,7 +177,7 @@ class TransmissionClient: NSObject, TorrentClient {
 
         let fields = [
             "id", "hashString", "name", "totalSize", "rateDownload", "rateUpload",
-            "status", "downloadDir", "percentDone", "eta", "downloadedEver",
+            "status", "downloadDir", "percentDone", "doneDate", "eta", "downloadedEver",
             "uploadedEver", "uploadRatio", "peersConnected", "addedDate", "secondsSeeding",
             "tracker", "trackers", "labels"
         ]
@@ -265,7 +266,7 @@ class TransmissionClient: NSObject, TorrentClient {
                         uploaded: item.uploadedEver,
                         isSequential: nil,
                         isFirstLastPiecePriority: nil,
-                        completionDate: nil,
+                        completionDate: item.doneDate.flatMap { $0 > 0 ? Date(timeIntervalSince1970: TimeInterval($0)) : nil },
                         seedingTime: seedingTime,
                         addedTime: item.addedDate.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? .distantPast,
                         resolutionBadge: ResolutionExtractor.extractBadge(from: item.name),

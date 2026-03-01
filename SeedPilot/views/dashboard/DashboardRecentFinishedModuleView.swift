@@ -72,6 +72,8 @@ struct DashboardRecentFinishedModuleView: View {
                 }
                 .background(Color(uiColor: .secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                Color.clear.frame(height: 0)
             }
         }
         .task(id: refreshKey) {
@@ -91,7 +93,7 @@ struct DashboardRecentFinishedModuleView: View {
         finishedTasks.reserveCapacity(min(max(tasks.count / 8, 8), 256))
 
         for task in tasks {
-            if task.status == .completed || task.completionDate != nil || task.progress >= 1 {
+            if task.status == .completed || task.status == .seeding || task.completionDate != nil || task.progress >= 0.999 {
                 finishedTasks.append(task)
             }
         }

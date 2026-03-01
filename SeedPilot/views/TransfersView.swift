@@ -109,10 +109,11 @@ struct TransfersView: View {
     private var shouldShowTasksLoadingState: Bool {
         guard isTransfersTabActive else { return false }
         guard filteredTasks.isEmpty else { return false }
-        if !appStateManager.hasInitialDataLoaded && !appStateManager.servers.isEmpty {
-            return true
-        }
-        return appStateManager.isRefreshingTasks || isFilteringTasks
+        guard !appStateManager.servers.isEmpty else { return false }
+
+        // Keep full-screen loading for first load only; avoid empty-state flicker during periodic refresh/filter passes.
+        guard !appStateManager.hasInitialDataLoaded else { return false }
+        return appStateManager.isRefreshingTasks || isFilteringTasks || appStateManager.allTasks.isEmpty
     }
 
     private var shouldShowServerEmptyState: Bool {
