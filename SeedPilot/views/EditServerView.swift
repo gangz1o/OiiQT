@@ -308,6 +308,7 @@ struct EditServerView: View {
                     if let server = serverToEdit {
                         server.deleteResolvedPassword()
                         modelContext.delete(server)
+                        syncServerConfigsToCloud()
                     }
                     dismiss()
                 }
@@ -368,7 +369,16 @@ struct EditServerView: View {
             config.setResolvedPassword(password)
             modelContext.insert(config)
         }
+        syncServerConfigsToCloud()
         dismiss()
+    }
+
+    private func syncServerConfigsToCloud() {
+        ServerConfigCloudSyncManager.shared.start(with: modelContext)
+        try? modelContext.save()
+        let descriptor = FetchDescriptor<ServerConfig>()
+        let currentServers = (try? modelContext.fetch(descriptor)) ?? []
+        ServerConfigCloudSyncManager.shared.handleLocalServerListChanged(currentServers)
     }
 
     private func testConnection() {

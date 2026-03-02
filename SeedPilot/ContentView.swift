@@ -77,6 +77,13 @@ struct ContentView: View {
                 RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .rssFeedSourceCloudSyncDidApply)) { _ in
+            guard scenePhase == .active else { return }
+            RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+            Task { @MainActor in
+                await RSSMonitor.shared.checkFeeds(context: modelContext, appStateManager: appStateManager)
+            }
+        }
         .task {
             // Start RSS auto-refresh on launch
             RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)

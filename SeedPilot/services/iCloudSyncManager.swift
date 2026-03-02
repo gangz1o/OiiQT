@@ -390,6 +390,23 @@ final class iCloudSyncManager {
 
     private func normalizeLocalValueForCloud(_ value: Any, canonicalKey: String) -> Any? {
         switch canonicalKey {
+        case "presetSavePaths":
+            if let raw = value as? String {
+                return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+            }
+            if let paths = value as? [String] {
+                return PresetSavePathsCodec.encode(paths)
+            }
+            if let data = value as? Data {
+                if let decoded = try? JSONDecoder().decode([String].self, from: data) {
+                    return PresetSavePathsCodec.encode(decoded)
+                }
+                if let raw = String(data: data, encoding: .utf8) {
+                    return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+                }
+                return nil
+            }
+            return nil
         case "trackerAliases":
             if let data = value as? Data {
                 return (try? JSONDecoder().decode([String: String].self, from: data)) ?? data
@@ -411,6 +428,23 @@ final class iCloudSyncManager {
         localKey: String
     ) -> Any? {
         switch canonicalKey {
+        case "presetSavePaths":
+            if let raw = cloudValue as? String {
+                return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+            }
+            if let paths = cloudValue as? [String] {
+                return PresetSavePathsCodec.encode(paths)
+            }
+            if let data = cloudValue as? Data {
+                if let decoded = try? JSONDecoder().decode([String].self, from: data) {
+                    return PresetSavePathsCodec.encode(decoded)
+                }
+                if let raw = String(data: data, encoding: .utf8) {
+                    return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+                }
+                return nil
+            }
+            return nil
         case "trackerAliases":
             if localKey == "trackerAliasMappings" {
                 if let data = cloudValue as? Data { return data }

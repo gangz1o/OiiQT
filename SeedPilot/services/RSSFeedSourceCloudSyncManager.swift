@@ -1,6 +1,10 @@
 import Foundation
 import SwiftData
 
+extension Notification.Name {
+    static let rssFeedSourceCloudSyncDidApply = Notification.Name("rssFeedSourceCloudSyncDidApply")
+}
+
 @MainActor
 final class RSSFeedSourceCloudSyncManager {
     static let shared = RSSFeedSourceCloudSyncManager()
@@ -169,6 +173,7 @@ final class RSSFeedSourceCloudSyncManager {
 
         applyRecords(payload.sources, to: modelContext)
         defaults.set(payload.updatedAt, forKey: Keys.localMutationTime)
+        NotificationCenter.default.post(name: .rssFeedSourceCloudSyncDidApply, object: nil)
     }
 
     private func fetchLocalSources(context: ModelContext) -> [RSSFeedSource] {
