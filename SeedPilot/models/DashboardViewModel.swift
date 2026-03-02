@@ -29,25 +29,20 @@ private struct TrackerTransferAggregate: Sendable {
     let downloadedBytes: Int64
 }
 
-private struct TrackerTransferBaselineEntry: Codable, Sendable, Equatable {
+private nonisolated struct TrackerTransferBaselineEntry: Codable, Sendable, Equatable {
     let uploaded: Int64
     let downloaded: Int64
 }
 
-private struct TrackerTransferBaselineSnapshot: Codable, Sendable {
-    let dayStamp: String
-    let tasks: [String: TrackerTransferBaselineEntry]
-}
-
-private struct TrackerTransferRollingSnapshot: Codable, Sendable {
-    let timestamp: Date
+private nonisolated struct TrackerTransferBaselineSnapshot: Codable, Sendable {
+    let startOfDayTimestamp: Int
     let tasks: [String: TrackerTransferBaselineEntry]
 }
 
 private struct TrackerTransferComputationResult: Sendable {
     let aggregates: [TrackerTransferAggregate]
     let baselineSnapshot: TrackerTransferBaselineSnapshot
-    let rollingSnapshots: [TrackerTransferRollingSnapshot]
+    let encodedBaselineSnapshotData: Data
 }
 
 private struct DashboardServerRuntimeInput: Sendable {
@@ -72,15 +67,18 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var moduleOrder: [DashboardModuleType] = DashboardModuleType.defaultOrder
     @Published private(set) var todayUploadData: [TrackerTransferData] = []
     @Published private(set) var todayDownloadData: [TrackerTransferData] = []
+    @Published private(set) var isTrackerStatsComputing = false
+    @Published private(set) var hasTrackerStatsComputedAtLeastOnce = false
 
     @AppStorage(DashboardConfig.Keys.moduleOrder) private var moduleOrderStorageData: Data = Data()
     @AppStorage("dashboard.todayTransferBaselineSnapshot") private var trackerStatsBaselineSnapshotData: Data = Data()
-    @AppStorage("dashboard.todayTransferRollingSnapshots") private var trackerStatsRollingSnapshotsData: Data = Data()
 
     private let statsManager: GlobalStatsManager
     private var autoRefreshTask: Task<Void, Never>?
     private var trackerStatsComputationTask: Task<Void, Never>?
     private var trackerStatsTasksProvider: (@MainActor () -> [TorrentTask])?
+    private var trackerStatsBaselineSnapshotCache: TrackerTransferBaselineSnapshot?
+    private var trackerStatsLastPersistedAt: Date?
     private var lastSuccessfulSnapshot: GlobalStatsSnapshot?
     private var lastKnownStorageByServer: [UUID: DashboardServerStorageEntry] = [:]
 
@@ -106,23 +104,30 @@ final class DashboardViewModel: ObservableObject {
     func calculateTrackerStats(from tasks: [TorrentTask]) {
         trackerStatsComputationTask?.cancel()
 
-        let dayStamp = Self.trackerStatsDayStampFormatter.string(from: Date())
         let now = Date()
-        let baselineSnapshot = Self.decodeTrackerBaselineSnapshot(from: trackerStatsBaselineSnapshotData)
-        let rollingSnapshots = Self.decodeTrackerRollingSnapshots(from: trackerStatsRollingSnapshotsData)
+        let startOfDayTimestamp = Self.startOfDayTimestamp(for: now)
+        let baselineSnapshot = trackerStatsBaselineSnapshotCache
+            ?? Self.decodeTrackerBaselineSnapshot(from: trackerStatsBaselineSnapshotData)
+        trackerStatsBaselineSnapshotCache = baselineSnapshot
         let trackerAliasMapSnapshot: [String: String] = UserDefaults.standard.bool(forKey: "isProUser")
             ? TrackerAliasManager.shared.aliasMap
             : [:]
+        let shouldShowLoadingSkeleton = !hasTrackerStatsComputedAtLeastOnce &&
+            todayUploadData.isEmpty &&
+            todayDownloadData.isEmpty
+        if shouldShowLoadingSkeleton {
+            isTrackerStatsComputing = true
+        } else {
+            isTrackerStatsComputing = false
+        }
 
         trackerStatsComputationTask = Task {
-            [tasks, dayStamp, now, baselineSnapshot, rollingSnapshots, trackerAliasMapSnapshot] in
+            [tasks, startOfDayTimestamp, baselineSnapshot, trackerAliasMapSnapshot] in
             let result = await Task.detached(priority: .utility) {
                 DashboardViewModel.computeTrackerStats(
                     tasks: tasks,
-                    dayStamp: dayStamp,
-                    now: now,
+                    startOfDayTimestamp: startOfDayTimestamp,
                     baselineSnapshot: baselineSnapshot,
-                    rollingSnapshots: rollingSnapshots,
                     trackerAliasMap: trackerAliasMapSnapshot
                 )
             }.value
@@ -131,8 +136,19 @@ final class DashboardViewModel: ObservableObject {
 
             todayUploadData = Self.buildTransferData(aggregates: result.aggregates, direction: .upload)
             todayDownloadData = Self.buildTransferData(aggregates: result.aggregates, direction: .download)
-            trackerStatsBaselineSnapshotData = Self.encodeTrackerBaselineSnapshot(result.baselineSnapshot)
-            trackerStatsRollingSnapshotsData = Self.encodeTrackerRollingSnapshots(result.rollingSnapshots)
+            trackerStatsBaselineSnapshotCache = result.baselineSnapshot
+            hasTrackerStatsComputedAtLeastOnce = true
+            isTrackerStatsComputing = false
+
+            let shouldPersistNow: Bool = {
+                guard let lastPersistedAt = trackerStatsLastPersistedAt else { return true }
+                return now.timeIntervalSince(lastPersistedAt) >= Self.trackerStatsPersistenceInterval
+            }()
+
+            if shouldPersistNow {
+                trackerStatsBaselineSnapshotData = result.encodedBaselineSnapshotData
+                trackerStatsLastPersistedAt = now
+            }
         }
     }
 
@@ -507,42 +523,26 @@ private extension DashboardViewModel {
 
     nonisolated static func computeTrackerStats(
         tasks: [TorrentTask],
-        dayStamp: String,
-        now: Date,
+        startOfDayTimestamp: Int,
         baselineSnapshot: TrackerTransferBaselineSnapshot?,
-        rollingSnapshots: [TrackerTransferRollingSnapshot],
         trackerAliasMap: [String: String]
     ) -> TrackerTransferComputationResult {
-        var currentTaskCounters: [String: TrackerTransferBaselineEntry] = [:]
-        currentTaskCounters.reserveCapacity(max(tasks.count, 8))
-        for task in tasks {
-            let taskID = "\(task.serverID.uuidString)_\(task.hash)"
-            let uploaded = max(task.uploaded, 0)
-            let downloaded = max(task.downloaded, 0)
-            // Keep zero counters in rolling snapshots so midnight interpolation can preserve
-            // "0 -> positive" transfers that start after midnight.
-            currentTaskCounters[taskID] = TrackerTransferBaselineEntry(uploaded: uploaded, downloaded: downloaded)
+        var baselineTasks: [String: TrackerTransferBaselineEntry]
+        if let baselineSnapshot, baselineSnapshot.startOfDayTimestamp == startOfDayTimestamp {
+            baselineTasks = baselineSnapshot.tasks
+        } else {
+            baselineTasks = [:]
         }
-
-        let updatedRollingSnapshots = normalizedRollingSnapshots(
-            rollingSnapshots,
-            appending: TrackerTransferRollingSnapshot(timestamp: now, tasks: currentTaskCounters),
-            now: now
-        )
-
-        var baselineTasks = resolveBaselineTasks(
-            dayStamp: dayStamp,
-            now: now,
-            currentTaskCounters: currentTaskCounters,
-            baselineSnapshot: baselineSnapshot,
-            rollingSnapshots: updatedRollingSnapshots
-        )
+        baselineTasks.reserveCapacity(max(baselineTasks.count, tasks.count))
 
         var grouped: [String: (uploaded: Int64, downloaded: Int64)] = [:]
         grouped.reserveCapacity(max(tasks.count / 2, 4))
+        var activeTaskIDs = Set<String>()
+        activeTaskIDs.reserveCapacity(max(tasks.count, 8))
 
         for task in tasks {
             let taskID = "\(task.serverID.uuidString)_\(task.hash)"
+            activeTaskIDs.insert(taskID)
             let currentUploaded = max(task.uploaded, 0)
             let currentDownloaded = max(task.downloaded, 0)
 
@@ -580,6 +580,10 @@ private extension DashboardViewModel {
             grouped[trackerName] = bucket
         }
 
+        if baselineTasks.count > activeTaskIDs.count + max(1024, activeTaskIDs.count / 10) {
+            baselineTasks = baselineTasks.filter { activeTaskIDs.contains($0.key) }
+        }
+
         var aggregates: [TrackerTransferAggregate] = []
         aggregates.reserveCapacity(grouped.count)
         for (key, value) in grouped {
@@ -592,11 +596,14 @@ private extension DashboardViewModel {
             )
         }
 
-        let snapshot = TrackerTransferBaselineSnapshot(dayStamp: dayStamp, tasks: baselineTasks)
+        let snapshot = TrackerTransferBaselineSnapshot(
+            startOfDayTimestamp: startOfDayTimestamp,
+            tasks: baselineTasks
+        )
         return TrackerTransferComputationResult(
             aggregates: aggregates,
             baselineSnapshot: snapshot,
-            rollingSnapshots: updatedRollingSnapshots
+            encodedBaselineSnapshotData: encodeTrackerBaselineSnapshot(snapshot)
         )
     }
 
@@ -647,158 +654,18 @@ private extension DashboardViewModel {
         return palette[abs(hash) % palette.count]
     }
 
-    static func decodeTrackerBaselineSnapshot(from data: Data) -> TrackerTransferBaselineSnapshot? {
+    nonisolated static func decodeTrackerBaselineSnapshot(from data: Data) -> TrackerTransferBaselineSnapshot? {
         guard !data.isEmpty else { return nil }
         return try? JSONDecoder().decode(TrackerTransferBaselineSnapshot.self, from: data)
     }
 
-    static func encodeTrackerBaselineSnapshot(_ snapshot: TrackerTransferBaselineSnapshot) -> Data {
+    nonisolated static func encodeTrackerBaselineSnapshot(_ snapshot: TrackerTransferBaselineSnapshot) -> Data {
         (try? JSONEncoder().encode(snapshot)) ?? Data()
     }
 
-    static func decodeTrackerRollingSnapshots(from data: Data) -> [TrackerTransferRollingSnapshot] {
-        guard !data.isEmpty else { return [] }
-        return (try? JSONDecoder().decode([TrackerTransferRollingSnapshot].self, from: data)) ?? []
+    nonisolated static func startOfDayTimestamp(for date: Date) -> Int {
+        Int(trackerStatsCalendar.startOfDay(for: date).timeIntervalSince1970)
     }
-
-    static func encodeTrackerRollingSnapshots(_ snapshots: [TrackerTransferRollingSnapshot]) -> Data {
-        (try? JSONEncoder().encode(snapshots)) ?? Data()
-    }
-
-    nonisolated static func normalizedRollingSnapshots(
-        _ snapshots: [TrackerTransferRollingSnapshot],
-        appending current: TrackerTransferRollingSnapshot,
-        now: Date
-    ) -> [TrackerTransferRollingSnapshot] {
-        var sorted = snapshots.sorted { $0.timestamp < $1.timestamp }
-
-        if let last = sorted.last,
-           abs(last.timestamp.timeIntervalSince(current.timestamp)) < 30,
-           last.tasks == current.tasks {
-            // Avoid duplicate writes from closely spaced onAppear/scenePhase triggers.
-        } else {
-            sorted.append(current)
-        }
-
-        let prunedByAge = sorted.filter {
-            now.timeIntervalSince($0.timestamp) <= Self.maxRollingSnapshotAge
-        }
-
-        if prunedByAge.count <= Self.maxRollingSnapshotCount {
-            return prunedByAge
-        }
-
-        return Array(prunedByAge.suffix(Self.maxRollingSnapshotCount))
-    }
-
-    nonisolated static func resolveBaselineTasks(
-        dayStamp: String,
-        now: Date,
-        currentTaskCounters: [String: TrackerTransferBaselineEntry],
-        baselineSnapshot: TrackerTransferBaselineSnapshot?,
-        rollingSnapshots: [TrackerTransferRollingSnapshot]
-    ) -> [String: TrackerTransferBaselineEntry] {
-        if let baselineSnapshot, baselineSnapshot.dayStamp == dayStamp {
-            return baselineSnapshot.tasks
-        }
-
-        guard !currentTaskCounters.isEmpty else { return [:] }
-
-        let midnight = trackerStatsCalendar.startOfDay(for: now)
-        let beforeMidnight = rollingSnapshots.last(where: { $0.timestamp <= midnight })
-        let afterMidnight = rollingSnapshots.first(where: { $0.timestamp >= midnight })
-
-        var derived: [String: TrackerTransferBaselineEntry] = [:]
-        derived.reserveCapacity(currentTaskCounters.count)
-
-        for (taskID, current) in currentTaskCounters {
-            let beforeEntry = beforeMidnight?.tasks[taskID]
-            let afterEntry = afterMidnight?.tasks[taskID]
-
-            let estimated = estimateMidnightBaseline(
-                current: current,
-                midnight: midnight,
-                beforeTimestamp: beforeMidnight?.timestamp,
-                beforeEntry: beforeEntry,
-                afterTimestamp: afterMidnight?.timestamp,
-                afterEntry: afterEntry
-            ) ?? current
-
-            derived[taskID] = clampBaselineEntry(estimated, toCurrent: current)
-        }
-
-        return derived
-    }
-
-    nonisolated static func estimateMidnightBaseline(
-        current: TrackerTransferBaselineEntry,
-        midnight: Date,
-        beforeTimestamp: Date?,
-        beforeEntry: TrackerTransferBaselineEntry?,
-        afterTimestamp: Date?,
-        afterEntry: TrackerTransferBaselineEntry?
-    ) -> TrackerTransferBaselineEntry? {
-        switch (beforeTimestamp, beforeEntry, afterTimestamp, afterEntry) {
-        case let (.some(beforeTime), .some(before), .some(afterTime), .some(after)):
-            let beforeClamped = clampBaselineEntry(before, toCurrent: current)
-            let afterClamped = clampBaselineEntry(after, toCurrent: current)
-
-            guard afterTime > beforeTime else {
-                return afterTime >= midnight ? afterClamped : beforeClamped
-            }
-
-            // Counters can reset after client restart / task re-add; interpolation is invalid in that case.
-            guard after.uploaded >= before.uploaded, after.downloaded >= before.downloaded else {
-                return afterTime >= midnight ? afterClamped : beforeClamped
-            }
-
-            let total = afterTime.timeIntervalSince(beforeTime)
-            let elapsed = midnight.timeIntervalSince(beforeTime)
-            guard total > 0 else { return afterClamped }
-
-            let progress = min(max(elapsed / total, 0), 1)
-            return clampBaselineEntry(
-                TrackerTransferBaselineEntry(
-                    uploaded: interpolatedInt64(before.uploaded, after.uploaded, progress: progress),
-                    downloaded: interpolatedInt64(before.downloaded, after.downloaded, progress: progress)
-                ),
-                toCurrent: current
-            )
-
-        case let (_, _, .some(_), .some(after)):
-            return clampBaselineEntry(after, toCurrent: current)
-
-        case let (.some(_), .some(before), _, _):
-            return clampBaselineEntry(before, toCurrent: current)
-
-        default:
-            return nil
-        }
-    }
-
-    nonisolated static func clampBaselineEntry(
-        _ baseline: TrackerTransferBaselineEntry,
-        toCurrent current: TrackerTransferBaselineEntry
-    ) -> TrackerTransferBaselineEntry {
-        TrackerTransferBaselineEntry(
-            uploaded: min(max(baseline.uploaded, 0), current.uploaded),
-            downloaded: min(max(baseline.downloaded, 0), current.downloaded)
-        )
-    }
-
-    nonisolated static func interpolatedInt64(_ start: Int64, _ end: Int64, progress: Double) -> Int64 {
-        let value = Double(start) + (Double(end - start) * progress)
-        return Int64(value.rounded())
-    }
-
-    static let trackerStatsDayStampFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 
     nonisolated static let trackerStatsCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
@@ -806,6 +673,5 @@ private extension DashboardViewModel {
         return calendar
     }()
 
-    nonisolated static let maxRollingSnapshotCount = 48
-    nonisolated static let maxRollingSnapshotAge: TimeInterval = 72 * 60 * 60
+    nonisolated static let trackerStatsPersistenceInterval: TimeInterval = 60
 }

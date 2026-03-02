@@ -937,6 +937,74 @@ class AppStateManager {
         }
     }
 
+    // MARK: - Server Connection Settings
+
+    func fetchConnectionSettings(for server: ServerConfig) async throws -> ConnectionSettings {
+        let client = getClient(for: server)
+
+        do {
+            return try await client.getConnectionSettings()
+        } catch let error as TorrentClientError {
+            if case .authenticationFailed = error {
+                try await client.login()
+                return try await client.getConnectionSettings()
+            }
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
+    func saveConnectionSettings(_ settings: ConnectionSettings, for server: ServerConfig) async throws {
+        let client = getClient(for: server)
+
+        do {
+            try await client.setConnectionSettings(settings)
+        } catch let error as TorrentClientError {
+            if case .authenticationFailed = error {
+                try await client.login()
+                try await client.setConnectionSettings(settings)
+                return
+            }
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
+    func fetchDownloadSettings(for server: ServerConfig) async throws -> DownloadSettings {
+        let client = getClient(for: server)
+
+        do {
+            return try await client.getDownloadSettings()
+        } catch let error as TorrentClientError {
+            if case .authenticationFailed = error {
+                try await client.login()
+                return try await client.getDownloadSettings()
+            }
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
+    func saveDownloadSettings(_ settings: DownloadSettings, for server: ServerConfig) async throws {
+        let client = getClient(for: server)
+
+        do {
+            try await client.setDownloadSettings(settings)
+        } catch let error as TorrentClientError {
+            if case .authenticationFailed = error {
+                try await client.login()
+                try await client.setDownloadSettings(settings)
+                return
+            }
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
     // MARK: - File Management
 
     func fetchFiles(for task: TorrentTask) async throws -> [TorrentFile] {

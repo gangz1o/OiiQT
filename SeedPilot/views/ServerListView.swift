@@ -16,6 +16,8 @@ struct ServerListView: View {
     @State private var showingAddServer = false
     @State private var editingServer: ServerConfig?
     @State private var rateLimitServer: ServerConfig?
+    @State private var connectionSettingsServer: ServerConfig?
+    @State private var downloadSettingsServer: ServerConfig?
     @State private var taxonomyServer: ServerConfig?
 
     var body: some View {
@@ -39,6 +41,18 @@ struct ServerListView: View {
                             rateLimitServer = server
                         } label: {
                             Label(LanguageManager.shared.localized("Rate Limit Settings"), systemImage: "speedometer")
+                        }
+
+                        Button {
+                            connectionSettingsServer = server
+                        } label: {
+                            Label(LanguageManager.shared.localized("Connection Settings"), systemImage: "network")
+                        }
+
+                        Button {
+                            downloadSettingsServer = server
+                        } label: {
+                            Label(LanguageManager.shared.localized("Download Settings"), systemImage: "folder.badge.gearshape")
                         }
 
                         Button {
@@ -89,6 +103,12 @@ struct ServerListView: View {
         }
         .sheet(item: $rateLimitServer) { server in
             ServerRateLimitView(server: server)
+        }
+        .sheet(item: $connectionSettingsServer) { server in
+            ConnectionSettingsView(server: server)
+        }
+        .sheet(item: $downloadSettingsServer) { server in
+            DownloadSettingsView(server: server)
         }
         .sheet(item: $taxonomyServer) { server in
             NavigationStack {

@@ -546,6 +546,104 @@ class TransmissionClient: NSObject, TorrentClient {
         }
     }
 
+    // MARK: - Connection Settings
+
+    func getConnectionSettings() async throws -> ConnectionSettings {
+        struct SessionConnectionGet: Decodable {
+            let peerPort: Int
+            let portForwardingEnabled: Bool
+            let peerLimitGlobal: Int
+            let peerLimitPerTorrent: Int
+            let utpEnabled: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case peerPort = "peer-port"
+                case portForwardingEnabled = "port-forwarding-enabled"
+                case peerLimitGlobal = "peer-limit-global"
+                case peerLimitPerTorrent = "peer-limit-per-torrent"
+                case utpEnabled = "utp-enabled"
+            }
+        }
+
+        let args = try await performRequest(
+            "session-get",
+            arguments: nil,
+            responseType: SessionConnectionGet.self
+        )
+
+        return ConnectionSettings(
+            listenPort: max(args.peerPort, 0),
+            useUPnP: args.portForwardingEnabled,
+            maxConnections: max(args.peerLimitGlobal, 0),
+            maxConnectionsPerTorrent: max(args.peerLimitPerTorrent, 0),
+            maxUploads: nil,
+            maxUploadsPerTorrent: nil,
+            bittorrentProtocol: args.utpEnabled ? 0 : 1
+        )
+    }
+
+    func setConnectionSettings(_ settings: ConnectionSettings) async throws {
+        let normalizedPort = min(max(settings.listenPort, 1), 65535)
+        let utpEnabled = settings.bittorrentProtocol != 1
+
+        let args: [String: Any] = [
+            "peer-port": normalizedPort,
+            "port-forwarding-enabled": settings.useUPnP,
+            "peer-limit-global": max(settings.maxConnections, 0),
+            "peer-limit-per-torrent": max(settings.maxConnectionsPerTorrent, 0),
+            "utp-enabled": utpEnabled
+        ]
+
+        _ = try await performRequest("session-set", arguments: args, responseType: EmptyArgs.self)
+    }
+
+    func getDownloadSettings() async throws -> DownloadSettings {
+        struct SessionDownloadGet: Decodable {
+            let downloadDir: String
+            let renamePartialFiles: Bool
+            let incompleteDirEnabled: Bool
+            let incompleteDir: String
+            let cacheSizeMB: Int
+
+            enum CodingKeys: String, CodingKey {
+                case downloadDir = "download-dir"
+                case renamePartialFiles = "rename-partial-files"
+                case incompleteDirEnabled = "incomplete-dir-enabled"
+                case incompleteDir = "incomplete-dir"
+                case cacheSizeMB = "cache-size-mb"
+            }
+        }
+
+        let args = try await performRequest(
+            "session-get",
+            arguments: nil,
+            responseType: SessionDownloadGet.self
+        )
+
+        return DownloadSettings(
+            savePath: args.downloadDir,
+            appendExtension: args.renamePartialFiles,
+            useTempPath: args.incompleteDirEnabled,
+            tempPath: args.incompleteDir,
+            preallocateAll: nil,
+            cacheSizeMB: max(args.cacheSizeMB, 0)
+        )
+    }
+
+    func setDownloadSettings(_ settings: DownloadSettings) async throws {
+        var args: [String: Any] = [
+            "download-dir": settings.savePath,
+            "rename-partial-files": settings.appendExtension,
+            "incomplete-dir-enabled": settings.useTempPath,
+            "incomplete-dir": settings.tempPath
+        ]
+        if let cacheSizeMB = settings.cacheSizeMB {
+            args["cache-size-mb"] = max(cacheSizeMB, 0)
+        }
+
+        _ = try await performRequest("session-set", arguments: args, responseType: EmptyArgs.self)
+    }
+
     // MARK: - Per-Torrent Speed Limits
 
     /// Fetch current per-torrent speed limits (KB/s). Returns limits and whether they are enabled.

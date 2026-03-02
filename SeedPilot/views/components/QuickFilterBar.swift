@@ -45,7 +45,7 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    func matches(_ status: TorrentStatus) -> Bool {
+    nonisolated func matches(_ status: TorrentStatus) -> Bool {
         switch self {
         case .all:
             return true
@@ -62,7 +62,7 @@ enum TaskStatusFilter: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    func matches(_ task: TorrentTask) -> Bool {
+    nonisolated func matches(_ task: TorrentTask) -> Bool {
         switch self {
         case .active:
             return task.downloadSpeed > 0 || task.uploadSpeed > 0

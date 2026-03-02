@@ -863,6 +863,92 @@ extension QBittorrentClient {
         )
     }
 
+    // MARK: - Connection Settings
+
+    func getConnectionSettings() async throws -> ConnectionSettings {
+        let data = try await performAppSettingsRequest(path: "app/preferences")
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw TorrentClientError.decodingError
+        }
+
+        return ConnectionSettings(
+            listenPort: intValue(json["listen_port"]) ?? 0,
+            useUPnP: boolValue(json["upnp"]) ?? false,
+            maxConnections: intValue(json["max_connec"]) ?? 0,
+            maxConnectionsPerTorrent: intValue(json["max_connec_per_torrent"]) ?? 0,
+            maxUploads: intValue(json["max_uploads"]),
+            maxUploadsPerTorrent: intValue(json["max_uploads_per_torrent"]),
+            bittorrentProtocol: intValue(json["bittorrent_protocol"]) ?? 0
+        )
+    }
+
+    func setConnectionSettings(_ settings: ConnectionSettings) async throws {
+        let normalizedPort = min(max(settings.listenPort, 1), 65535)
+        let normalizedProtocol = min(max(settings.bittorrentProtocol, 0), 2)
+
+        let payload: [String: Any] = [
+            "listen_port": normalizedPort,
+            "upnp": settings.useUPnP,
+            "max_connec": settings.maxConnections,
+            "max_connec_per_torrent": settings.maxConnectionsPerTorrent,
+            "max_uploads": settings.maxUploads ?? 0,
+            "max_uploads_per_torrent": settings.maxUploadsPerTorrent ?? 0,
+            "bittorrent_protocol": normalizedProtocol
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: payload)
+        guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+            throw TorrentClientError.apiError("setPreferences payload encoding failed")
+        }
+
+        _ = try await performAppSettingsRequest(
+            path: "app/setPreferences",
+            method: "POST",
+            formParams: ["json": jsonString]
+        )
+    }
+
+    func getDownloadSettings() async throws -> DownloadSettings {
+        let data = try await performAppSettingsRequest(path: "app/preferences")
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw TorrentClientError.decodingError
+        }
+
+        return DownloadSettings(
+            savePath: stringValue(json["save_path"]) ?? "",
+            appendExtension: boolValue(json["append_extension"]) ?? false,
+            useTempPath: boolValue(json["temp_path_enabled"]) ?? false,
+            tempPath: stringValue(json["temp_path"]) ?? "",
+            preallocateAll: boolValue(json["preallocate_all"]),
+            cacheSizeMB: nil
+        )
+    }
+
+    func setDownloadSettings(_ settings: DownloadSettings) async throws {
+        var payload: [String: Any] = [
+            "save_path": settings.savePath,
+            "append_extension": settings.appendExtension,
+            "temp_path_enabled": settings.useTempPath,
+            "temp_path": settings.tempPath
+        ]
+        if let preallocateAll = settings.preallocateAll {
+            payload["preallocate_all"] = preallocateAll
+        }
+
+        let jsonData = try JSONSerialization.data(withJSONObject: payload)
+        guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+            throw TorrentClientError.apiError("setPreferences payload encoding failed")
+        }
+
+        _ = try await performAppSettingsRequest(
+            path: "app/setPreferences",
+            method: "POST",
+            formParams: ["json": jsonString]
+        )
+    }
+
     // MARK: - Per-Torrent Speed Limits
 
     /// Fetch current per-torrent speed limits (Bytes/s). Returns (dlLimit, upLimit).
@@ -896,6 +982,55 @@ extension QBittorrentClient {
             hashes: normalizedHash,
             extraParams: ["limit": "\(upLimitBytesPerSec)"]
         )
+    }
+
+    private func performAppSettingsRequest(
+        path: String,
+        method: String = "GET",
+        formParams: [String: String] = [:]
+    ) async throws -> Data {
+        func makeRequest() throws -> URLRequest {
+            guard let url = apiURL(path) else {
+                throw TorrentClientError.invalidURL
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = method
+            configureRequest(&request)
+
+            if method == "POST" {
+                request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+                request.httpBody = formEncodedBody(formParams)
+            }
+
+            return request
+        }
+
+        var request = try makeRequest()
+        let (firstData, firstResponse) = try await session.data(for: request)
+
+        guard let firstHTTP = firstResponse as? HTTPURLResponse else {
+            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
+        }
+
+        if firstHTTP.statusCode == 403 {
+            try await login()
+            request = try makeRequest()
+            let (retryData, retryResponse) = try await session.data(for: request)
+            guard let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
+                let status = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
+                let body = String(data: retryData, encoding: .utf8) ?? ""
+                throw TorrentClientError.apiError("\(path) failed: HTTP \(status) \(body)")
+            }
+            return retryData
+        }
+
+        guard firstHTTP.statusCode == 200 else {
+            let body = String(data: firstData, encoding: .utf8) ?? ""
+            throw TorrentClientError.apiError("\(path) failed: HTTP \(firstHTTP.statusCode) \(body)")
+        }
+
+        return firstData
     }
 
     private func performServerSettingsRequest(
@@ -945,6 +1080,31 @@ extension QBittorrentClient {
         }
 
         return firstData
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        if let value = value as? Int { return value }
+        if let value = value as? NSNumber { return value.intValue }
+        if let value = value as? Double { return Int(value) }
+        if let value = value as? String { return Int(value) }
+        return nil
+    }
+
+    private func boolValue(_ value: Any?) -> Bool? {
+        if let value = value as? Bool { return value }
+        if let value = value as? NSNumber { return value.boolValue }
+        if let value = value as? String {
+            let lower = value.lowercased()
+            if lower == "true" || lower == "1" { return true }
+            if lower == "false" || lower == "0" { return false }
+        }
+        return nil
+    }
+
+    private func stringValue(_ value: Any?) -> String? {
+        if let value = value as? String { return value }
+        if let value = value as? NSNumber { return value.stringValue }
+        return nil
     }
 
     private func normalizedServerTags(_ tags: [String]) -> [String] {

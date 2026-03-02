@@ -489,6 +489,8 @@ struct TransfersView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(uiColor: .systemGroupedBackground))
+        } else if isFilteringTasks && filteredTasks.isEmpty {
+            filteringTransitionStateView
         } else if filteredTasks.isEmpty {
             if !searchText.isEmpty {
                 ContentUnavailableView.search(text: searchText)
@@ -513,6 +515,19 @@ struct TransfersView: View {
                 tasksInlineLoadingOverlay
             }
         }
+    }
+
+    private var filteringTransitionStateView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.2)
+
+            Text(LanguageManager.shared.localized("Filtering tasks..."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground))
     }
 
     private var serverEmptyStateView: some View {
@@ -660,18 +675,20 @@ struct TransfersView: View {
         isFilteringTasks = true
 
         filterComputationTask = Task {
-            let computed = await Self.computeFilteredTasksOnBackground(
-                sourceTasks: sourceTasks,
-                selectedStatuses: statuses,
-                selectedCategories: categories,
-                selectedTags: tags,
-                searchText: search,
-                selectedTrackers: trackers,
-                isCategoryFilterSupported: categoryFilterSupported,
-                sortOption: sort,
-                sortAscending: ascending,
-                aliasMap: aliasMapSnapshot
-            )
+            let computed = await Task.detached(priority: .userInitiated) {
+                Self.computeFilteredTasks(
+                    sourceTasks: sourceTasks,
+                    selectedStatuses: statuses,
+                    selectedCategories: categories,
+                    selectedTags: tags,
+                    searchText: search,
+                    selectedTrackers: trackers,
+                    isCategoryFilterSupported: categoryFilterSupported,
+                    sortOption: sort,
+                    sortAscending: ascending,
+                    aliasMap: aliasMapSnapshot
+                )
+            }.value
             guard !Task.isCancelled else { return }
             let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
 #if DEBUG
@@ -751,38 +768,7 @@ struct TransfersView: View {
         }
     }
 
-    private static func computeFilteredTasksOnBackground(
-        sourceTasks: [TorrentTask],
-        selectedStatuses: Set<TaskStatusFilter>,
-        selectedCategories: Set<String>,
-        selectedTags: Set<String>,
-        searchText: String,
-        selectedTrackers: Set<String>,
-        isCategoryFilterSupported: Bool,
-        sortOption: SortOption,
-        sortAscending: Bool,
-        aliasMap: [String: String] = [:]
-    ) async -> [TorrentTask] {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let computed = Self.computeFilteredTasks(
-                    sourceTasks: sourceTasks,
-                    selectedStatuses: selectedStatuses,
-                    selectedCategories: selectedCategories,
-                    selectedTags: selectedTags,
-                    searchText: searchText,
-                    selectedTrackers: selectedTrackers,
-                    isCategoryFilterSupported: isCategoryFilterSupported,
-                    sortOption: sortOption,
-                    sortAscending: sortAscending,
-                    aliasMap: aliasMap
-                )
-                continuation.resume(returning: computed)
-            }
-        }
-    }
-
-    private static func computeFilteredTasks(
+    nonisolated private static func computeFilteredTasks(
         sourceTasks: [TorrentTask],
         selectedStatuses: Set<TaskStatusFilter>,
         selectedCategories: Set<String>,
@@ -833,6 +819,8 @@ struct TransfersView: View {
         filtered.reserveCapacity(sourceTasks.count)
 
         for task in sourceTasks {
+            if Task.isCancelled { return [] }
+
             if statusFilterEnabled && !effectiveStatuses.contains(where: { $0.matches(task) }) {
                 continue
             }
@@ -874,6 +862,7 @@ struct TransfersView: View {
             filtered.append(task)
         }
 
+        if Task.isCancelled { return [] }
         sortTasks(
             &filtered,
             by: sortOption,
@@ -882,7 +871,7 @@ struct TransfersView: View {
         return filtered
     }
 
-    private static func sortTasks(
+    nonisolated private static func sortTasks(
         _ tasks: inout [TorrentTask],
         by sortOption: SortOption,
         ascending: Bool
@@ -912,14 +901,14 @@ struct TransfersView: View {
         }
     }
 
-    private static func splitTags(_ rawTags: String) -> [String] {
+    nonisolated private static func splitTags(_ rawTags: String) -> [String] {
         rawTags
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
-    private static func containsAnyTag(_ rawTags: String, normalizedTags: Set<String>) -> Bool {
+    nonisolated private static func containsAnyTag(_ rawTags: String, normalizedTags: Set<String>) -> Bool {
         guard !normalizedTags.isEmpty else { return true }
 
         for token in rawTags.split(separator: ",") {

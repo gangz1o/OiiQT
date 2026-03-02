@@ -296,9 +296,9 @@ struct DashboardView: View {
         case .globalAssets:
             return 200
         case .serverStatus:
-            return 234
+            return 176
         case .storageAudit:
-            return 214
+            return 162
         case .recentFinished:
             return 176
         }
@@ -324,7 +324,8 @@ struct DashboardView: View {
                 DashboardTodayTransferModuleView(
                     uploadData: dashboardViewModel.todayUploadData,
                     downloadData: dashboardViewModel.todayDownloadData,
-                    isInitialLoading: !appStateManager.hasInitialDataLoaded
+                    isInitialLoading: !appStateManager.hasInitialDataLoaded,
+                    isStatsComputing: dashboardViewModel.isTrackerStatsComputing
                 )
             }
         case .globalAssets:

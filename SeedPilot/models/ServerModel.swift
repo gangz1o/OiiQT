@@ -343,7 +343,7 @@ struct TorrentTask: Identifiable, Hashable, Sendable {
     let ratio: Double             // 分享率
 
     /// SwiftUI 渲染使用的复合 ID，避免多服务器聚合时 hash 冲突
-    var id: String {
+    nonisolated var id: String {
         "\(serverID.uuidString)_\(hash)"
     }
 
@@ -359,7 +359,7 @@ struct TorrentTask: Identifiable, Hashable, Sendable {
     }
 
     /// 从 Tracker URL 提取域名，例如 "https://tracker.example.com/announce" → "tracker.example.com"
-    var trackerHost: String {
+    nonisolated var trackerHost: String {
         let normalized = tracker
             .split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -507,4 +507,12 @@ protocol TorrentClient {
     // MARK: - File Management
     func getFiles(hash: String) async throws -> [TorrentFile]
     func setFilePriority(hash: String, fileIndices: [Int], priority: FilePriority) async throws
+
+    // MARK: - Connection Settings
+    func getConnectionSettings() async throws -> ConnectionSettings
+    func setConnectionSettings(_ settings: ConnectionSettings) async throws
+
+    // MARK: - Download Settings
+    func getDownloadSettings() async throws -> DownloadSettings
+    func setDownloadSettings(_ settings: DownloadSettings) async throws
 }

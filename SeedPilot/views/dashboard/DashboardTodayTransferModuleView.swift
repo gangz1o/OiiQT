@@ -13,6 +13,7 @@ struct DashboardTodayTransferModuleView: View {
     let uploadData: [TrackerTransferData]
     let downloadData: [TrackerTransferData]
     var isInitialLoading: Bool = false
+    var isStatsComputing: Bool = false
 
     @State private var selectedType: TransferType = .upload
     @State private var selectedTrackerStat: TrackerTransferData?
@@ -48,7 +49,7 @@ struct DashboardTodayTransferModuleView: View {
     }
 
     private var showsInitialLoadingState: Bool {
-        isInitialLoading && uploadData.isEmpty && downloadData.isEmpty
+        (isInitialLoading || isStatsComputing) && uploadData.isEmpty && downloadData.isEmpty
     }
 
     private var activeSelectedTrackerStat: TrackerTransferData? {
