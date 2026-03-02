@@ -1598,6 +1598,23 @@
         }
       }
     },
+    "Consider torrent stalled after no activity" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consider torrent stalled after no activity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "种子超过该时间无流量，移出队列"
+          }
+        }
+      }
+    },
     "Copy Path" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2473,6 +2490,23 @@
         }
       }
     },
+    "Enable download queue" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable download queue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用下载队列"
+          }
+        }
+      }
+    },
     "Enable modules in Settings to display the data you care about." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2503,6 +2537,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用定时备用限速"
+          }
+        }
+      }
+    },
+    "Enable Torrent Queueing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Torrent Queueing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent 排队"
+          }
+        }
+      }
+    },
+    "Enable upload queue" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable upload queue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用上传队列"
           }
         }
       }
@@ -3764,6 +3832,91 @@
         }
       }
     },
+    "Maximum active downloads" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum active downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大活动的下载数"
+          }
+        }
+      }
+    },
+    "Maximum active torrents" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum active torrents"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大活动的 torrent 数"
+          }
+        }
+      }
+    },
+    "Maximum active uploads" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum active uploads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大活动的上传数"
+          }
+        }
+      }
+    },
+    "Maximum simultaneous downloads" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum simultaneous downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大同时下载数"
+          }
+        }
+      }
+    },
+    "Maximum simultaneous uploads" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum simultaneous uploads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大同时上传数"
+          }
+        }
+      }
+    },
     "MB" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3794,6 +3947,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最小"
+          }
+        }
+      }
+    },
+    "Minutes" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minutes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分钟"
           }
         }
       }
@@ -7440,6 +7610,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "种子文件"
+          }
+        }
+      }
+    },
+    "Torrent Queue" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent Queue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent 排队"
           }
         }
       }

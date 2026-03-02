@@ -879,7 +879,11 @@ extension QBittorrentClient {
             maxConnectionsPerTorrent: intValue(json["max_connec_per_torrent"]) ?? 0,
             maxUploads: intValue(json["max_uploads"]),
             maxUploadsPerTorrent: intValue(json["max_uploads_per_torrent"]),
-            bittorrentProtocol: intValue(json["bittorrent_protocol"]) ?? 0
+            bittorrentProtocol: intValue(json["bittorrent_protocol"]) ?? 0,
+            torrentQueueEnabled: boolValue(json["queueing_enabled"]),
+            maxActiveDownloads: intValue(json["max_active_downloads"]),
+            maxActiveUploads: intValue(json["max_active_uploads"]),
+            maxActiveTorrents: intValue(json["max_active_torrents"])
         )
     }
 
@@ -894,7 +898,11 @@ extension QBittorrentClient {
             "max_connec_per_torrent": settings.maxConnectionsPerTorrent,
             "max_uploads": settings.maxUploads ?? 0,
             "max_uploads_per_torrent": settings.maxUploadsPerTorrent ?? 0,
-            "bittorrent_protocol": normalizedProtocol
+            "bittorrent_protocol": normalizedProtocol,
+            "queueing_enabled": settings.torrentQueueEnabled ?? false,
+            "max_active_downloads": settings.maxActiveDownloads ?? 0,
+            "max_active_uploads": settings.maxActiveUploads ?? 0,
+            "max_active_torrents": settings.maxActiveTorrents ?? 0
         ]
 
         let jsonData = try JSONSerialization.data(withJSONObject: payload)

@@ -29,6 +29,18 @@ struct ConnectionSettingsView: View {
     @State private var perTorrentUploadsLimited = false
     @State private var perTorrentUploadsText = "0"
 
+    @State private var qbTorrentQueueEnabled = false
+    @State private var qbMaxActiveDownloadsText = "0"
+    @State private var qbMaxActiveUploadsText = "0"
+    @State private var qbMaxActiveTorrentsText = "0"
+
+    @State private var trDownloadQueueEnabled = false
+    @State private var trDownloadQueueSizeText = "0"
+    @State private var trSeedQueueEnabled = false
+    @State private var trSeedQueueSizeText = "0"
+    @State private var trQueueStalledEnabled = false
+    @State private var trQueueStalledMinutesText = "0"
+
     private var supportsUploadSlots: Bool {
         server.type != .transmission
     }
@@ -90,6 +102,51 @@ struct ConnectionSettingsView: View {
                             titleKey: "Per Torrent Upload Slots",
                             isOn: $perTorrentUploadsLimited,
                             text: $perTorrentUploadsText
+                        )
+                    }
+                }
+
+                Section(languageManager.localized("Torrent Queue")) {
+                    if server.type == .qBittorrent {
+                        Toggle(languageManager.localized("Enable Torrent Queueing"), isOn: $qbTorrentQueueEnabled.animation())
+
+                        if qbTorrentQueueEnabled {
+                            numberInputRow(
+                                titleKey: "Maximum active downloads",
+                                text: $qbMaxActiveDownloadsText
+                            )
+
+                            numberInputRow(
+                                titleKey: "Maximum active uploads",
+                                text: $qbMaxActiveUploadsText
+                            )
+
+                            numberInputRow(
+                                titleKey: "Maximum active torrents",
+                                text: $qbMaxActiveTorrentsText
+                            )
+                        }
+                    } else {
+                        queueToggleInputRow(
+                            titleKey: "Enable download queue",
+                            valueTitleKey: "Maximum simultaneous downloads",
+                            isOn: $trDownloadQueueEnabled,
+                            text: $trDownloadQueueSizeText
+                        )
+
+                        queueToggleInputRow(
+                            titleKey: "Enable upload queue",
+                            valueTitleKey: "Maximum simultaneous uploads",
+                            isOn: $trSeedQueueEnabled,
+                            text: $trSeedQueueSizeText
+                        )
+
+                        queueToggleInputRow(
+                            titleKey: "Consider torrent stalled after no activity",
+                            valueTitleKey: "Minutes",
+                            isOn: $trQueueStalledEnabled,
+                            text: $trQueueStalledMinutesText,
+                            useValueTitleAsUnit: true
                         )
                     }
                 }
@@ -168,6 +225,49 @@ struct ConnectionSettingsView: View {
                     text: text
                 )
                 .keyboardType(.numberPad)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func numberInputRow(titleKey: String, text: Binding<String>) -> some View {
+        HStack(spacing: 10) {
+            Text(languageManager.localized(titleKey))
+            Spacer(minLength: 8)
+            TextField("0", text: text)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 110)
+        }
+    }
+
+    private func queueToggleInputRow(
+        titleKey: String,
+        valueTitleKey: String,
+        isOn: Binding<Bool>,
+        text: Binding<String>,
+        useValueTitleAsUnit: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(languageManager.localized(titleKey), isOn: isOn.animation())
+
+            if isOn.wrappedValue {
+                HStack(spacing: 10) {
+                    if !useValueTitleAsUnit {
+                        Text(languageManager.localized(valueTitleKey))
+                    }
+
+                    TextField("0", text: text)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 110)
+
+                    if useValueTitleAsUnit {
+                        Text(languageManager.localized(valueTitleKey))
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                    }
+                }
             }
         }
         .padding(.vertical, 2)
@@ -253,6 +353,18 @@ struct ConnectionSettingsView: View {
             perTorrentUploadsLimited = false
             perTorrentUploadsText = "0"
         }
+
+        qbTorrentQueueEnabled = settings.torrentQueueEnabled ?? false
+        qbMaxActiveDownloadsText = "\(max(settings.maxActiveDownloads ?? 0, 0))"
+        qbMaxActiveUploadsText = "\(max(settings.maxActiveUploads ?? 0, 0))"
+        qbMaxActiveTorrentsText = "\(max(settings.maxActiveTorrents ?? 0, 0))"
+
+        trDownloadQueueEnabled = settings.downloadQueueEnabled ?? false
+        trDownloadQueueSizeText = "\(max(settings.downloadQueueSize ?? 0, 0))"
+        trSeedQueueEnabled = settings.seedQueueEnabled ?? false
+        trSeedQueueSizeText = "\(max(settings.seedQueueSize ?? 0, 0))"
+        trQueueStalledEnabled = settings.queueStalledEnabled ?? false
+        trQueueStalledMinutesText = "\(max(settings.queueStalledMinutes ?? 0, 0))"
     }
 
     private func buildSettings() -> ConnectionSettings {
@@ -269,6 +381,18 @@ struct ConnectionSettingsView: View {
             ? (perTorrentUploadsLimited ? max(Int(perTorrentUploadsText) ?? 0, 0) : 0)
             : nil
 
+        let qbQueueEnabled = server.type == .qBittorrent ? qbTorrentQueueEnabled : nil
+        let qbMaxActiveDownloads = server.type == .qBittorrent ? max(Int(qbMaxActiveDownloadsText) ?? 0, 0) : nil
+        let qbMaxActiveUploads = server.type == .qBittorrent ? max(Int(qbMaxActiveUploadsText) ?? 0, 0) : nil
+        let qbMaxActiveTorrents = server.type == .qBittorrent ? max(Int(qbMaxActiveTorrentsText) ?? 0, 0) : nil
+
+        let trDownQueueEnabled = server.type == .transmission ? trDownloadQueueEnabled : nil
+        let trDownQueueSize = server.type == .transmission ? max(Int(trDownloadQueueSizeText) ?? 0, 0) : nil
+        let trSeedQueueEnabledValue = server.type == .transmission ? trSeedQueueEnabled : nil
+        let trSeedQueueSizeValue = server.type == .transmission ? max(Int(trSeedQueueSizeText) ?? 0, 0) : nil
+        let trStalledEnabled = server.type == .transmission ? trQueueStalledEnabled : nil
+        let trStalledMinutes = server.type == .transmission ? max(Int(trQueueStalledMinutesText) ?? 0, 0) : nil
+
         return ConnectionSettings(
             listenPort: listenPort,
             useUPnP: useUPnP,
@@ -276,7 +400,17 @@ struct ConnectionSettingsView: View {
             maxConnectionsPerTorrent: maxConnectionsPerTorrent,
             maxUploads: maxUploads,
             maxUploadsPerTorrent: maxUploadsPerTorrent,
-            bittorrentProtocol: protocolValue
+            bittorrentProtocol: protocolValue,
+            torrentQueueEnabled: qbQueueEnabled,
+            maxActiveDownloads: qbMaxActiveDownloads,
+            maxActiveUploads: qbMaxActiveUploads,
+            maxActiveTorrents: qbMaxActiveTorrents,
+            downloadQueueEnabled: trDownQueueEnabled,
+            downloadQueueSize: trDownQueueSize,
+            seedQueueEnabled: trSeedQueueEnabledValue,
+            seedQueueSize: trSeedQueueSizeValue,
+            queueStalledEnabled: trStalledEnabled,
+            queueStalledMinutes: trStalledMinutes
         )
     }
 

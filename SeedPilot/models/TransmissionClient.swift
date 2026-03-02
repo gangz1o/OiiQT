@@ -555,6 +555,12 @@ class TransmissionClient: NSObject, TorrentClient {
             let peerLimitGlobal: Int
             let peerLimitPerTorrent: Int
             let utpEnabled: Bool
+            let downloadQueueEnabled: Bool
+            let downloadQueueSize: Int
+            let seedQueueEnabled: Bool
+            let seedQueueSize: Int
+            let queueStalledEnabled: Bool
+            let queueStalledMinutes: Int
 
             enum CodingKeys: String, CodingKey {
                 case peerPort = "peer-port"
@@ -562,6 +568,12 @@ class TransmissionClient: NSObject, TorrentClient {
                 case peerLimitGlobal = "peer-limit-global"
                 case peerLimitPerTorrent = "peer-limit-per-torrent"
                 case utpEnabled = "utp-enabled"
+                case downloadQueueEnabled = "download-queue-enabled"
+                case downloadQueueSize = "download-queue-size"
+                case seedQueueEnabled = "seed-queue-enabled"
+                case seedQueueSize = "seed-queue-size"
+                case queueStalledEnabled = "queue-stalled-enabled"
+                case queueStalledMinutes = "queue-stalled-minutes"
             }
         }
 
@@ -578,7 +590,13 @@ class TransmissionClient: NSObject, TorrentClient {
             maxConnectionsPerTorrent: max(args.peerLimitPerTorrent, 0),
             maxUploads: nil,
             maxUploadsPerTorrent: nil,
-            bittorrentProtocol: args.utpEnabled ? 0 : 1
+            bittorrentProtocol: args.utpEnabled ? 0 : 1,
+            downloadQueueEnabled: args.downloadQueueEnabled,
+            downloadQueueSize: max(args.downloadQueueSize, 0),
+            seedQueueEnabled: args.seedQueueEnabled,
+            seedQueueSize: max(args.seedQueueSize, 0),
+            queueStalledEnabled: args.queueStalledEnabled,
+            queueStalledMinutes: max(args.queueStalledMinutes, 0)
         )
     }
 
@@ -591,7 +609,13 @@ class TransmissionClient: NSObject, TorrentClient {
             "port-forwarding-enabled": settings.useUPnP,
             "peer-limit-global": max(settings.maxConnections, 0),
             "peer-limit-per-torrent": max(settings.maxConnectionsPerTorrent, 0),
-            "utp-enabled": utpEnabled
+            "utp-enabled": utpEnabled,
+            "download-queue-enabled": settings.downloadQueueEnabled ?? false,
+            "download-queue-size": max(settings.downloadQueueSize ?? 0, 0),
+            "seed-queue-enabled": settings.seedQueueEnabled ?? false,
+            "seed-queue-size": max(settings.seedQueueSize ?? 0, 0),
+            "queue-stalled-enabled": settings.queueStalledEnabled ?? false,
+            "queue-stalled-minutes": max(settings.queueStalledMinutes ?? 0, 0)
         ]
 
         _ = try await performRequest("session-set", arguments: args, responseType: EmptyArgs.self)

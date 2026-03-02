@@ -11,4 +11,18 @@ struct ConnectionSettings: Equatable, Sendable {
     var maxUploadsPerTorrent: Int?
     /// 0 = TCP+uTP, 1 = TCP, 2 = uTP
     var bittorrentProtocol: Int
+
+    // qBittorrent queue settings
+    var torrentQueueEnabled: Bool? = nil
+    var maxActiveDownloads: Int? = nil
+    var maxActiveUploads: Int? = nil
+    var maxActiveTorrents: Int? = nil
+
+    // Transmission queue settings
+    var downloadQueueEnabled: Bool? = nil
+    var downloadQueueSize: Int? = nil
+    var seedQueueEnabled: Bool? = nil
+    var seedQueueSize: Int? = nil
+    var queueStalledEnabled: Bool? = nil
+    var queueStalledMinutes: Int? = nil
 }
