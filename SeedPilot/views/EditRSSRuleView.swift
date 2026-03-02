@@ -80,7 +80,7 @@ struct EditRSSRuleView: View {
                                 }
                             } label: {
                                 Image(systemName: "folder.badge.plus")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(.primary)
                             }
                         }
 

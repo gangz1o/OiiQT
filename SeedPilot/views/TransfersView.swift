@@ -361,19 +361,6 @@ struct TransfersView: View {
                 tasksListSection
             }
 
-            if isEditing && !selectedTaskHashes.isEmpty {
-                 BatchActionPanel(
-                    selectedTaskHashes: $selectedTaskHashes,
-                    isEditing: Binding(
-                        get: { editMode?.wrappedValue == .active },
-                        set: { if !$0 { editMode?.wrappedValue = .inactive } }
-                    )
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .padding(.bottom, 0)
-                .zIndex(2)
-            }
-
             if !isEditing {
                 Button {
                     showingAddMagnet = true
@@ -453,6 +440,14 @@ struct TransfersView: View {
                 }
 
                 if isEditing {
+                    BatchActionMenu(
+                        selectedTaskHashes: $selectedTaskHashes,
+                        isEditing: Binding(
+                            get: { editMode?.wrappedValue == .active },
+                            set: { if !$0 { editMode?.wrappedValue = .inactive } }
+                        )
+                    )
+
                     Button(LanguageManager.shared.localized("Done")) {
                         withAnimation {
                             editMode?.wrappedValue = .inactive

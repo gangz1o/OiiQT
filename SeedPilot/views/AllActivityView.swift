@@ -131,7 +131,7 @@ struct AllActivityView: View {
 
     @State private var viewModel = AllActivityViewModel()
     @State private var pushingIDs: Set<String> = []
-    @State private var syncNotice: SyncNotice?
+    @State private var pushedIDs: Set<String> = []
 
     var body: some View {
         Group {
@@ -160,13 +160,6 @@ struct AllActivityView: View {
         }
         .refreshable {
             await viewModel.fetchGlobalActivities(context: modelContext)
-        }
-        .alert(item: $syncNotice) { notice in
-            Alert(
-                title: Text(notice.title),
-                message: Text(notice.message),
-                dismissButton: .default(Text(localizedOKText))
-            )
         }
     }
 
@@ -214,6 +207,10 @@ struct AllActivityView: View {
                     if pushingIDs.contains(activity.id) {
                         ProgressView()
                             .controlSize(.regular)
+                    } else if isActivitySynced(activity) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.green)
                     } else {
                         Image(systemName: "icloud.and.arrow.down")
                             .font(.title2)
@@ -221,7 +218,7 @@ struct AllActivityView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(pushingIDs.contains(activity.id))
+                .disabled(pushingIDs.contains(activity.id) || isActivitySynced(activity))
             }
         }
         .padding(14)
@@ -237,18 +234,12 @@ struct AllActivityView: View {
         guard !pushingIDs.contains(activity.id) else { return }
         let link = activity.link.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !link.isEmpty else {
-            syncNotice = SyncNotice(
-                title: localizedTaskSyncFailedTitle,
-                message: localizedEmptyLinkMessage
-            )
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             return
         }
 
         guard !appStateManager.servers.isEmpty else {
-            syncNotice = SyncNotice(
-                title: localizedTaskSyncFailedTitle,
-                message: localizedNoServerMessage
-            )
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             return
         }
 
@@ -275,22 +266,25 @@ struct AllActivityView: View {
                     to: activity.targetServerId
                 )
                 await MainActor.run {
+                    pushedIDs.insert(activity.id)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    syncNotice = SyncNotice(
-                        title: localizedTaskSyncedTitle,
-                        message: localizedTaskSyncedMessage
-                    )
                 }
             } catch {
                 await MainActor.run {
                     UINotificationFeedbackGenerator().notificationOccurred(.error)
-                    syncNotice = SyncNotice(
-                        title: localizedTaskSyncFailedTitle,
-                        message: "\(localizedTaskSyncFailedMessagePrefix)\(error.localizedDescription)"
-                    )
                 }
             }
         }
+    }
+
+    private func isActivitySynced(_ activity: GlobalActivityEntry) -> Bool {
+        if pushedIDs.contains(activity.id) {
+            return true
+        }
+        return appStateManager.allTasks.contains(where: {
+            activity.link.lowercased().contains($0.id.lowercased()) ||
+            $0.name == activity.title
+        })
     }
 
     private func relativeTime(_ date: Date) -> String {
@@ -306,60 +300,6 @@ struct AllActivityView: View {
         return Color(hue: hue, saturation: 0.6, brightness: 0.9)
     }
 
-    private var localizedTaskSyncedTitle: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "Task Synced"
-        }
-        return "任务已同步"
-    }
-
-    private var localizedTaskSyncedMessage: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "Push request has been sent to server."
-        }
-        return "推送请求已发送到服务器。"
-    }
-
-    private var localizedTaskSyncFailedTitle: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "Task Sync Failed"
-        }
-        return "任务同步失败"
-    }
-
-    private var localizedTaskSyncFailedMessagePrefix: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "Unable to push task: "
-        }
-        return "无法推送任务："
-    }
-
-    private var localizedEmptyLinkMessage: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "This item does not contain a valid task link."
-        }
-        return "该条目未包含有效的任务链接。"
-    }
-
-    private var localizedNoServerMessage: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "No server is available. Please add a server in Settings first."
-        }
-        return "当前没有可用服务器，请先在设置中添加服务器。"
-    }
-
-    private var localizedOKText: String {
-        if LanguageManager.shared.selectedLanguage == .english {
-            return "OK"
-        }
-        return "确定"
-    }
-}
-
-private struct SyncNotice: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
 }
 
 #Preview {
