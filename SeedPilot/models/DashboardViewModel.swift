@@ -676,7 +676,8 @@ private extension DashboardViewModel {
     static func trackerColor(for trackerName: String) -> Color {
         let palette = trackerPalette
         guard !palette.isEmpty else { return .blue }
-        return palette[stableTrackerHash(trackerName) % palette.count]
+        let index = Int(stableTrackerHash(trackerName) % UInt64(palette.count))
+        return palette[index]
     }
 
     private static func trackerColorMap(for trackerNames: [String]) -> [String: Color] {
@@ -693,7 +694,7 @@ private extension DashboardViewModel {
         let collisionStep = 7
 
         for name in uniqueNames {
-            let baseIndex = stableTrackerHash(name) % palette.count
+            let baseIndex = Int(stableTrackerHash(name) % UInt64(palette.count))
             var selectedIndex = baseIndex
 
             if used.contains(baseIndex) {
@@ -711,7 +712,8 @@ private extension DashboardViewModel {
                 assigned[name] = palette[selectedIndex]
             } else {
                 // Fallback for rare cases with tracker count > palette count.
-                let hue = Double((stableTrackerHash(name) * 137) % 360) / 360.0
+                let mixed = stableTrackerHash(name) &* 137 &+ 17
+                let hue = Double(mixed % 360) / 360.0
                 assigned[name] = Color(hue: hue, saturation: 0.78, brightness: 0.86)
             }
         }
@@ -719,12 +721,12 @@ private extension DashboardViewModel {
         return assigned
     }
 
-    private static func stableTrackerHash(_ trackerName: String) -> Int {
-        var hash = 5381
+    private static func stableTrackerHash(_ trackerName: String) -> UInt64 {
+        var hash: UInt64 = 5381
         for scalar in trackerName.unicodeScalars {
-            hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
+            hash = ((hash << 5) &+ hash) &+ UInt64(scalar.value)
         }
-        return abs(hash)
+        return hash
     }
 
     nonisolated static func decodeTrackerBaselineSnapshot(from data: Data) -> TrackerTransferBaselineSnapshot? {
