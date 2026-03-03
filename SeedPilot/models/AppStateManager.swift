@@ -1074,7 +1074,7 @@ class AppStateManager {
     ///   - isSelectAll: When `true`, sends a single `"all"` request instead of iterating hashes.
     ///   - optimisticMutation: Optional closure that instantly mutates `allTasks` on `@MainActor` for immediate UI feedback.
     ///   - perClientAction: The actual API call. Receives the client and either `"all"` or a pipe/array-ready chunk.
-    private func performBulkAction(
+    @MainActor private func performBulkAction(
         hashes: [String],
         serverID: UUID?,
         isSelectAll: Bool,
@@ -1092,6 +1092,7 @@ class AppStateManager {
         // 2. Capture values for detached task
         let capturedServers = self.servers
         let capturedManager = self
+        let chunkSize = Self.batchChunkSize
 
         // 3. Background silent chunked queue — fully detached from view lifecycle
         Task.detached(priority: .background) {
@@ -1115,7 +1116,7 @@ class AppStateManager {
                     if let sid = serverID {
                         guard let server = capturedServers.first(where: { $0.id == sid }) else { return }
                         let client = await capturedManager.getClient(for: server)
-                        let chunks = hashes.chunked(into: Self.batchChunkSize)
+                        let chunks = hashes.chunked(into: chunkSize)
                         for chunk in chunks {
                             try await perClientAction(client, chunk)
                             if chunks.count > 1 {
@@ -1132,7 +1133,7 @@ class AppStateManager {
                             guard let server = capturedServers.first(where: { $0.id == sID }) else { continue }
                             let client = await capturedManager.getClient(for: server)
                             let serverHashes = serverTasks.map(\.hash)
-                            let chunks = serverHashes.chunked(into: Self.batchChunkSize)
+                            let chunks = serverHashes.chunked(into: chunkSize)
                             for chunk in chunks {
                                 try await perClientAction(client, chunk)
                                 if chunks.count > 1 {

@@ -10,7 +10,10 @@ import Foundation
 enum TrackerNameManager {
     nonisolated private static let knownTrackerNames: [String: String] = [
         "tracker.hhanclub.net": "憨憨",
-        "audiences.me": "观众"
+        "audiences.me": "观众",
+        "tracker.m-team.cc": "馒头",
+        "hdfans.org": "红豆饭",
+        
     ]
 
     nonisolated private static let ignoredPrefixes: Set<String> = [

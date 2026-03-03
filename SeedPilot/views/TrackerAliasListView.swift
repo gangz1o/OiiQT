@@ -77,12 +77,14 @@ private struct AddTrackerAliasView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppStateManager.self) private var appStateManager
     @ObservedObject private var aliasManager = TrackerAliasManager.shared
 
     let mode: Mode
 
     @State private var originalDomain = ""
     @State private var alias = ""
+    @State private var trackerDomainCandidates: [String] = []
 
     init(mode: Mode) {
         self.mode = mode
@@ -99,7 +101,8 @@ private struct AddTrackerAliasView: View {
 
     private var canSave: Bool {
         !originalDomain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !alias.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !alias.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !isDuplicateDomain
     }
 
     private var titleKey: String {
@@ -109,22 +112,83 @@ private struct AddTrackerAliasView: View {
         }
     }
 
+    private var editingNormalizedDomain: String? {
+        guard case .edit(let rule) = mode else { return nil }
+        let normalized = aliasManager.normalizeTrackerDomain(rule.originalDomain)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private var existingNormalizedDomains: Set<String> {
+        Set(aliasManager.aliasMap.keys)
+    }
+
+    private var normalizedInputDomain: String {
+        aliasManager.normalizeTrackerDomain(originalDomain)
+    }
+
+    private var isDuplicateDomain: Bool {
+        let normalized = normalizedInputDomain
+        guard !normalized.isEmpty else { return false }
+        if let editingNormalizedDomain, editingNormalizedDomain == normalized {
+            return false
+        }
+        return existingNormalizedDomains.contains(normalized)
+    }
+
+    private var selectableTrackerDomains: [String] {
+        let excluded = existingNormalizedDomains.subtracting(
+            Set([editingNormalizedDomain].compactMap { $0 })
+        )
+        return trackerDomainCandidates.filter { !excluded.contains($0) }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(LanguageManager.shared.localized("Original Domain"), text: $originalDomain)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
+                    HStack(spacing: 8) {
+                        TextField(LanguageManager.shared.localized("Original Domain"), text: $originalDomain)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+
+                        if !selectableTrackerDomains.isEmpty {
+                            Menu {
+                                ForEach(selectableTrackerDomains, id: \.self) { domain in
+                                    Button(domain) {
+                                        originalDomain = domain
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "dot.radiowaves.left.and.right")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(LanguageManager.shared.localized("Choose from existing trackers"))
+                        }
+                    }
 
                     TextField(LanguageManager.shared.localized("Alias"), text: $alias)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+
+                    if isDuplicateDomain {
+                        Text(LanguageManager.shared.localized("This tracker domain already exists"))
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .navigationTitle(LanguageManager.shared.localized(titleKey))
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                rebuildTrackerDomainCandidates()
+            }
+            .onChange(of: appStateManager.tasksRevision) { _, _ in
+                rebuildTrackerDomainCandidates()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(LanguageManager.shared.localized("Cancel")) {
@@ -133,6 +197,7 @@ private struct AddTrackerAliasView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(LanguageManager.shared.localized("Save")) {
+                        guard !isDuplicateDomain else { return }
                         let trimmedOriginal = originalDomain.trimmingCharacters(in: .whitespacesAndNewlines)
                         let trimmedAlias = alias.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -153,6 +218,25 @@ private struct AddTrackerAliasView: View {
                     .disabled(!canSave)
                 }
             }
+        }
+    }
+
+    private func rebuildTrackerDomainCandidates() {
+        var seen = Set<String>()
+        var result: [String] = []
+        result.reserveCapacity(min(appStateManager.allTasks.count, 256))
+
+        for task in appStateManager.allTasks {
+            let host = task.trackerHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !host.isEmpty, host != "--" else { continue }
+            let normalized = aliasManager.normalizeTrackerDomain(host)
+            guard !normalized.isEmpty else { continue }
+            guard seen.insert(normalized).inserted else { continue }
+            result.append(normalized)
+        }
+
+        trackerDomainCandidates = result.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
         }
     }
 }
