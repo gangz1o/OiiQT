@@ -2694,6 +2694,23 @@
         }
       }
     },
+    "Error Details" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error Details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误详情"
+          }
+        }
+      }
+    },
     "Exclude Keywords (Must Exclude)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5521,6 +5538,57 @@
         }
       }
     },
+    "qBittorrent reported a torrent error" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent reported a torrent error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent 返回种子错误"
+          }
+        }
+      }
+    },
+    "qBittorrent reported an unknown torrent state" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent reported an unknown torrent state"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent 返回未知种子状态"
+          }
+        }
+      }
+    },
+    "qBittorrent reported state: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent reported state: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent 返回状态：%@"
+          }
+        }
+      }
+    },
     "Random" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7821,6 +7889,40 @@
         }
       }
     },
+    "Torrent data files are missing. Verify storage mount points or use Set Location." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent data files are missing. Verify storage mount points or use Set Location."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "种子数据文件缺失。请检查存储挂载点或使用“设置位置”。"
+          }
+        }
+      }
+    },
+    "Torrent is unregistered on tracker." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent is unregistered on tracker."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该种子已在 Tracker 上未注册。"
+          }
+        }
+      }
+    },
     "Total Seeding" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7989,6 +8091,91 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transmission 服务器不支持分类功能，请仅选择 qBittorrent 任务进行操作。"
+          }
+        }
+      }
+    },
+    "Transmission local error" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission local error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 本地错误"
+          }
+        }
+      }
+    },
+    "Transmission reported an error" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission reported an error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 返回错误"
+          }
+        }
+      }
+    },
+    "Transmission reported error code: %d" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission reported error code: %d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 返回错误代码：%d"
+          }
+        }
+      }
+    },
+    "Transmission tracker error" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission tracker error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission Tracker 错误"
+          }
+        }
+      }
+    },
+    "Transmission tracker warning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission tracker warning"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission Tracker 警告"
           }
         }
       }

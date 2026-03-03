@@ -153,6 +153,12 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 return nil
                             }()
 
+                            let normalizedState = task.state
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .lowercased()
+                            let mappedStatus = Self.mapQBState(task.state)
+                            let errorStateToken = mappedStatus == .error ? normalizedState : nil
+
                             return TorrentTask(
                                 hash: task.hash,
                                 name: task.name,
@@ -161,7 +167,9 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 downloadSpeed: downloadSpeed,
                                 uploadSpeed: uploadSpeed,
                                 remainingTime: task.eta == 8640000 ? -1 : TimeInterval(task.eta),
-                                status: Self.mapQBState(task.state),
+                                status: mappedStatus,
+                                errorCode: nil,
+                                errorMessage: errorStateToken,
                                 serverID: serverID,
                                 tracker: task.tracker ?? "",
                                 savePath: task.save_path ?? "",

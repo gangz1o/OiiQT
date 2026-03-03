@@ -320,6 +320,8 @@ struct TorrentTask: Identifiable, Hashable, Sendable {
     let uploadSpeed: Int64   // 每秒上传字节
     let remainingTime: TimeInterval // 剩余时间 (秒)
     let status: TorrentStatus
+    let errorCode: Int?      // 后端错误码（Transmission）
+    let errorMessage: String? // 后端错误信息（Transmission）或错误状态标识（qB）
     let serverID: UUID       // 所属服务器 ID
     let tracker: String      // Tracker URL
     let savePath: String     // 存储路径

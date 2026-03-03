@@ -263,6 +263,8 @@ class TransmissionClient: NSObject, TorrentClient {
                             errorCode: item.error,
                             errorMessage: item.errorString
                         ),
+                        errorCode: item.error,
+                        errorMessage: item.errorString,
                         serverID: serverID,
                         tracker: trackerURL,
                         savePath: item.downloadDir,

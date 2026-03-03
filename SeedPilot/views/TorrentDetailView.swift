@@ -50,6 +50,60 @@ struct TorrentDetailView: View {
         displayCategory != nil || !normalizedTags.isEmpty
     }
 
+    private var taskErrorDetail: String? {
+        let normalizedMessage = task.errorMessage?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let nonEmptyMessage = (normalizedMessage?.isEmpty == false) ? normalizedMessage : nil
+
+        switch serverType {
+        case .transmission:
+            if let nonEmptyMessage { return nonEmptyMessage }
+
+            switch task.errorCode ?? 0 {
+            case 1:
+                return LanguageManager.shared.localized("Transmission tracker warning")
+            case 2:
+                return LanguageManager.shared.localized("Transmission tracker error")
+            case 3:
+                return LanguageManager.shared.localized("Transmission local error")
+            case let code where code != 0:
+                return String(
+                    format: LanguageManager.shared.localized("Transmission reported error code: %d"),
+                    code
+                )
+            default:
+                return task.status == .error
+                    ? LanguageManager.shared.localized("Transmission reported an error")
+                    : nil
+            }
+
+        case .qBittorrent:
+            guard task.status == .error else { return nil }
+            let stateToken = nonEmptyMessage?.lowercased() ?? ""
+
+            switch stateToken {
+            case "missingfiles":
+                return LanguageManager.shared.localized("Torrent data files are missing. Verify storage mount points or use Set Location.")
+            case "unregistered", "unregisteredtorrent":
+                return LanguageManager.shared.localized("Torrent is unregistered on tracker.")
+            case "error":
+                return LanguageManager.shared.localized("qBittorrent reported a torrent error")
+            case "unknown":
+                return LanguageManager.shared.localized("qBittorrent reported an unknown torrent state")
+            case "":
+                return LanguageManager.shared.localized("qBittorrent reported a torrent error")
+            default:
+                return String(
+                    format: LanguageManager.shared.localized("qBittorrent reported state: %@"),
+                    stateToken
+                )
+            }
+
+        case nil:
+            return nonEmptyMessage
+        }
+    }
+
     var body: some View {
         List {
             // MARK: - 1. Header Section
@@ -233,6 +287,19 @@ struct TorrentDetailView: View {
                     Spacer()
                     Text(task.sizeString)
                          .font(.callout.monospacedDigit())
+                }
+
+                if let taskErrorDetail {
+                    HStack(alignment: .top) {
+                        Text(LanguageManager.shared.localized("Error Details"))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(taskErrorDetail)
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(3)
+                    }
                 }
 
                 NavigationLink {
