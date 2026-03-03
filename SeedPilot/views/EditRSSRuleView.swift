@@ -80,16 +80,17 @@ struct EditRSSRuleView: View {
                                 }
                             } label: {
                                 Image(systemName: "folder.badge.plus")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(.secondary)
                             }
+                            .buttonStyle(.plain)
                         }
 
                         if !source.savePath.isEmpty {
                             Button(action: { source.savePath = "" }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
                         }
                     }
 

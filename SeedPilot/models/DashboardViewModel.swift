@@ -413,8 +413,18 @@ private extension DashboardViewModel {
     }
 
     static let trackerPalette: [Color] = [
-        .orange, .green, .blue, .pink, .indigo,
-        .mint, .teal, .red, .cyan, .brown
+        Color(red: 0.90, green: 0.24, blue: 0.22), // red
+        Color(red: 0.19, green: 0.39, blue: 0.76), // blue
+        Color(red: 0.96, green: 0.52, blue: 0.14), // orange
+        Color(red: 0.20, green: 0.63, blue: 0.17), // green
+        Color(red: 0.56, green: 0.27, blue: 0.68), // purple
+        Color(red: 0.81, green: 0.17, blue: 0.46), // magenta
+        Color(red: 0.47, green: 0.15, blue: 0.13), // maroon
+        Color(red: 0.36, green: 0.30, blue: 0.85), // indigo
+        Color(red: 0.55, green: 0.37, blue: 0.12), // brown
+        Color(red: 0.12, green: 0.57, blue: 0.55), // teal
+        Color(red: 0.65, green: 0.37, blue: 0.15), // ochre
+        Color(red: 0.30, green: 0.47, blue: 0.17)  // olive
     ]
 
     nonisolated static func computeMergedGlobalSnapshot(
@@ -624,8 +634,8 @@ private extension DashboardViewModel {
         aggregates: [TrackerTransferAggregate],
         direction: TrackerTransferDirection
     ) -> [TrackerTransferData] {
-        var output: [TrackerTransferData] = []
-        output.reserveCapacity(aggregates.count)
+        var items: [(trackerName: String, bytes: Int64)] = []
+        items.reserveCapacity(aggregates.count)
 
         for aggregate in aggregates {
             let bytes: Int64
@@ -637,19 +647,27 @@ private extension DashboardViewModel {
             }
 
             if bytes > 0 {
-                output.append(
-                    TrackerTransferData(
-                        trackerName: aggregate.trackerName,
-                        bytes: bytes,
-                        color: trackerColor(for: aggregate.trackerName)
-                    )
-                )
+                items.append((trackerName: aggregate.trackerName, bytes: bytes))
             }
         }
 
-        output.sort { lhs, rhs in
+        items.sort { lhs, rhs in
             if lhs.bytes != rhs.bytes { return lhs.bytes > rhs.bytes }
             return lhs.trackerName.localizedCaseInsensitiveCompare(rhs.trackerName) == .orderedAscending
+        }
+
+        let colorByTracker = trackerColorMap(for: items.map(\.trackerName))
+
+        var output: [TrackerTransferData] = []
+        output.reserveCapacity(items.count)
+        for item in items {
+            output.append(
+                TrackerTransferData(
+                    trackerName: item.trackerName,
+                    bytes: item.bytes,
+                    color: colorByTracker[item.trackerName] ?? trackerColor(for: item.trackerName)
+                )
+            )
         }
 
         return output
@@ -658,13 +676,55 @@ private extension DashboardViewModel {
     static func trackerColor(for trackerName: String) -> Color {
         let palette = trackerPalette
         guard !palette.isEmpty else { return .blue }
+        return palette[stableTrackerHash(trackerName) % palette.count]
+    }
 
+    private static func trackerColorMap(for trackerNames: [String]) -> [String: Color] {
+        let palette = trackerPalette
+        guard !palette.isEmpty else { return [:] }
+
+        let uniqueNames = Array(Set(trackerNames))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        var assigned: [String: Color] = [:]
+        assigned.reserveCapacity(uniqueNames.count)
+
+        var used = Set<Int>()
+        used.reserveCapacity(min(uniqueNames.count, palette.count))
+        let collisionStep = 7
+
+        for name in uniqueNames {
+            let baseIndex = stableTrackerHash(name) % palette.count
+            var selectedIndex = baseIndex
+
+            if used.contains(baseIndex) {
+                for attempt in 1..<palette.count {
+                    let candidate = (baseIndex + attempt * collisionStep) % palette.count
+                    if !used.contains(candidate) {
+                        selectedIndex = candidate
+                        break
+                    }
+                }
+            }
+
+            if used.count < palette.count {
+                used.insert(selectedIndex)
+                assigned[name] = palette[selectedIndex]
+            } else {
+                // Fallback for rare cases with tracker count > palette count.
+                let hue = Double((stableTrackerHash(name) * 137) % 360) / 360.0
+                assigned[name] = Color(hue: hue, saturation: 0.78, brightness: 0.86)
+            }
+        }
+
+        return assigned
+    }
+
+    private static func stableTrackerHash(_ trackerName: String) -> Int {
         var hash = 5381
         for scalar in trackerName.unicodeScalars {
             hash = ((hash << 5) &+ hash) &+ Int(scalar.value)
         }
-
-        return palette[abs(hash) % palette.count]
+        return abs(hash)
     }
 
     nonisolated static func decodeTrackerBaselineSnapshot(from data: Data) -> TrackerTransferBaselineSnapshot? {

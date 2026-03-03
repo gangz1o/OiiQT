@@ -1,7 +1,9 @@
 //
 //  TrackerNameManager.swift
 //  SeedPilot
-//
+//  "tracker.hhanclub.net": "憨憨",        
+//  "audiences.me": "观众",        
+//  "hdfans.org": "红豆饭",        
 //  Created by Codex on 2026/2/25.
 //
 
@@ -9,11 +11,7 @@ import Foundation
 
 enum TrackerNameManager {
     nonisolated private static let knownTrackerNames: [String: String] = [
-        "tracker.hhanclub.net": "憨憨",
-        "audiences.me": "观众",
-        "tracker.m-team.cc": "馒头",
-        "hdfans.org": "红豆饭",
-        
+        "tracker.areyouok.tech": "AreYouOK",
     ]
 
     nonisolated private static let ignoredPrefixes: Set<String> = [
