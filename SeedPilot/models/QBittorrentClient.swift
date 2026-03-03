@@ -753,6 +753,62 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 }
 
+// MARK: - Batch Operations
+
+extension QBittorrentClient {
+    /// Pipe-join hashes for a single bulk request. Accepts `["all"]`.
+    private func joinedHashes(_ hashes: [String]) -> String {
+        if hashes.count == 1 && hashes[0] == "all" { return "all" }
+        return hashes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+            .joined(separator: "|")
+    }
+
+    func pauseTasks(hashes: [String]) async throws {
+        let joined = joinedHashes(hashes)
+        do {
+            try await performAction(endpoint: "pause", hashes: joined)
+        } catch {
+            try await performAction(endpoint: "stop", hashes: joined)
+        }
+    }
+
+    func resumeTasks(hashes: [String]) async throws {
+        let joined = joinedHashes(hashes)
+        do {
+            try await performAction(endpoint: "resume", hashes: joined)
+        } catch {
+            try await performAction(endpoint: "start", hashes: joined)
+        }
+    }
+
+    func deleteTasks(hashes: [String], withData: Bool) async throws {
+        try await performAction(endpoint: "delete", hashes: joinedHashes(hashes), extraParams: ["deleteFiles": withData ? "true" : "false"])
+    }
+
+    func recheckTasks(hashes: [String]) async throws {
+        try await performAction(endpoint: "recheck", hashes: joinedHashes(hashes))
+    }
+
+    func reannounceTasks(hashes: [String]) async throws {
+        try await performAction(endpoint: "reannounce", hashes: joinedHashes(hashes))
+    }
+
+    func forceStartTasks(hashes: [String]) async throws {
+        let joined = joinedHashes(hashes)
+        do {
+            try await performAction(endpoint: "setForceStart", hashes: joined, extraParams: ["value": "true"])
+        } catch {
+            do {
+                try await performAction(endpoint: "resume", hashes: joined)
+            } catch {
+                try await performAction(endpoint: "start", hashes: joined)
+            }
+        }
+    }
+}
+
 extension QBittorrentClient {
     func setTaskCategory(hashes: [String], category: String) async throws {
         let normalizedHashes = hashes

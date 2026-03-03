@@ -566,4 +566,18 @@ protocol TorrentClient {
     // MARK: - Download Settings
     func getDownloadSettings() async throws -> DownloadSettings
     func setDownloadSettings(_ settings: DownloadSettings) async throws
+
+    // MARK: - Batch Operations
+    /// Batch pause. Pass `["all"]` to operate on every torrent.
+    func pauseTasks(hashes: [String]) async throws
+    /// Batch resume. Pass `["all"]` to operate on every torrent.
+    func resumeTasks(hashes: [String]) async throws
+    /// Batch delete. Pass `["all"]` to operate on every torrent.
+    func deleteTasks(hashes: [String], withData: Bool) async throws
+    /// Batch recheck.
+    func recheckTasks(hashes: [String]) async throws
+    /// Batch reannounce.
+    func reannounceTasks(hashes: [String]) async throws
+    /// Batch force start.
+    func forceStartTasks(hashes: [String]) async throws
 }

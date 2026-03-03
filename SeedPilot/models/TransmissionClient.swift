@@ -1091,6 +1091,45 @@ extension TransmissionClient {
         )
         .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
+
+    // MARK: - Batch Operations
+
+    /// Build ids argument. Pass `["all"]` to omit ids and operate on every torrent.
+    private func batchArgs(_ hashes: [String], extra: [String: Any] = [:]) -> [String: Any] {
+        var args = extra
+        if !(hashes.count == 1 && hashes[0] == "all") {
+            args["ids"] = hashes
+        }
+        return args
+    }
+
+    func pauseTasks(hashes: [String]) async throws {
+        _ = try await performRequest("torrent-stop", arguments: batchArgs(hashes), responseType: EmptyArgs.self)
+    }
+
+    func resumeTasks(hashes: [String]) async throws {
+        _ = try await performRequest("torrent-start", arguments: batchArgs(hashes), responseType: EmptyArgs.self)
+    }
+
+    func deleteTasks(hashes: [String], withData: Bool) async throws {
+        _ = try await performRequest("torrent-remove", arguments: batchArgs(hashes, extra: ["delete-local-data": withData]), responseType: EmptyArgs.self)
+    }
+
+    func recheckTasks(hashes: [String]) async throws {
+        _ = try await performRequest("torrent-verify", arguments: batchArgs(hashes), responseType: EmptyArgs.self)
+    }
+
+    func reannounceTasks(hashes: [String]) async throws {
+        _ = try await performRequest("torrent-reannounce", arguments: batchArgs(hashes), responseType: EmptyArgs.self)
+    }
+
+    func forceStartTasks(hashes: [String]) async throws {
+        do {
+            _ = try await performRequest("torrent-start-now", arguments: batchArgs(hashes), responseType: EmptyArgs.self)
+        } catch {
+            _ = try await performRequest("torrent-start", arguments: batchArgs(hashes), responseType: EmptyArgs.self)
+        }
+    }
 }
 
 // Helpers

@@ -33,8 +33,24 @@ struct BatchActionMenu: View {
         appStateManager.allTasks.filter { selectedTaskHashes.contains($0.id) }
     }
 
+    /// True when every visible task is selected — enables O(1) API path.
+    private var isSelectAll: Bool {
+        !selectedTaskHashes.isEmpty && selectedTaskHashes.count == appStateManager.allTasks.count
+    }
+
+    /// Hashes for the new bulk API.
+    private var batchHashes: [String] {
+        Array(selectedTaskHashes)
+    }
+
+    /// Single-server scope (nil = multi-server).
+    private var batchServerID: UUID? {
+        let ids = Set(selectedTasks.map(\.serverID))
+        return ids.count == 1 ? ids.first : nil
+    }
+
     private var isMixedServerSelection: Bool {
-        Set(selectedTasks.map(\.serverID)).count > 1
+        batchServerID == nil && selectedTasks.count > 0
     }
 
     private var areAllPaused: Bool {
@@ -55,32 +71,32 @@ struct BatchActionMenu: View {
         Menu {
             if areAllPaused {
                 Button {
-                    performAction { appStateManager.resumeTasks(Set(selectedTasks)) }
+                    performAction { appStateManager.resumeTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll) }
                 } label: {
                     Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
                 }
             } else {
                 Button {
-                    performAction { appStateManager.pauseTasks(Set(selectedTasks)) }
+                    performAction { appStateManager.pauseTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll) }
                 } label: {
                     Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
                 }
             }
 
             Button {
-                performAction { appStateManager.forceStartTasks(Set(selectedTasks)) }
+                performAction { appStateManager.forceStartTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll) }
             } label: {
                 Label(LanguageManager.shared.localized("Force Resume"), systemImage: "forward.fill")
             }
 
             Button {
-                performAction { appStateManager.recheckTasks(Set(selectedTasks)) }
+                performAction { appStateManager.recheckTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll) }
             } label: {
                 Label(LanguageManager.shared.localized("Recheck"), systemImage: "checkmark.seal.fill")
             }
 
             Button {
-                performAction { appStateManager.reannounceTasks(Set(selectedTasks)) }
+                performAction { appStateManager.reannounceTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll) }
             } label: {
                 Label(LanguageManager.shared.localized("Reannounce"), systemImage: "arrow.clockwise.circle.fill")
             }
@@ -133,7 +149,7 @@ struct BatchActionMenu: View {
                 guard !trimmed.isEmpty else { return }
                 guard !isMixedServerSelection else { return }
                 performAction {
-                    appStateManager.setTransferLocationBatch(Set(selectedTasks), newLocation: trimmed)
+                    appStateManager.setTransferLocationBatch(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll, newLocation: trimmed)
                 }
                 newBatchLocation = ""
             }
@@ -165,7 +181,7 @@ struct BatchActionMenu: View {
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
             Button(LanguageManager.shared.localized("Confirm")) {
                 performAction {
-                    appStateManager.editTrackersBatch(Set(selectedTasks), newTrackers: newBatchTrackers)
+                    appStateManager.editTrackersBatch(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll, newTrackers: newBatchTrackers)
                 }
                 newBatchTrackers = ""
             }
@@ -175,12 +191,12 @@ struct BatchActionMenu: View {
         .confirmationDialog(LanguageManager.shared.localized("Batch Delete"), isPresented: $showingBatchDeleteConfirmation, titleVisibility: .visible) {
             Button(LanguageManager.shared.localized("Delete Task (Keep Data)"), role: .destructive) {
                 performAction {
-                    appStateManager.deleteTasks(Set(selectedTasks), withData: false)
+                    appStateManager.deleteTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll, withData: false)
                 }
             }
             Button(LanguageManager.shared.localized("Delete Task and Data"), role: .destructive) {
                 performAction {
-                    appStateManager.deleteTasks(Set(selectedTasks), withData: true)
+                    appStateManager.deleteTasks(hashes: batchHashes, serverID: batchServerID, isSelectAll: isSelectAll, withData: true)
                 }
             }
             Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }

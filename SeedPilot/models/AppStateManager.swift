@@ -810,16 +810,6 @@ class AppStateManager {
         }
     }
 
-    func deleteTasks(_ tasks: Set<TorrentTask>) {
-        deleteTasks(tasks, withData: true)
-    }
-
-    func deleteTasks(_ tasks: Set<TorrentTask>, withData: Bool) {
-        performBatchAction(tasks) { client, hash in
-            try await client.deleteTask(hash: hash, withData: withData)
-        }
-    }
-
     // MARK: - Advanced Actions
 
     func deleteTask(_ task: TorrentTask, withData: Bool) {
@@ -1073,43 +1063,255 @@ class AppStateManager {
 
     // MARK: - Batch Actions
 
-    func pauseTasks(_ tasks: Set<TorrentTask>) {
-        performBatchAction(tasks) { client, hashes in try await client.pauseTask(hash: hashes) }
-    }
+    /// Chunk size for background silent queue.
+    private static let batchChunkSize = 500
 
-    func resumeTasks(_ tasks: Set<TorrentTask>) {
-        performBatchAction(tasks) { client, hashes in try await client.resumeTask(hash: hashes) }
-    }
+    /// Unified bulk action engine with O(1) select-all, optimistic UI, and background chunked queue.
+    ///
+    /// - Parameters:
+    ///   - hashes: Raw hash strings from selected items (the `TorrentTask.hash` values, not composite IDs).
+    ///   - serverID: The server these hashes belong to (single-server scope).
+    ///   - isSelectAll: When `true`, sends a single `"all"` request instead of iterating hashes.
+    ///   - optimisticMutation: Optional closure that instantly mutates `allTasks` on `@MainActor` for immediate UI feedback.
+    ///   - perClientAction: The actual API call. Receives the client and either `"all"` or a pipe/array-ready chunk.
+    private func performBulkAction(
+        hashes: [String],
+        serverID: UUID?,
+        isSelectAll: Bool,
+        optimisticMutation: ((_ tasks: inout [TorrentTask]) -> Void)?,
+        perClientAction: @escaping (TorrentClient, [String]) async throws -> Void
+    ) {
+        guard !hashes.isEmpty || isSelectAll else { return }
 
-    func setTransferLocationBatch(_ tasks: Set<TorrentTask>, newLocation: String) {
-        guard canPerformServerScopedBatchMutation(tasks) else {
-            print("Batch set location blocked: mixed server selection.")
-            return
+        // 1. Optimistic UI update — instant visual feedback on @MainActor
+        if let mutation = optimisticMutation {
+            mutation(&self.allTasks)
+            self.tasksRevision += 1
         }
-        performBatchAction(tasks) { client, hash in
-            try await client.setLocation(hash: hash, newLocation: newLocation)
+
+        // 2. Capture values for detached task
+        let capturedServers = self.servers
+        let capturedManager = self
+
+        // 3. Background silent chunked queue — fully detached from view lifecycle
+        Task.detached(priority: .background) {
+            do {
+                if isSelectAll {
+                    // O(1) select-all path: one request per server
+                    if let sid = serverID {
+                        guard let server = capturedServers.first(where: { $0.id == sid }) else { return }
+                        let client = await capturedManager.getClient(for: server)
+                        try await perClientAction(client, ["all"])
+                    } else {
+                        // All-servers mode
+                        for server in capturedServers {
+                            let client = await capturedManager.getClient(for: server)
+                            try await perClientAction(client, ["all"])
+                        }
+                    }
+                } else {
+                    // Group hashes by server and chunk
+                    // For single-server scope, all hashes go to one server
+                    if let sid = serverID {
+                        guard let server = capturedServers.first(where: { $0.id == sid }) else { return }
+                        let client = await capturedManager.getClient(for: server)
+                        let chunks = hashes.chunked(into: Self.batchChunkSize)
+                        for chunk in chunks {
+                            try await perClientAction(client, chunk)
+                            if chunks.count > 1 {
+                                try await Task.sleep(nanoseconds: 100_000_000) // 0.1s debounce
+                            }
+                        }
+                    } else {
+                        // Multi-server: need to resolve which hash belongs where via allTasks snapshot
+                        let tasksSnapshot = await capturedManager.allTasks
+                        let hashSet = Set(hashes)
+                        let grouped = Dictionary(grouping: tasksSnapshot.filter { hashSet.contains($0.hash) }, by: \.serverID)
+
+                        for (sID, serverTasks) in grouped {
+                            guard let server = capturedServers.first(where: { $0.id == sID }) else { continue }
+                            let client = await capturedManager.getClient(for: server)
+                            let serverHashes = serverTasks.map(\.hash)
+                            let chunks = serverHashes.chunked(into: Self.batchChunkSize)
+                            for chunk in chunks {
+                                try await perClientAction(client, chunk)
+                                if chunks.count > 1 {
+                                    try await Task.sleep(nanoseconds: 100_000_000)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("[SeedPilot] Batch action error: \(error)")
+            }
+
+            // 4. Reconciliation: silent data refresh to align with server truth
+            await capturedManager.refreshData()
         }
     }
 
-    func editTrackersBatch(_ tasks: Set<TorrentTask>, newTrackers: String) {
+    // MARK: - Public Batch Methods (with Optimistic UI)
+
+    func pauseTasks(hashes: [String], serverID: UUID?, isSelectAll: Bool) {
+        let hashSet = Set(hashes)
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: { tasks in
+                for i in tasks.indices where hashSet.contains(tasks[i].hash) || isSelectAll {
+                    if tasks[i].status != .paused {
+                        tasks[i] = Self.taskWithStatus(tasks[i], newStatus: .paused)
+                    }
+                }
+            },
+            perClientAction: { client, chunk in
+                try await client.pauseTasks(hashes: chunk)
+            }
+        )
+    }
+
+    func resumeTasks(hashes: [String], serverID: UUID?, isSelectAll: Bool) {
+        let hashSet = Set(hashes)
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: { tasks in
+                for i in tasks.indices where hashSet.contains(tasks[i].hash) || isSelectAll {
+                    if tasks[i].status == .paused {
+                        tasks[i] = Self.taskWithStatus(tasks[i], newStatus: .downloading)
+                    }
+                }
+            },
+            perClientAction: { client, chunk in
+                try await client.resumeTasks(hashes: chunk)
+            }
+        )
+    }
+
+    func deleteTasks(hashes: [String], serverID: UUID?, isSelectAll: Bool, withData: Bool) {
+        let hashSet = Set(hashes)
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: { tasks in
+                if isSelectAll {
+                    tasks.removeAll()
+                } else {
+                    tasks.removeAll { hashSet.contains($0.hash) }
+                }
+            },
+            perClientAction: { client, chunk in
+                try await client.deleteTasks(hashes: chunk, withData: withData)
+            }
+        )
+    }
+
+    func forceStartTasks(hashes: [String], serverID: UUID?, isSelectAll: Bool) {
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: nil,
+            perClientAction: { client, chunk in
+                try await client.forceStartTasks(hashes: chunk)
+            }
+        )
+    }
+
+    func recheckTasks(hashes: [String], serverID: UUID?, isSelectAll: Bool) {
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: nil,
+            perClientAction: { client, chunk in
+                try await client.recheckTasks(hashes: chunk)
+            }
+        )
+    }
+
+    func reannounceTasks(hashes: [String], serverID: UUID?, isSelectAll: Bool) {
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: nil,
+            perClientAction: { client, chunk in
+                try await client.reannounceTasks(hashes: chunk)
+            }
+        )
+    }
+
+    func setTransferLocationBatch(hashes: [String], serverID: UUID?, isSelectAll: Bool, newLocation: String) {
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: nil,
+            perClientAction: { client, chunk in
+                for hash in chunk {
+                    try await client.setLocation(hash: hash, newLocation: newLocation)
+                }
+            }
+        )
+    }
+
+    func editTrackersBatch(hashes: [String], serverID: UUID?, isSelectAll: Bool, newTrackers: String) {
         let trimmed = newTrackers.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        performBatchAction(tasks) { client, hash in
-            try await client.editTrackers(hash: hash, newTrackers: trimmed)
-        }
+        performBulkAction(
+            hashes: hashes,
+            serverID: serverID,
+            isSelectAll: isSelectAll,
+            optimisticMutation: nil,
+            perClientAction: { client, chunk in
+                for hash in chunk {
+                    try await client.editTrackers(hash: hash, newTrackers: trimmed)
+                }
+            }
+        )
     }
 
-    func forceStartTasks(_ tasks: Set<TorrentTask>) {
-        performBatchAction(tasks) { client, hashes in try await client.forceStartTask(hash: hashes) }
+    /// Helper: create a copy of a TorrentTask with a different status.
+    private static func taskWithStatus(_ task: TorrentTask, newStatus: TorrentStatus) -> TorrentTask {
+        TorrentTask(
+            hash: task.hash,
+            name: task.name,
+            progress: task.progress,
+            size: task.size,
+            downloadSpeed: newStatus == .paused ? 0 : task.downloadSpeed,
+            uploadSpeed: newStatus == .paused ? 0 : task.uploadSpeed,
+            remainingTime: task.remainingTime,
+            status: newStatus,
+            errorCode: task.errorCode,
+            errorMessage: task.errorMessage,
+            serverID: task.serverID,
+            tracker: task.tracker,
+            savePath: task.savePath,
+            category: task.category,
+            tags: task.tags,
+            downloaded: task.downloaded,
+            uploaded: task.uploaded,
+            isSequential: task.isSequential,
+            isFirstLastPiecePriority: task.isFirstLastPiecePriority,
+            completionDate: task.completionDate,
+            seedingTime: task.seedingTime,
+            addedTime: task.addedTime,
+            resolutionBadge: task.resolutionBadge,
+            displayText: task.displayText,
+            numSeeds: task.numSeeds,
+            totalSeeds: task.totalSeeds,
+            numPeers: task.numPeers,
+            totalPeers: task.totalPeers,
+            ratio: task.ratio
+        )
     }
 
-    func recheckTasks(_ tasks: Set<TorrentTask>) {
-        performBatchAction(tasks) { client, hashes in try await client.recheckTask(hash: hashes) }
-    }
-
-    func reannounceTasks(_ tasks: Set<TorrentTask>) {
-        performBatchAction(tasks) { client, hashes in try await client.reannounceTask(hash: hashes) }
-    }
+    // MARK: - Legacy Compatibility (single-task actions unchanged)
 
     private func performTaskAction(_ task: TorrentTask, action: @escaping (TorrentClient, String) async throws -> Void) {
         guard let server = servers.first(where: { $0.id == task.serverID }) else { return }
@@ -1117,40 +1319,9 @@ class AppStateManager {
         Task {
             do {
                 try await action(client, task.hash)
-                // Optional: await refreshData() or let auto-refresh handle it
             } catch {
                 print("Task action failed: \(error)")
             }
-        }
-    }
-
-    func canPerformServerScopedBatchMutation(_ tasks: Set<TorrentTask>) -> Bool {
-        !hasMultipleServers(in: tasks)
-    }
-
-    private func hasMultipleServers(in tasks: Set<TorrentTask>) -> Bool {
-        Set(tasks.map(\.serverID)).count > 1
-    }
-
-    private func performBatchAction(_ tasks: Set<TorrentTask>, action: @escaping (TorrentClient, String) async throws -> Void) {
-        // Group by server and dispatch against the matching client.
-        let grouped = Dictionary(grouping: tasks, by: { $0.serverID })
-        guard !grouped.isEmpty else { return }
-
-        Task {
-            for (serverID, serverTasks) in grouped {
-                guard let server = servers.first(where: { $0.id == serverID }) else { continue }
-                let client = getClient(for: server)
-
-                for task in serverTasks {
-                    do {
-                        try await action(client, task.hash)
-                    } catch {
-                        print("Batch action failed for server \(server.name), task \(task.hash): \(error)")
-                    }
-                }
-            }
-            await self.refreshData()
         }
     }
 
