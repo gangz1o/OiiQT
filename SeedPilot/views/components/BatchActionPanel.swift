@@ -38,9 +38,9 @@ struct BatchActionMenu: View {
         !selectedTaskHashes.isEmpty && selectedTaskHashes.count == appStateManager.allTasks.count
     }
 
-    /// Hashes for the new bulk API.
+    /// Raw torrent hashes for bulk APIs.
     private var batchHashes: [String] {
-        Array(selectedTaskHashes)
+        Array(Set(selectedTasks.map(\.hash)))
     }
 
     /// Single-server scope (nil = multi-server).
