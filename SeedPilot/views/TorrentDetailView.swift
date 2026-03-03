@@ -235,15 +235,20 @@ struct TorrentDetailView: View {
                          .font(.callout.monospacedDigit())
                 }
 
-                HStack {
-                    Text(LanguageManager.shared.localized("Tracker"))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(task.trackerHost)
-                        .font(.callout.monospacedDigit())
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .minimumScaleFactor(0.8)
+                NavigationLink {
+                    TorrentTrackerDetailListView(task: task, appStateManager: appStateManager)
+                } label: {
+                    HStack {
+                        Text(LanguageManager.shared.localized("Tracker"))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(task.trackerHost)
+                            .font(.callout.monospacedDigit())
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .minimumScaleFactor(0.8)
+                            .foregroundStyle(.primary)
+                    }
                 }
 
                 HStack {
@@ -279,5 +284,148 @@ struct TorrentDetailView: View {
         if ratio >= 1.0 { return .green }
         if ratio >= 0.5 { return .orange }
         return .red
+    }
+}
+
+private struct TorrentTrackerDetailListView: View {
+    let task: TorrentTask
+    var appStateManager: AppStateManager
+
+    @State private var trackers: [TorrentTrackerInfo] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        List {
+            if isLoading && trackers.isEmpty {
+                Section {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                }
+            } else if let errorMessage, trackers.isEmpty {
+                Section {
+                    ContentUnavailableView(
+                        LanguageManager.shared.localized("Failed to load tracker details"),
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(errorMessage)
+                    )
+                }
+                .listRowBackground(Color.clear)
+            } else if trackers.isEmpty {
+                Section {
+                    ContentUnavailableView(
+                        LanguageManager.shared.localized("No Tracker Data"),
+                        systemImage: "link",
+                        description: Text(LanguageManager.shared.localized("No tracker status available"))
+                    )
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                Section {
+                    ForEach(trackers) { tracker in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 10) {
+                                if let tier = tracker.tier {
+                                    Text("L\(tier)")
+                                        .font(.caption2.monospacedDigit().bold())
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .background(Color(uiColor: .secondarySystemFill), in: Capsule())
+                                }
+
+                                Text(tracker.url)
+                                    .font(.callout.monospacedDigit())
+                                    .lineLimit(2)
+                                    .truncationMode(.middle)
+
+                                Spacer(minLength: 8)
+
+                                Text(tracker.status.localizedText)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(tracker.status.color)
+                                    .fixedSize()
+                            }
+
+                            HStack(spacing: 14) {
+                                TrackerMetricPair(
+                                    title: LanguageManager.shared.localized("Peers"),
+                                    value: tracker.peers
+                                )
+                                TrackerMetricPair(
+                                    title: LanguageManager.shared.localized("Seeds"),
+                                    value: tracker.seeds
+                                )
+                                TrackerMetricPair(
+                                    title: LanguageManager.shared.localized("Leeches"),
+                                    value: tracker.leeches
+                                )
+                                TrackerMetricPair(
+                                    title: LanguageManager.shared.localized("Downloads"),
+                                    value: tracker.downloaded
+                                )
+                            }
+
+                            if let message = tracker.message, !message.isEmpty {
+                                Text(message)
+                                    .font(.caption)
+                                    .foregroundStyle(tracker.status == .failed ? .red : .secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                } header: {
+                    Text(LanguageManager.shared.localized("Tracker"))
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(LanguageManager.shared.localized("Tracker"))
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await loadTrackers(showLoadingIndicator: false)
+        }
+        .task(id: task.id) {
+            await loadTrackers(showLoadingIndicator: true)
+        }
+    }
+
+    private func loadTrackers(showLoadingIndicator: Bool) async {
+        if showLoadingIndicator || trackers.isEmpty {
+            isLoading = true
+        }
+        defer { isLoading = false }
+
+        do {
+            let fetched = try await appStateManager.fetchTrackers(for: task)
+            errorMessage = nil
+            if fetched != trackers {
+                trackers = fetched
+            }
+        } catch {
+            if trackers.isEmpty {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private struct TrackerMetricPair: View {
+    let title: String
+    let value: Int?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Text(value.map(String.init) ?? "--")
+                .foregroundStyle(.primary)
+        }
+        .font(.caption.monospacedDigit())
     }
 }

@@ -158,6 +158,8 @@ class TransmissionClient: NSObject, TorrentClient {
                 let rateDownload: Int64
                 let rateUpload: Int64
                 let status: Int
+                let error: Int?
+                let errorString: String?
                 let downloadDir: String
                 let percentDone: Double
                 let doneDate: Int?
@@ -177,7 +179,7 @@ class TransmissionClient: NSObject, TorrentClient {
 
         let fields = [
             "id", "hashString", "name", "totalSize", "rateDownload", "rateUpload",
-            "status", "downloadDir", "percentDone", "doneDate", "eta", "downloadedEver",
+            "status", "error", "errorString", "downloadDir", "percentDone", "doneDate", "eta", "downloadedEver",
             "uploadedEver", "uploadRatio", "peersConnected", "addedDate", "secondsSeeding",
             "tracker", "trackers", "labels"
         ]
@@ -256,7 +258,11 @@ class TransmissionClient: NSObject, TorrentClient {
                         downloadSpeed: downloadSpeed,
                         uploadSpeed: uploadSpeed,
                         remainingTime: TimeInterval(item.eta),
-                        status: Self.mapTransmissionStatus(item.status),
+                        status: Self.mapTransmissionStatus(
+                            item.status,
+                            errorCode: item.error,
+                            errorMessage: item.errorString
+                        ),
                         serverID: serverID,
                         tracker: trackerURL,
                         savePath: item.downloadDir,
@@ -403,6 +409,160 @@ class TransmissionClient: NSObject, TorrentClient {
         _ = try await performRequest("torrent-set", arguments: setArguments, responseType: EmptyArgs.self)
     }
 
+    func fetchTrackers(hash: String) async throws -> [TorrentTrackerInfo] {
+        struct TrackerGet: Decodable {
+            struct Item: Decodable {
+                struct Tracker: Decodable {
+                    let id: Int?
+                    let announce: String?
+                }
+
+                struct TrackerStat: Decodable {
+                    let id: Int?
+                    let host: String?
+                    let announce: String?
+                    let seederCount: Int?
+                    let leecherCount: Int?
+                    let downloadCount: Int?
+                    let lastAnnouncePeerCount: Int?
+                    let announceState: Int?
+                    let scrapeState: Int?
+                    let hasAnnounced: Bool?
+                    let hasScraped: Bool?
+                    let lastAnnounceSucceeded: Bool?
+                    let lastScrapeSucceeded: Bool?
+                    let lastAnnounceTimedOut: Bool?
+                    let lastAnnounceResult: String?
+                    let lastScrapeResult: String?
+                }
+
+                let trackers: [Tracker]?
+                let trackerStats: [TrackerStat]?
+            }
+
+            let torrents: [Item]
+        }
+
+        func normalizeMessage(_ raw: String?) -> String? {
+            let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        func normalizeURL(_ raw: String?) -> String {
+            let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? "--" : trimmed
+        }
+
+        let args = try await performRequest(
+            "torrent-get",
+            arguments: [
+                "ids": [hash],
+                "fields": ["trackers", "trackerStats"]
+            ],
+            responseType: TrackerGet.self
+        )
+
+        guard let item = args.torrents.first else { return [] }
+
+        var trackerURLByID: [Int: String] = [:]
+        if let trackers = item.trackers {
+            trackerURLByID.reserveCapacity(max(trackers.count, 1))
+            for tracker in trackers {
+                guard let id = tracker.id else { continue }
+                let url = normalizeURL(tracker.announce)
+                if trackerURLByID[id] == nil {
+                    trackerURLByID[id] = url
+                }
+            }
+        }
+
+        var output: [TorrentTrackerInfo] = []
+        let trackerStats = item.trackerStats ?? []
+        output.reserveCapacity(max(trackerStats.count, trackerURLByID.count))
+
+        for (index, stat) in trackerStats.enumerated() {
+            let announceMessage = normalizeMessage(stat.lastAnnounceResult)
+            let scrapeMessage = normalizeMessage(stat.lastScrapeResult)
+            let announceError = announceMessage.map {
+                $0.localizedCaseInsensitiveCompare("success") != .orderedSame
+            } ?? false
+            let scrapeError = scrapeMessage.map {
+                $0.localizedCaseInsensitiveCompare("success") != .orderedSame
+            } ?? false
+
+            let announceState = stat.announceState ?? 0
+            let scrapeState = stat.scrapeState ?? 0
+            // Transmission tracker state: waiting/queued is common idle state.
+            // Treat only active in-flight announce/scrape as "Updating".
+            let isUpdating = announceState == 3 || scrapeState == 3
+            let hasSuccessHistory = stat.lastAnnounceSucceeded == true || stat.lastScrapeSucceeded == true
+            let hasAnyStats = max(
+                stat.lastAnnouncePeerCount ?? 0,
+                stat.seederCount ?? 0,
+                stat.leecherCount ?? 0,
+                stat.downloadCount ?? 0
+            ) > 0
+            let hasFailureSignal = stat.lastAnnounceTimedOut == true || announceError || scrapeError
+
+            let status: TorrentTrackerStatus = {
+                // Prioritize runtime state and known-good stats over stale textual messages.
+                if hasSuccessHistory || hasAnyStats { return .working }
+                if isUpdating { return .updating }
+                if stat.hasAnnounced == false && stat.hasScraped == false { return .notContacted }
+                if hasFailureSignal { return .failed }
+                return .unknown
+            }()
+
+            let message: String? = {
+                guard status == .failed else { return nil }
+                if announceError, let announceMessage { return announceMessage }
+                if scrapeError, let scrapeMessage { return scrapeMessage }
+                if stat.lastAnnounceTimedOut == true { return LanguageManager.shared.localized("Timed out") }
+                return nil
+            }()
+
+            let statID = stat.id ?? -1
+            let displayURL = trackerURLByID[statID] ?? normalizeURL(stat.announce ?? stat.host)
+
+            output.append(
+                TorrentTrackerInfo(
+                    id: "\(statID)|\(displayURL)|\(index)",
+                    tier: nil,
+                    url: displayURL,
+                    status: status,
+                    peers: stat.lastAnnouncePeerCount,
+                    seeds: stat.seederCount,
+                    leeches: stat.leecherCount,
+                    downloaded: stat.downloadCount,
+                    message: message
+                )
+            )
+        }
+
+        if output.isEmpty && !trackerURLByID.isEmpty {
+            let fallbackTrackers = trackerURLByID
+                .sorted { $0.key < $1.key }
+            output.reserveCapacity(fallbackTrackers.count)
+            for (id, url) in fallbackTrackers {
+                output.append(
+                    TorrentTrackerInfo(
+                        id: "\(id)|\(url)",
+                        tier: nil,
+                        url: url,
+                        status: .unknown,
+                        peers: nil,
+                        seeds: nil,
+                        leeches: nil,
+                        downloaded: nil,
+                        message: nil
+                    )
+                )
+            }
+        }
+
+        return output
+    }
+
     // MARK: - File Management
 
     func getFiles(hash: String) async throws -> [TorrentFile] {
@@ -488,11 +648,21 @@ class TransmissionClient: NSObject, TorrentClient {
 
     // MARK: - Helpers
 
-    private func mapStatus(_ status: Int) -> TorrentStatus {
-        Self.mapTransmissionStatus(status)
+    private func mapStatus(_ status: Int, errorCode: Int? = nil, errorMessage: String? = nil) -> TorrentStatus {
+        Self.mapTransmissionStatus(status, errorCode: errorCode, errorMessage: errorMessage)
     }
 
-    private static func mapTransmissionStatus(_ status: Int) -> TorrentStatus {
+    private static func mapTransmissionStatus(
+        _ status: Int,
+        errorCode: Int? = nil,
+        errorMessage: String? = nil
+    ) -> TorrentStatus {
+        let hasRPCError = (errorCode ?? 0) != 0 ||
+            !(errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        if hasRPCError {
+            return .error
+        }
+
         // Transmission Status:
         // 0: Stopped, 1: Check Wait, 2: Check, 3: Download Wait, 4: Download, 5: Seed Wait, 6: Seed
         switch status {

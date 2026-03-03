@@ -442,8 +442,49 @@ class QBittorrentClient: NSObject, TorrentClient {
         }
     }
 
+    func fetchTrackers(hash: String) async throws -> [TorrentTrackerInfo] {
+        let normalizedHash = normalizeHashes(hash)
+        let encodedHash = normalizedHash.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedHash
+        let data = try await performServerSettingsRequest(path: "trackers?hash=\(encodedHash)")
+        let trackers = try JSONDecoder().decode([QBTrackerEntry].self, from: data)
+
+        var output: [TorrentTrackerInfo] = []
+        output.reserveCapacity(max(trackers.count, 1))
+
+        for (index, tracker) in trackers.enumerated() {
+            let rawURL = tracker.url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let displayURL = rawURL.isEmpty ? "--" : rawURL
+            let normalizedMessage = tracker.msg?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (normalizedMessage?.isEmpty == false) ? normalizedMessage : nil
+
+            output.append(
+                TorrentTrackerInfo(
+                    id: "\(tracker.tier ?? -1)|\(displayURL)|\(index)",
+                    tier: tracker.tier,
+                    url: displayURL,
+                    status: Self.mapQBTrackerStatus(tracker.status),
+                    peers: tracker.num_peers,
+                    seeds: tracker.num_seeds,
+                    leeches: tracker.num_leeches,
+                    downloaded: tracker.num_downloaded,
+                    message: message
+                )
+            )
+        }
+
+        return output
+    }
+
     private struct QBTrackerEntry: Decodable {
         let url: String?
+        let status: Int?
+        let tier: Int?
+        let num_peers: Int?
+        let num_seeds: Int?
+        let num_leeches: Int?
+        let num_downloaded: Int?
+        let msg: String?
     }
 
     private func fetchTrackerURLs(hash: String) async throws -> [String] {
@@ -665,23 +706,41 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     private static func mapQBState(_ state: String) -> TorrentStatus {
-        switch state {
-        case "metaDL", "allocating", "downloading", "dl", "stalledDL", "forcedDL", "forcedMetaDL":
+        let normalizedState = state.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalizedState {
+        case "metadl", "allocating", "downloading", "dl", "stalleddl", "forceddl", "forcedmetadl":
             return .downloading
-        case "queuedDL", "queuedUP":
+        case "queueddl", "queuedup":
             return .queued
-        case "uploading", "stalledUP", "forcedUP", "up":
+        case "uploading", "stalledup", "forcedup", "up":
             return .seeding
-        case "pausedDL", "pausedUP", "paused":
+        case "pauseddl", "pausedup", "paused":
             return .paused
-        case "checkingDL", "checkingUP", "checkingResumeData", "moving":
+        case "checkingdl", "checkingup", "checkingresumedata", "moving":
             return .checking
-        case "error", "missingFiles":
+        case "error", "missingfiles", "unregistered", "unregisteredtorrent", "unknown":
             return .error
         case "completed":
             return .completed
         default:
             return .paused
+        }
+    }
+
+    private static func mapQBTrackerStatus(_ status: Int?) -> TorrentTrackerStatus {
+        switch status {
+        case 0:
+            return .disabled
+        case 1:
+            return .notContacted
+        case 2:
+            return .working
+        case 3:
+            return .updating
+        case 4:
+            return .failed
+        default:
+            return .unknown
         }
     }
 }

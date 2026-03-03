@@ -146,7 +146,9 @@ final class DashboardViewModel: ObservableObject {
             }()
 
             if shouldPersistNow {
-                trackerStatsBaselineSnapshotData = result.encodedBaselineSnapshotData
+                if trackerStatsBaselineSnapshotData != result.encodedBaselineSnapshotData {
+                    trackerStatsBaselineSnapshotData = result.encodedBaselineSnapshotData
+                }
                 trackerStatsLastPersistedAt = now
             }
         }
@@ -539,10 +541,13 @@ private extension DashboardViewModel {
         grouped.reserveCapacity(max(tasks.count / 2, 4))
         var activeTaskIDs = Set<String>()
         activeTaskIDs.reserveCapacity(max(tasks.count, 8))
+        var activeServerIDs = Set<String>()
 
         for task in tasks {
-            let taskID = "\(task.serverID.uuidString)_\(task.hash)"
+            let serverIDString = task.serverID.uuidString
+            let taskID = "\(serverIDString)_\(task.hash)"
             activeTaskIDs.insert(taskID)
+            activeServerIDs.insert(serverIDString)
             let currentUploaded = max(task.uploaded, 0)
             let currentDownloaded = max(task.downloaded, 0)
 
@@ -580,8 +585,16 @@ private extension DashboardViewModel {
             grouped[trackerName] = bucket
         }
 
-        if baselineTasks.count > activeTaskIDs.count + max(1024, activeTaskIDs.count / 10) {
-            baselineTasks = baselineTasks.filter { activeTaskIDs.contains($0.key) }
+        if !activeTaskIDs.isEmpty &&
+            baselineTasks.count > activeTaskIDs.count + max(1024, activeTaskIDs.count / 10) {
+            baselineTasks = baselineTasks.filter { taskID, _ in
+                if activeTaskIDs.contains(taskID) { return true }
+                guard let separatorIndex = taskID.firstIndex(of: "_") else { return true }
+                let serverID = String(taskID[..<separatorIndex])
+                // Keep baselines from servers that are absent in this round to avoid
+                // losing daily counters when startup data is incomplete or a server is temporarily unavailable.
+                return !activeServerIDs.contains(serverID)
+            }
         }
 
         var aggregates: [TrackerTransferAggregate] = []

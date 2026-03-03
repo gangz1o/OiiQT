@@ -1005,6 +1005,52 @@ class AppStateManager {
         }
     }
 
+    // MARK: - Tracker Management
+
+    func fetchTrackers(for task: TorrentTask) async throws -> [TorrentTrackerInfo] {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+
+        let client = getClient(for: server)
+
+        switch server.type {
+        case .qBittorrent:
+            guard let qbClient = client as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+
+            do {
+                return try await qbClient.fetchTrackers(hash: task.hash)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await qbClient.login()
+                    return try await qbClient.fetchTrackers(hash: task.hash)
+                }
+                throw error
+            } catch {
+                throw error
+            }
+
+        case .transmission:
+            guard let trClient = client as? TransmissionClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+
+            do {
+                return try await trClient.fetchTrackers(hash: task.hash)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await trClient.login()
+                    return try await trClient.fetchTrackers(hash: task.hash)
+                }
+                throw error
+            } catch {
+                throw error
+            }
+        }
+    }
+
     // MARK: - File Management
 
     func fetchFiles(for task: TorrentTask) async throws -> [TorrentFile] {

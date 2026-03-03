@@ -266,6 +266,7 @@ struct DashboardView: View {
     private func refreshTrackerStatsIfNeeded() {
         guard isDashboardTabActive else { return }
         guard scenePhase == .active else { return }
+        guard appStateManager.hasInitialDataLoaded else { return }
         guard showTodayTransfer else { return }
         dashboardViewModel.calculateTrackerStats()
     }

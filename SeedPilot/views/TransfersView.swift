@@ -667,7 +667,9 @@ struct TransfersView: View {
         let startUptime = DispatchTime.now().uptimeNanoseconds
 
         shouldHintOverlayLoadingForCurrentFilterPass = showOverlayHint
-        isFilteringTasks = true
+        if isFilteringTasks != showOverlayHint {
+            isFilteringTasks = showOverlayHint
+        }
 
         filterComputationTask = Task {
             let computed = await Task.detached(priority: .userInitiated) {
@@ -695,9 +697,17 @@ struct TransfersView: View {
             }
 #endif
             await MainActor.run {
-                filteredTasks = computed
-                isFilteringTasks = false
-                shouldHintOverlayLoadingForCurrentFilterPass = false
+                // Avoid redundant state writes for the common "filtered to empty" case,
+                // which can otherwise cause visible empty-state blinking during periodic refresh.
+                if !(computed.isEmpty && filteredTasks.isEmpty) {
+                    filteredTasks = computed
+                }
+                if isFilteringTasks {
+                    isFilteringTasks = false
+                }
+                if shouldHintOverlayLoadingForCurrentFilterPass {
+                    shouldHintOverlayLoadingForCurrentFilterPass = false
+                }
             }
         }
     }

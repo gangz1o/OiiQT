@@ -2023,6 +2023,23 @@
         }
       }
     },
+    "Disabled" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用"
+          }
+        }
+      }
+    },
     "Disk Cache Size" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2282,6 +2299,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在下载"
+          }
+        }
+      }
+    },
+    "Downloads" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载次数"
           }
         }
       }
@@ -2677,6 +2711,23 @@
         }
       }
     },
+    "Failed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失败"
+          }
+        }
+      }
+    },
     "Failed to load connection settings: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2741,6 +2792,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加载限速失败"
+          }
+        }
+      }
+    },
+    "Failed to load tracker details" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load tracker details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载 Tracker 详情失败"
           }
         }
       }
@@ -3441,6 +3509,9 @@
         }
       }
     },
+    "L%lld" : {
+
+    },
     "Language" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3488,6 +3559,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "留空则使用内置默认服务。配置专属 Key 可显著提升海报加载的稳定性与速度。"
+          }
+        }
+      }
+    },
+    "Leeches" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leeches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载"
           }
         }
       }
@@ -4345,6 +4433,40 @@
         }
       }
     },
+    "No Tracker Data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Tracker Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无 Tracker 数据"
+          }
+        }
+      }
+    },
+    "No tracker status available" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracker status available"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无 Tracker 状态信息"
+          }
+        }
+      }
+    },
     "Normal" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4358,6 +4480,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正常"
+          }
+        }
+      }
+    },
+    "Not Contacted" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Contacted"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未联系"
           }
         }
       }
@@ -4562,6 +4701,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Peer 连接协议"
+          }
+        }
+      }
+    },
+    "Peers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户"
           }
         }
       }
@@ -5956,6 +6112,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "做种中"
+          }
+        }
+      }
+    },
+    "Seeds" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seeds"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "种子"
           }
         }
       }
@@ -7546,6 +7719,23 @@
         }
       }
     },
+    "Timed out" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timed out"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超时"
+          }
+        }
+      }
+    },
     "TMDB API Key" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7905,6 +8095,23 @@
         }
       }
     },
+    "Unknown" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知"
+          }
+        }
+      }
+    },
     "Unknown Error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8020,6 +8227,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 更新"
+          }
+        }
+      }
+    },
+    "Updating" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updating"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新中"
           }
         }
       }
@@ -8346,6 +8570,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启后，新发布的合规条目将自动推送到下载器。"
+          }
+        }
+      }
+    },
+    "Working" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Working"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作中"
           }
         }
       }

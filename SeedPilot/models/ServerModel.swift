@@ -471,6 +471,55 @@ struct TorrentFile: Identifiable, Hashable, Sendable {
     }
 }
 
+enum TorrentTrackerStatus: String, Codable, Hashable, Sendable {
+    case working
+    case updating
+    case notContacted
+    case failed
+    case disabled
+    case unknown
+
+    var color: Color {
+        switch self {
+        case .working: return .green
+        case .updating: return .blue
+        case .notContacted: return .secondary
+        case .failed: return .red
+        case .disabled: return .gray
+        case .unknown: return .secondary
+        }
+    }
+
+    var localizedText: String {
+        switch self {
+        case .working:
+            return LanguageManager.shared.localized("Working")
+        case .updating:
+            return LanguageManager.shared.localized("Updating")
+        case .notContacted:
+            return LanguageManager.shared.localized("Not Contacted")
+        case .failed:
+            return LanguageManager.shared.localized("Failed")
+        case .disabled:
+            return LanguageManager.shared.localized("Disabled")
+        case .unknown:
+            return LanguageManager.shared.localized("Unknown")
+        }
+    }
+}
+
+struct TorrentTrackerInfo: Identifiable, Hashable, Sendable {
+    let id: String
+    let tier: Int?
+    let url: String
+    let status: TorrentTrackerStatus
+    let peers: Int?
+    let seeds: Int?
+    let leeches: Int?
+    let downloaded: Int?
+    let message: String?
+}
+
 // MARK: - 4. 抽象客户端协议
 /// 定义了管理器必须实现的功能
 protocol TorrentClient {
