@@ -24,9 +24,7 @@ struct DashboardTodayTransferModuleView: View {
             get: { selectedType },
             set: { newValue in
                 guard newValue != selectedType else { return }
-                withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
-                    selectedType = newValue
-                }
+                selectedType = newValue
             }
         )
     }
@@ -170,7 +168,6 @@ struct DashboardTodayTransferModuleView: View {
                     }
                 }
                 .frame(height: 230)
-                .animation(.spring(response: 0.36, dampingFraction: 0.86), value: selectedType)
                 .animation(.easeInOut(duration: 0.2), value: hasTransferData)
                 .animation(.easeInOut(duration: 0.2), value: showsInitialLoadingState)
 
