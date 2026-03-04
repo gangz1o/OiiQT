@@ -37,7 +37,6 @@ struct SettingsView: View {
     @State private var showingSuccessAlert = false
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
-    @State private var showingProRequiredDialog = false
     @State private var showingProPaywallSheet = false
     @State private var showingTMDBAPIKeySettings = false
     @State private var showingTrackerAliasList = false
@@ -285,21 +284,12 @@ struct SettingsView: View {
                 TermsOfServiceSheetView()
             }
         }
-        .alert(
-            LanguageManager.shared.localized("Pro Required"),
-            isPresented: $showingProRequiredDialog,
-        ) {
-            Button(LanguageManager.shared.localized("Upgrade to Downix Pro")) {
-                showingProPaywallSheet = true
-            }
-            Button(LanguageManager.shared.localized("Cancel"), role: .cancel) {}
-        } message: {
-            Text(LanguageManager.shared.localized("This feature requires Downix Pro."))
-        }
         .sheet(isPresented: $showingProPaywallSheet) {
-            NavigationStack {
-                ProView()
-            }
+            ProView(isPresentedAsSheet: true)
+                .ignoresSafeArea()
+                .presentationDetents([.fraction(0.9), .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(32)
         }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
     }
@@ -480,7 +470,7 @@ struct SettingsView: View {
         }
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.warning)
-        showingProRequiredDialog = true
+        showingProPaywallSheet = true
     }
 
     private func updateCacheSize() {

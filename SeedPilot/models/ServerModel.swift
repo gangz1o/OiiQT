@@ -522,6 +522,28 @@ struct TorrentTrackerInfo: Identifiable, Hashable, Sendable {
     let message: String?
 }
 
+struct TorrentPeerInfo: Identifiable, Hashable, Sendable {
+    let id: String
+    let country: String?
+    let countryCode: String?
+    let ip: String
+    let port: Int
+    let connection: String?
+    let flags: String?
+    let client: String?
+    let progress: Double?
+    let downloadSpeed: Int64?
+    let uploadSpeed: Int64?
+    let downloaded: Int64?
+    let uploaded: Int64?
+    let relevance: Double?
+    let files: String?
+
+    nonisolated var endpoint: String {
+        "\(ip):\(port)"
+    }
+}
+
 // MARK: - 4. 抽象客户端协议
 /// 定义了管理器必须实现的功能
 protocol TorrentClient {

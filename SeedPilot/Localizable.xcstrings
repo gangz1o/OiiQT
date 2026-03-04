@@ -41,6 +41,16 @@
         }
       }
     },
+    "%@ %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%d unread" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -439,6 +449,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加路径"
+          }
+        }
+      }
+    },
+    "Add peers users..." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add peers users..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加 peers 用户..."
           }
         }
       }
@@ -970,6 +997,23 @@
         }
       }
     },
+    "Are you sure you want to permanently ban peer %@?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to permanently ban peer %1$@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要永久禁止用户 %1$@ 吗？"
+          }
+        }
+      }
+    },
     "Ascending" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1224,23 +1268,6 @@
         }
       }
     },
-    "Choose from existing trackers" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose from existing trackers"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从现有任务中选择"
-          }
-        }
-      }
-    },
     "Category" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1326,6 +1353,23 @@
         }
       }
     },
+    "Choose from existing trackers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from existing trackers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从现有任务中选择"
+          }
+        }
+      }
+    },
     "Choose Preset Path" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1373,6 +1417,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除缓存"
+          }
+        }
+      }
+    },
+    "Client" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户端"
           }
         }
       }
@@ -1445,6 +1506,23 @@
         }
       }
     },
+    "Completion Time" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completion Time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成时间"
+          }
+        }
+      }
+    },
     "Configuration" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1496,6 +1574,23 @@
         }
       }
     },
+    "Confirm Ban" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Ban"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认封禁"
+          }
+        }
+      }
+    },
     "Confirm Deletion" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1509,6 +1604,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "确认删除"
+          }
+        }
+      }
+    },
+    "Connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接"
           }
         }
       }
@@ -1632,6 +1744,23 @@
         }
       }
     },
+    "Copy IP:Port" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy IP:Port"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制 IP:端口"
+          }
+        }
+      }
+    },
     "Copy Path" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1645,6 +1774,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制路径"
+          }
+        }
+      }
+    },
+    "Current server does not support adding peers." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current server does not support adding peers."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前服务器不支持添加用户。"
+          }
+        }
+      }
+    },
+    "Current server does not support banning peers." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current server does not support banning peers."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前服务器不支持禁止用户。"
+          }
+        }
+      }
+    },
+    "Current server does not support peer management." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current server does not support peer management."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前服务器不支持用户管理。"
           }
         }
       }
@@ -2796,6 +2976,23 @@
         }
       }
     },
+    "Failed to load peer details" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load peer details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载用户详情失败"
+          }
+        }
+      }
+    },
     "Failed to load rate limit settings: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3081,6 +3278,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "首/尾优先"
+          }
+        }
+      }
+    },
+    "Flags" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flags"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标志"
           }
         }
       }
@@ -4328,6 +4542,40 @@
         }
       }
     },
+    "No Peer Data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Peer Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无用户数据"
+          }
+        }
+      }
+    },
+    "No peer status available" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No peer status available"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无用户状态信息"
+          }
+        }
+      }
+    },
     "No Preset Save Paths" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4364,6 +4612,23 @@
     },
     "No RSS items" : {
 
+    },
+    "No selectable trackers available" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No selectable trackers available"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无可选 Tracker"
+          }
+        }
+      }
     },
     "No servers configured" : {
       "extractionState" : "stale",
@@ -4501,19 +4766,19 @@
         }
       }
     },
-    "No selectable trackers available" : {
+    "No valid peer endpoint provided" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No selectable trackers available"
+            "value" : "No valid peer endpoint provided"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "暂无可选 Tracker"
+            "value" : "未提供有效的用户端点"
           }
         }
       }
@@ -4739,6 +5004,23 @@
         }
       }
     },
+    "Peer Actions" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peer Actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户操作"
+          }
+        }
+      }
+    },
     "Peer Connection Protocol" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4803,6 +5085,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每个 torrent 上传窗口数上限"
+          }
+        }
+      }
+    },
+    "Permanently Ban User" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permanently Ban User"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永久禁止用户"
           }
         }
       }
@@ -5555,23 +5854,6 @@
         }
       }
     },
-    "qBittorrent v4.1.0+ or Transmission v2.9.4+ is recommended for full feature support." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "qBittorrent v4.1.0+ or Transmission v2.9.4+ is recommended for full feature support."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "建议使用 qBittorrent v4.1.0+ 或 Transmission v2.9.4+ 以获得最佳功能支持。"
-          }
-        }
-      }
-    },
     "qBittorrent reported a torrent error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5619,6 +5901,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "qBittorrent 返回状态：%@"
+          }
+        }
+      }
+    },
+    "qBittorrent v4.1.0+ or Transmission v2.9.4+ is recommended for full feature support." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "qBittorrent v4.1.0+ or Transmission v2.9.4+ is recommended for full feature support."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建议使用 qBittorrent v4.1.0+ 或 Transmission v2.9.4+ 以获得最佳功能支持。"
           }
         }
       }
@@ -7079,6 +7378,23 @@
         }
       }
     },
+    "Taiwan Province, China" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taiwan Province, China"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中国台湾省"
+          }
+        }
+      }
+    },
     "Tap \"Search\" to start matching." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7770,23 +8086,6 @@
         }
       }
     },
-    "This tracker domain already exists" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This tracker domain already exists"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "该 Tracker 域名已存在"
-          }
-        }
-      }
-    },
     "This preview shows simulated RSS entries and whether they match the current rules." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7800,6 +8099,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这里展示了模拟的 RSS 条目以及它们是否会被当前规则捕获。"
+          }
+        }
+      }
+    },
+    "This tracker domain already exists" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This tracker domain already exists"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该 Tracker 域名已存在"
           }
         }
       }
@@ -7906,40 +8222,6 @@
         }
       }
     },
-    "Torrent File" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Torrent File"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "种子文件"
-          }
-        }
-      }
-    },
-    "Torrent Queue" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Torrent Queue"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Torrent 排队"
-          }
-        }
-      }
-    },
     "Torrent data files are missing. Verify storage mount points or use Set Location." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7957,6 +8239,23 @@
         }
       }
     },
+    "Torrent File" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent File"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "种子文件"
+          }
+        }
+      }
+    },
     "Torrent is unregistered on tracker." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7970,6 +8269,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "该种子已在 Tracker 上未注册。"
+          }
+        }
+      }
+    },
+    "Torrent Queue" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent Queue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torrent 排队"
           }
         }
       }
@@ -8112,40 +8428,6 @@
         }
       }
     },
-    "Transmission servers do not support category and tags. Please select only qBittorrent tasks." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transmission servers do not support category and tags. Please select only qBittorrent tasks."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transmission 服务器不支持分类与标签功能，请仅选择 qBittorrent 任务进行操作。"
-          }
-        }
-      }
-    },
-    "Transmission servers do not support category. Please select only qBittorrent tasks." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transmission servers do not support category. Please select only qBittorrent tasks."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transmission 服务器不支持分类功能，请仅选择 qBittorrent 任务进行操作。"
-          }
-        }
-      }
-    },
     "Transmission local error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8193,6 +8475,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transmission 返回错误代码：%d"
+          }
+        }
+      }
+    },
+    "Transmission servers do not support category and tags. Please select only qBittorrent tasks." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission servers do not support category and tags. Please select only qBittorrent tasks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 服务器不支持分类与标签功能，请仅选择 qBittorrent 任务进行操作。"
+          }
+        }
+      }
+    },
+    "Transmission servers do not support category. Please select only qBittorrent tasks." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission servers do not support category. Please select only qBittorrent tasks."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transmission 服务器不支持分类功能，请仅选择 qBittorrent 任务进行操作。"
           }
         }
       }
@@ -9106,6 +9422,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支持独立开发"
+          }
+        }
+      }
+    },
+    "无限添加服务器" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited Server Slots"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无限添加服务器"
+          }
+        }
+      }
+    },
+    "突破免费版上限，自由添加并管理任意数量的服务器节点。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass the free-tier limit and add or manage any number of server nodes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "突破免费版上限，自由添加并管理任意数量的服务器节点。"
           }
         }
       }

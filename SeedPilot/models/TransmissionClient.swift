@@ -565,6 +565,99 @@ class TransmissionClient: NSObject, TorrentClient {
         return output
     }
 
+    func fetchPeers(hash: String) async throws -> [TorrentPeerInfo] {
+        struct PeerGet: Decodable {
+            struct Item: Decodable {
+                struct Peer: Decodable {
+                    let address: String?
+                    let port: Int?
+                    let clientName: String?
+                    let flagStr: String?
+                    let progress: Double?
+                    let rateToClient: Int64?
+                    let rateToPeer: Int64?
+                    let isUTP: Bool?
+                    let isEncrypted: Bool?
+                }
+
+                let peers: [Peer]?
+            }
+
+            let torrents: [Item]
+        }
+
+        let args = try await performRequest(
+            "torrent-get",
+            arguments: [
+                "ids": [hash],
+                "fields": ["peers"]
+            ],
+            responseType: PeerGet.self
+        )
+
+        guard let item = args.torrents.first,
+              let peers = item.peers else {
+            return []
+        }
+
+        var output: [TorrentPeerInfo] = []
+        output.reserveCapacity(peers.count)
+
+        for (index, peer) in peers.enumerated() {
+            let ip = peer.address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let port = peer.port ?? 0
+            guard !ip.isEmpty, port > 0 else { continue }
+
+            var connectionTokens: [String] = []
+            if peer.isUTP == true {
+                connectionTokens.append("uTP")
+            } else {
+                connectionTokens.append("BT")
+            }
+            if peer.isEncrypted == true {
+                connectionTokens.append("E")
+            }
+
+            let connection = connectionTokens.joined(separator: " ")
+            let flags = peer.flagStr?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let client = peer.clientName?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            output.append(
+                TorrentPeerInfo(
+                    id: "\(ip):\(port)|\(index)",
+                    country: nil,
+                    countryCode: nil,
+                    ip: ip,
+                    port: port,
+                    connection: connection.isEmpty ? nil : connection,
+                    flags: (flags?.isEmpty == false) ? flags : nil,
+                    client: (client?.isEmpty == false) ? client : nil,
+                    progress: peer.progress,
+                    downloadSpeed: peer.rateToClient,
+                    uploadSpeed: peer.rateToPeer,
+                    downloaded: nil,
+                    uploaded: nil,
+                    relevance: nil,
+                    files: nil
+                )
+            )
+        }
+
+        return output.sorted {
+            if $0.ip == $1.ip { return $0.port < $1.port }
+            return $0.ip.localizedStandardCompare($1.ip) == .orderedAscending
+        }
+    }
+
+    func addPeers(hash _: String, peers _: [String]) async throws {
+        throw TorrentClientError.apiError("Current server does not support adding peers.")
+    }
+
+    func banPeers(_ peers: [String]) async throws {
+        _ = peers
+        throw TorrentClientError.apiError("Current server does not support banning peers.")
+    }
+
     // MARK: - File Management
 
     func getFiles(hash: String) async throws -> [TorrentFile] {

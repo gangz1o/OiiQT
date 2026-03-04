@@ -30,6 +30,11 @@ struct ProView: View {
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
     @AppStorage("isProUser") private var isProUser = false
+    private let isPresentedAsSheet: Bool
+
+    init(isPresentedAsSheet: Bool = false) {
+        self.isPresentedAsSheet = isPresentedAsSheet
+    }
 
     private let optionProductIDs = [
         "com.seedpilot.pro.lifetime",
@@ -63,6 +68,12 @@ struct ProView: View {
             subtitle: "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。"
         ),
         ProFeature(
+            icon: "infinity.circle.fill",
+            color: .green,
+            title: "无限添加服务器",
+            subtitle: "突破免费版上限，自由添加并管理任意数量的服务器节点。"
+        ),
+        ProFeature(
             icon: "heart.fill",
             color: .red,
             title: "支持独立开发",
@@ -73,8 +84,14 @@ struct ProView: View {
     var body: some View {
         GeometryReader { _ in
             ZStack {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
+                Group {
+                    if isPresentedAsSheet {
+                        Color(uiColor: .systemGroupedBackground)
+                    } else {
+                        Color(uiColor: .systemGroupedBackground)
+                            .ignoresSafeArea()
+                    }
+                }
 
                 auroraBackground
 
@@ -114,6 +131,7 @@ struct ProView: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(isPresentedAsSheet)
         .task {
             await storeManager.fetchProducts()
         }
@@ -140,7 +158,7 @@ struct ProView: View {
 
     private var auroraBackground: some View {
         GeometryReader { proxy in
-            ZStack {
+            let gradientLayer = ZStack {
                 LinearGradient(
                     colors: auroraLinearColors,
                     startPoint: isAnimating ? .topTrailing : .topLeading,
@@ -165,7 +183,14 @@ struct ProView: View {
             )
             .animation(.easeInOut(duration: 5).repeatForever(autoreverses: true), value: isAnimating)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .ignoresSafeArea()
+
+            Group {
+                if isPresentedAsSheet {
+                    gradientLayer
+                } else {
+                    gradientLayer.ignoresSafeArea()
+                }
+            }
         }
         .allowsHitTesting(false)
     }

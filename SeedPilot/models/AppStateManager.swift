@@ -1041,6 +1041,140 @@ class AppStateManager {
         }
     }
 
+    // MARK: - Peer Management
+
+    func fetchPeers(for task: TorrentTask) async throws -> [TorrentPeerInfo] {
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+
+        let client = getClient(for: server)
+
+        switch server.type {
+        case .qBittorrent:
+            guard let qbClient = client as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+
+            do {
+                return try await qbClient.fetchPeers(hash: task.hash)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await qbClient.login()
+                    return try await qbClient.fetchPeers(hash: task.hash)
+                }
+                throw error
+            } catch {
+                throw error
+            }
+
+        case .transmission:
+            guard let trClient = client as? TransmissionClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+
+            do {
+                return try await trClient.fetchPeers(hash: task.hash)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await trClient.login()
+                    return try await trClient.fetchPeers(hash: task.hash)
+                }
+                throw error
+            } catch {
+                throw error
+            }
+        }
+    }
+
+    func addPeers(for task: TorrentTask, peers: [String]) async throws {
+        let normalizedPeers = peers
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalizedPeers.isEmpty else { return }
+
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+
+        let client = getClient(for: server)
+        switch server.type {
+        case .qBittorrent:
+            guard let qbClient = client as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            do {
+                try await qbClient.addPeers(hash: task.hash, peers: normalizedPeers)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await qbClient.login()
+                    try await qbClient.addPeers(hash: task.hash, peers: normalizedPeers)
+                    return
+                }
+                throw error
+            }
+
+        case .transmission:
+            guard let trClient = client as? TransmissionClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            do {
+                try await trClient.addPeers(hash: task.hash, peers: normalizedPeers)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await trClient.login()
+                    try await trClient.addPeers(hash: task.hash, peers: normalizedPeers)
+                    return
+                }
+                throw error
+            }
+        }
+    }
+
+    func banPeers(for task: TorrentTask, peers: [String]) async throws {
+        let normalizedPeers = peers
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalizedPeers.isEmpty else { return }
+
+        guard let server = servers.first(where: { $0.id == task.serverID }) else {
+            throw TorrentClientError.apiError("Server not found")
+        }
+
+        let client = getClient(for: server)
+        switch server.type {
+        case .qBittorrent:
+            guard let qbClient = client as? QBittorrentClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            do {
+                try await qbClient.banPeers(normalizedPeers)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await qbClient.login()
+                    try await qbClient.banPeers(normalizedPeers)
+                    return
+                }
+                throw error
+            }
+
+        case .transmission:
+            guard let trClient = client as? TransmissionClient else {
+                throw TorrentClientError.apiError("Invalid client type")
+            }
+            do {
+                try await trClient.banPeers(normalizedPeers)
+            } catch let error as TorrentClientError {
+                if case .authenticationFailed = error {
+                    try await trClient.login()
+                    try await trClient.banPeers(normalizedPeers)
+                    return
+                }
+                throw error
+            }
+        }
+    }
+
     // MARK: - File Management
 
     func fetchFiles(for task: TorrentTask) async throws -> [TorrentFile] {

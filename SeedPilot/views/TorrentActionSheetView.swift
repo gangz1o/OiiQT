@@ -32,6 +32,7 @@ struct TorrentActionSheetView: View {
     @State private var isAutoMatching = false
     @State private var showingSpeedLimitSheet = false
     @State private var showingFilesSheet = false
+    private let menuIconSlotWidth: CGFloat = 24
 
     private var presetSavePaths: [String] {
         PresetSavePathsCodec.decode(presetSavePathsRaw)
@@ -189,10 +190,12 @@ struct TorrentActionSheetView: View {
                                 if isAutoMatching {
                                     ProgressView()
                                         .controlSize(.small)
+                                        .frame(width: menuIconSlotWidth, alignment: .center)
                                 } else {
                                     Image(systemName: "arrow.triangle.2.circlepath")
                                         .imageScale(.medium)
                                         .foregroundStyle(.secondary)
+                                        .frame(width: menuIconSlotWidth, alignment: .center)
                                 }
                                 Text(languageManager.localized("Rematch Poster"))
                                     .font(.body)
@@ -228,6 +231,7 @@ struct TorrentActionSheetView: View {
                             Image(systemName: "trash")
                                 .imageScale(.medium)
                                 .foregroundStyle(.red)
+                                .frame(width: menuIconSlotWidth, alignment: .center)
                             Text(languageManager.localized("Delete"))
                                 .font(.body)
                                 .foregroundStyle(.red)
@@ -441,6 +445,7 @@ struct TorrentActionSheetView: View {
             Image(systemName: systemImage)
                 .imageScale(.medium)
                 .foregroundStyle(.secondary)
+                .frame(width: menuIconSlotWidth, alignment: .center)
             Text(title)
                 .font(.body)
                 .foregroundStyle(.primary)

@@ -32,11 +32,15 @@ private struct TrackerTransferAggregate: Sendable {
 private nonisolated struct TrackerTransferBaselineEntry: Codable, Sendable, Equatable {
     let uploaded: Int64
     let downloaded: Int64
+    let latestUploaded: Int64?
+    let latestDownloaded: Int64?
+    let trackerName: String?
 }
 
 private nonisolated struct TrackerTransferBaselineSnapshot: Codable, Sendable {
     let startOfDayTimestamp: Int
     let tasks: [String: TrackerTransferBaselineEntry]
+    let archivedByTracker: [String: TrackerTransferBaselineEntry]?
 }
 
 private struct TrackerTransferComputationResult: Sendable {
@@ -540,59 +544,131 @@ private extension DashboardViewModel {
         trackerAliasMap: [String: String]
     ) -> TrackerTransferComputationResult {
         var baselineTasks: [String: TrackerTransferBaselineEntry]
+        var archivedByTracker: [String: TrackerTransferBaselineEntry]
         if let baselineSnapshot, baselineSnapshot.startOfDayTimestamp == startOfDayTimestamp {
             baselineTasks = baselineSnapshot.tasks
+            archivedByTracker = baselineSnapshot.archivedByTracker ?? [:]
         } else {
             baselineTasks = [:]
+            archivedByTracker = [:]
         }
         baselineTasks.reserveCapacity(max(baselineTasks.count, tasks.count))
+        archivedByTracker.reserveCapacity(max(archivedByTracker.count, 4))
 
         var grouped: [String: (uploaded: Int64, downloaded: Int64)] = [:]
-        grouped.reserveCapacity(max(tasks.count / 2, 4))
+        grouped.reserveCapacity(max(tasks.count / 2 + archivedByTracker.count, 4))
+        for (trackerName, archived) in archivedByTracker {
+            let uploaded = max(archived.uploaded, 0)
+            let downloaded = max(archived.downloaded, 0)
+            guard uploaded > 0 || downloaded > 0 else { continue }
+            grouped[trackerName] = (uploaded, downloaded)
+        }
         var activeTaskIDs = Set<String>()
         activeTaskIDs.reserveCapacity(max(tasks.count, 8))
         var activeServerIDs = Set<String>()
+        activeServerIDs.reserveCapacity(max(tasks.count / 4, 4))
 
         for task in tasks {
             let serverIDString = task.serverID.uuidString
             let taskID = "\(serverIDString)_\(task.hash)"
             activeTaskIDs.insert(taskID)
             activeServerIDs.insert(serverIDString)
+            let trackerName = TrackerNameManager.displayName(for: task.tracker, aliasMap: trackerAliasMap)
             let currentUploaded = max(task.uploaded, 0)
             let currentDownloaded = max(task.downloaded, 0)
 
             let baselineEntry = baselineTasks[taskID]
-            let effectiveBaseline: TrackerTransferBaselineEntry
+            let baselineUploaded: Int64
+            let baselineDownloaded: Int64
 
             if let baselineEntry,
                baselineEntry.uploaded <= currentUploaded,
                baselineEntry.downloaded <= currentDownloaded {
-                effectiveBaseline = baselineEntry
+                baselineUploaded = baselineEntry.uploaded
+                baselineDownloaded = baselineEntry.downloaded
             } else {
                 // Counter reset / task re-added / first time seen today: treat current counters as baseline.
-                let resetBaseline = TrackerTransferBaselineEntry(
-                    uploaded: currentUploaded,
-                    downloaded: currentDownloaded
-                )
-                baselineTasks[taskID] = resetBaseline
-                effectiveBaseline = resetBaseline
+                baselineUploaded = currentUploaded
+                baselineDownloaded = currentDownloaded
             }
 
-            if baselineEntry == nil {
-                baselineTasks[taskID] = effectiveBaseline
-            }
+            baselineTasks[taskID] = TrackerTransferBaselineEntry(
+                uploaded: baselineUploaded,
+                downloaded: baselineDownloaded,
+                latestUploaded: currentUploaded,
+                latestDownloaded: currentDownloaded,
+                trackerName: trackerName
+            )
 
-            let uploadDelta = max(currentUploaded - effectiveBaseline.uploaded, 0)
-            let downloadDelta = max(currentDownloaded - effectiveBaseline.downloaded, 0)
+            let uploadDelta = max(currentUploaded - baselineUploaded, 0)
+            let downloadDelta = max(currentDownloaded - baselineDownloaded, 0)
             guard uploadDelta > 0 || downloadDelta > 0 else { continue }
 
-            let trackerName = TrackerNameManager.displayName(for: task.tracker, aliasMap: trackerAliasMap)
             guard trackerName != "--" else { continue }
 
             var bucket = grouped[trackerName] ?? (0, 0)
             bucket.uploaded += uploadDelta
             bucket.downloaded += downloadDelta
             grouped[trackerName] = bucket
+        }
+
+        if baselineTasks.count > activeTaskIDs.count {
+            var filteredBaselineTasks: [String: TrackerTransferBaselineEntry] = [:]
+            filteredBaselineTasks.reserveCapacity(baselineTasks.count)
+
+            for (taskID, entry) in baselineTasks {
+                if activeTaskIDs.contains(taskID) {
+                    filteredBaselineTasks[taskID] = entry
+                    continue
+                }
+                guard let separatorIndex = taskID.firstIndex(of: "_") else {
+                    filteredBaselineTasks[taskID] = entry
+                    continue
+                }
+                let serverID = String(taskID[..<separatorIndex])
+                // Keep baselines from servers that are absent in this round to avoid
+                // losing daily counters when startup data is incomplete or a server is temporarily unavailable.
+                guard activeServerIDs.contains(serverID) else {
+                    filteredBaselineTasks[taskID] = entry
+                    continue
+                }
+
+                let latestUploaded = max(entry.latestUploaded ?? entry.uploaded, entry.uploaded)
+                let latestDownloaded = max(entry.latestDownloaded ?? entry.downloaded, entry.downloaded)
+                let uploadDelta = max(latestUploaded - entry.uploaded, 0)
+                let downloadDelta = max(latestDownloaded - entry.downloaded, 0)
+
+                let trackerName = (entry.trackerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trackerName != "--",
+                      !trackerName.isEmpty,
+                      (uploadDelta > 0 || downloadDelta > 0) else {
+                    continue
+                }
+
+                var archived = archivedByTracker[trackerName]
+                    ?? TrackerTransferBaselineEntry(
+                        uploaded: 0,
+                        downloaded: 0,
+                        latestUploaded: nil,
+                        latestDownloaded: nil,
+                        trackerName: nil
+                    )
+                archived = TrackerTransferBaselineEntry(
+                    uploaded: max(archived.uploaded + uploadDelta, 0),
+                    downloaded: max(archived.downloaded + downloadDelta, 0),
+                    latestUploaded: nil,
+                    latestDownloaded: nil,
+                    trackerName: nil
+                )
+                archivedByTracker[trackerName] = archived
+
+                var bucket = grouped[trackerName] ?? (0, 0)
+                bucket.uploaded += uploadDelta
+                bucket.downloaded += downloadDelta
+                grouped[trackerName] = bucket
+            }
+
+            baselineTasks = filteredBaselineTasks
         }
 
         if !activeTaskIDs.isEmpty &&
@@ -621,7 +697,8 @@ private extension DashboardViewModel {
 
         let snapshot = TrackerTransferBaselineSnapshot(
             startOfDayTimestamp: startOfDayTimestamp,
-            tasks: baselineTasks
+            tasks: baselineTasks,
+            archivedByTracker: archivedByTracker
         )
         return TrackerTransferComputationResult(
             aggregates: aggregates,

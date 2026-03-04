@@ -7,13 +7,16 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct ServerListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppStateManager.self) private var appStateManager
     @Query private var servers: [ServerConfig]
+    @AppStorage("isProUser") private var isProUser: Bool = false
 
     @State private var showingAddServer = false
+    @State private var showingProPaywall = false
     @State private var editingServer: ServerConfig?
     @State private var rateLimitServer: ServerConfig?
     @State private var connectionSettingsServer: ServerConfig?
@@ -75,7 +78,7 @@ struct ServerListView: View {
 
                 // Add Server Tile
                 Button {
-                    showingAddServer = true
+                    handleAddServerTapped()
                 } label: {
                     AddServerTile()
                 }
@@ -89,7 +92,7 @@ struct ServerListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    showingAddServer = true
+                    handleAddServerTapped()
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -97,6 +100,13 @@ struct ServerListView: View {
         }
         .sheet(isPresented: $showingAddServer) {
             EditServerView()
+        }
+        .sheet(isPresented: $showingProPaywall) {
+            ProView(isPresentedAsSheet: true)
+                .ignoresSafeArea()
+                .presentationDetents([.fraction(0.85), .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(32)
         }
         .sheet(item: $editingServer) { server in
             EditServerView(serverToEdit: server)
@@ -134,6 +144,17 @@ struct ServerListView: View {
             appStateManager.activeServerId = server.id
             appStateManager.selectedTab = .transfers
         }
+    }
+
+    private func handleAddServerTapped() {
+        let serverCount = max(servers.count, appStateManager.servers.count)
+        if !isProUser && serverCount >= 2 {
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.warning)
+            showingProPaywall = true
+            return
+        }
+        showingAddServer = true
     }
 }
 

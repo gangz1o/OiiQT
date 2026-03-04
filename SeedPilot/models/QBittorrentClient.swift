@@ -484,6 +484,90 @@ class QBittorrentClient: NSObject, TorrentClient {
         return output
     }
 
+    func fetchPeers(hash: String) async throws -> [TorrentPeerInfo] {
+        let normalizedHash = normalizeHashes(hash)
+        let encodedHash = normalizedHash.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? normalizedHash
+        let data = try await performAppSettingsRequest(path: "sync/torrentPeers?hash=\(encodedHash)&rid=0")
+        let response = try JSONDecoder().decode(QBPeerSyncResponse.self, from: data)
+
+        guard let peers = response.peers, !peers.isEmpty else { return [] }
+
+        var output: [TorrentPeerInfo] = []
+        output.reserveCapacity(peers.count)
+
+        for (endpointKey, peer) in peers {
+            guard let endpoint = normalizePeerEndpoint(
+                endpointKey,
+                fallbackIP: peer.ip,
+                fallbackPort: peer.port
+            ) else {
+                continue
+            }
+            guard let (ip, port) = splitPeerEndpoint(endpoint) else { continue }
+
+            let country = peer.country?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let countryCode = peer.country_code?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let connection = peer.connection?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let flags = peer.flags?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let client = (peer.client ?? peer.peer_id_client)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let files = peer.files?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            output.append(
+                TorrentPeerInfo(
+                    id: endpoint,
+                    country: (country?.isEmpty == false) ? country : nil,
+                    countryCode: (countryCode?.isEmpty == false) ? countryCode : nil,
+                    ip: ip,
+                    port: port,
+                    connection: (connection?.isEmpty == false) ? connection : nil,
+                    flags: (flags?.isEmpty == false) ? flags : nil,
+                    client: (client?.isEmpty == false) ? client : nil,
+                    progress: peer.progress,
+                    downloadSpeed: peer.dl_speed,
+                    uploadSpeed: peer.up_speed,
+                    downloaded: peer.downloaded,
+                    uploaded: peer.uploaded,
+                    relevance: peer.relevance,
+                    files: (files?.isEmpty == false) ? files : nil
+                )
+            )
+        }
+
+        return output.sorted {
+            if $0.ip == $1.ip { return $0.port < $1.port }
+            return $0.ip.localizedStandardCompare($1.ip) == .orderedAscending
+        }
+    }
+
+    func addPeers(hash: String, peers: [String]) async throws {
+        let normalizedHash = normalizeHashes(hash)
+        let normalizedPeers = normalizedPeerEndpoints(peers)
+        guard !normalizedPeers.isEmpty else {
+            throw TorrentClientError.apiError("No valid peer endpoint provided")
+        }
+
+        try await performAction(
+            endpoint: "addPeers",
+            hashes: normalizedHash,
+            hashParameterKey: "hash",
+            extraParams: ["peers": normalizedPeers.joined(separator: "|")]
+        )
+    }
+
+    func banPeers(_ peers: [String]) async throws {
+        let normalizedPeers = normalizedPeerEndpoints(peers)
+        guard !normalizedPeers.isEmpty else {
+            throw TorrentClientError.apiError("No valid peer endpoint provided")
+        }
+
+        _ = try await performAppSettingsRequest(
+            path: "transfer/banPeers",
+            method: "POST",
+            formParams: ["peers": normalizedPeers.joined(separator: "|")]
+        )
+    }
+
     private struct QBTrackerEntry: Decodable {
         let url: String?
         let status: Int?
@@ -493,6 +577,28 @@ class QBittorrentClient: NSObject, TorrentClient {
         let num_leeches: Int?
         let num_downloaded: Int?
         let msg: String?
+    }
+
+    private struct QBPeerSyncResponse: Decodable {
+        let peers: [String: QBPeerEntry]?
+    }
+
+    private struct QBPeerEntry: Decodable {
+        let country: String?
+        let country_code: String?
+        let ip: String?
+        let port: Int?
+        let connection: String?
+        let flags: String?
+        let client: String?
+        let peer_id_client: String?
+        let progress: Double?
+        let dl_speed: Int64?
+        let up_speed: Int64?
+        let downloaded: Int64?
+        let uploaded: Int64?
+        let relevance: Double?
+        let files: String?
     }
 
     private func fetchTrackerURLs(hash: String) async throws -> [String] {
@@ -531,6 +637,56 @@ class QBittorrentClient: NSObject, TorrentClient {
             result.append(candidate)
         }
         return result
+    }
+
+    private func normalizedPeerEndpoints(_ peers: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for raw in peers {
+            guard let endpoint = normalizePeerEndpoint(raw) else { continue }
+            let key = endpoint.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(endpoint)
+        }
+
+        return result
+    }
+
+    private func normalizePeerEndpoint(
+        _ raw: String,
+        fallbackIP: String? = nil,
+        fallbackPort: Int? = nil
+    ) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let primary = splitPeerEndpoint(trimmed)
+
+        if let (ip, port) = primary {
+            return "\(ip):\(port)"
+        }
+
+        let fallbackIPTrimmed = fallbackIP?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !fallbackIPTrimmed.isEmpty, let fallbackPort, fallbackPort > 0 {
+            return "\(fallbackIPTrimmed):\(fallbackPort)"
+        }
+
+        return nil
+    }
+
+    private func splitPeerEndpoint(_ endpoint: String) -> (String, Int)? {
+        guard !endpoint.isEmpty else { return nil }
+        guard let separator = endpoint.lastIndex(of: ":"),
+              separator > endpoint.startIndex else {
+            return nil
+        }
+
+        let ipPart = String(endpoint[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let portPart = String(endpoint[endpoint.index(after: separator)...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !ipPart.isEmpty, let port = Int(portPart), port > 0 else { return nil }
+        return (ipPart, port)
     }
 
     private func isLikelyTrackerURL(_ raw: String) -> Bool {

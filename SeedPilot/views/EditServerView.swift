@@ -11,6 +11,7 @@ import SwiftData
 struct EditServerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("isProUser") private var isProUser: Bool = false
 
     var serverToEdit: ServerConfig? // Optional server to edit
 
@@ -339,6 +340,18 @@ struct EditServerView: View {
     }
 
     private func saveServer() {
+        if serverToEdit == nil {
+            let descriptor = FetchDescriptor<ServerConfig>()
+            let currentServers = (try? modelContext.fetch(descriptor)) ?? []
+
+            // 商业化防线：检查是否为非 Pro 用户且服务器数量已达上限
+            guard isProUser || currentServers.count < 2 else {
+                // 理论上 UI 层已经拦截，如果走到这里说明是异常并发或外部调用，直接拒绝写入
+                print("⚠️ [商业化拦截] 非 Pro 用户达到服务器数量上限，拒绝写入底层数据。")
+                return
+            }
+        }
+
         let formattedAddress = sanitizeAddressInput(address)
         let normalizedPath = effectivePathForCurrentType()
 
