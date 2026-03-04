@@ -563,11 +563,12 @@ struct TransfersView: View {
         .listRowBackground(Color.clear)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if !isEditing {
-                Button(role: .destructive) {
+                Button {
                     appStateManager.deleteTask(task, withData: true)
                 } label: {
                     Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
                 }
+                .tint(.red)
             }
         }
         .swipeActions(edge: .leading) {
