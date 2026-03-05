@@ -470,6 +470,40 @@
         }
       }
     },
+    "Format: IPv4:port / [IPv6]:port" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format: IPv4:port / [IPv6]:port"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式：IPv4:端口 / [IPv6]:端口"
+          }
+        }
+      }
+    },
+    "Peers to Add (one per line)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peers to Add (one per line)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要添加的用户列表（每行一个 IP）"
+          }
+        }
+      }
+    },
     "Add preset paths to quickly fill save directories." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7023,6 +7057,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "订阅源"
+          }
+        }
+      }
+    },
+    "Switch to Grid Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Grid Layout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换为网格布局"
+          }
+        }
+      }
+    },
+    "Switch to List Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to List Layout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换为列表布局"
           }
         }
       }

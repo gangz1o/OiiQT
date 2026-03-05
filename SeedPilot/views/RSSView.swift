@@ -28,6 +28,7 @@ struct RSSView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var selectedMode: AutomationViewMode = .sources
+    @AppStorage("rss_layout_is_grid") private var isGridView: Bool = true
     // Query Sources from SwiftData
     @Query(sort: \RSSFeedSource.lastUpdated, order: .reverse) private var sources: [RSSFeedSource]
 
@@ -63,33 +64,62 @@ struct RSSView: View {
                             }
                         } else {
                             ScrollView {
-                                LazyVGrid(columns: columns, spacing: 16) {
-                                    ForEach(sources) { source in
-                                        // Use NavigationLink to go to Detail View
-                                        NavigationLink(destination: RSSFeedDetailView(source: source)) {
-                                            RSSFeedTileView(
-                                                source: source,
-                                                isRefreshing: refreshingSourceId == source.id,
-                                                onRefresh: {
-                                                    refreshSource(source)
-                                                },
-                                                onEditRules: {
-                                                    editingSource = source
-                                                },
-                                                onDelete: {
-                                                    withAnimation {
-                                                        modelContext.delete(source)
+                                if isGridView {
+                                    LazyVGrid(columns: columns, spacing: 16) {
+                                        ForEach(sources) { source in
+                                            // Use NavigationLink to go to Detail View
+                                            NavigationLink(destination: RSSFeedDetailView(source: source)) {
+                                                RSSFeedTileView(
+                                                    source: source,
+                                                    isRefreshing: refreshingSourceId == source.id,
+                                                    onRefresh: {
+                                                        refreshSource(source)
+                                                    },
+                                                    onEditRules: {
+                                                        editingSource = source
+                                                    },
+                                                    onDelete: {
+                                                        withAnimation {
+                                                            modelContext.delete(source)
+                                                        }
+                                                        RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+                                                        RSSFeedSourceCloudSyncManager.shared.handleLocalSourceConfigsChanged()
                                                     }
-                                                    RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
-                                                    RSSFeedSourceCloudSyncManager.shared.handleLocalSourceConfigsChanged()
-                                                }
-                                            )
-                                            .frame(height: 180) // Fixed height for uniformity
+                                                )
+                                                .frame(height: 180) // Fixed height for uniformity
+                                            }
+                                            .buttonStyle(PlainButtonStyle()) // Needed for Tile interactions/Context Menu to work properly inside Link
                                         }
-                                        .buttonStyle(PlainButtonStyle()) // Needed for Tile interactions/Context Menu to work properly inside Link
                                     }
+                                    .padding()
+                                } else {
+                                    LazyVStack(spacing: 12) {
+                                        ForEach(sources) { source in
+                                            NavigationLink(destination: RSSFeedDetailView(source: source)) {
+                                                RSSFeedListRowView(
+                                                    source: source,
+                                                    isRefreshing: refreshingSourceId == source.id,
+                                                    onRefresh: {
+                                                        refreshSource(source)
+                                                    },
+                                                    onEditRules: {
+                                                        editingSource = source
+                                                    },
+                                                    onDelete: {
+                                                        withAnimation {
+                                                            modelContext.delete(source)
+                                                        }
+                                                        RSSFeedSourceCloudSyncManager.shared.start(with: modelContext)
+                                                        RSSFeedSourceCloudSyncManager.shared.handleLocalSourceConfigsChanged()
+                                                    }
+                                                )
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
                                 }
-                                .padding()
                             }
                         }
                     } else {
@@ -100,7 +130,23 @@ struct RSSView: View {
             .navigationTitle(LanguageManager.shared.localized("Automation"))
             .background(Color(.systemGroupedBackground))
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if selectedMode == .sources {
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isGridView.toggle()
+                            }
+                        } label: {
+                            Image(systemName: isGridView ? "list.bullet" : "square.grid.2x2")
+                                .font(.system(size: 18, weight: .medium))
+                        }
+                        .accessibilityLabel(
+                            isGridView
+                                ? LanguageManager.shared.localized("Switch to List Layout")
+                                : LanguageManager.shared.localized("Switch to Grid Layout")
+                        )
+                    }
+
                     Button {
                         showingAddSheet = true
                     } label: {

@@ -543,16 +543,30 @@ class QBittorrentClient: NSObject, TorrentClient {
     func addPeers(hash: String, peers: [String]) async throws {
         let normalizedHash = normalizeHashes(hash)
         let normalizedPeers = normalizedPeerEndpoints(peers)
+            .map(qbCompatiblePeerEndpoint)
         guard !normalizedPeers.isEmpty else {
             throw TorrentClientError.apiError("No valid peer endpoint provided")
         }
 
-        try await performAction(
-            endpoint: "addPeers",
-            hashes: normalizedHash,
-            hashParameterKey: "hash",
-            extraParams: ["peers": normalizedPeers.joined(separator: "|")]
-        )
+        let peersValue = normalizedPeers.joined(separator: "|")
+
+        do {
+            try await performAction(
+                endpoint: "addPeers",
+                hashes: normalizedHash,
+                hashParameterKey: "hash",
+                extraParams: ["peers": peersValue]
+            )
+        } catch let error as TorrentClientError {
+            // Some qB forks/reverse proxies still expect `hashes` for addPeers.
+            guard shouldRetryAddPeersWithHashes(error) else { throw error }
+            try await performAction(
+                endpoint: "addPeers",
+                hashes: normalizedHash,
+                hashParameterKey: "hashes",
+                extraParams: ["peers": peersValue]
+            )
+        }
     }
 
     func banPeers(_ peers: [String]) async throws {
@@ -672,6 +686,26 @@ class QBittorrentClient: NSObject, TorrentClient {
         }
 
         return nil
+    }
+
+    private func qbCompatiblePeerEndpoint(_ endpoint: String) -> String {
+        guard let (ip, port) = splitPeerEndpoint(endpoint) else { return endpoint }
+        let normalizedIP = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // qB addPeers requires bracketed IPv6 endpoint format: [ipv6]:port
+        if normalizedIP.contains(":") {
+            if normalizedIP.hasPrefix("[") && normalizedIP.hasSuffix("]") {
+                return "\(normalizedIP):\(port)"
+            }
+            return "[\(normalizedIP)]:\(port)"
+        }
+
+        return "\(normalizedIP):\(port)"
+    }
+
+    private func shouldRetryAddPeersWithHashes(_ error: TorrentClientError) -> Bool {
+        guard case let .apiError(message) = error else { return false }
+        return message.contains("HTTP 400") || message.localizedCaseInsensitiveContains("Bad Request")
     }
 
     private func splitPeerEndpoint(_ endpoint: String) -> (String, Int)? {

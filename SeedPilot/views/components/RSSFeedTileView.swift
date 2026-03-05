@@ -103,6 +103,78 @@ struct RSSFeedTileView: View {
     }
 }
 
+struct RSSFeedListRowView: View {
+    let source: RSSFeedSource
+    var isRefreshing: Bool = false
+    var onRefresh: () -> Void
+    var onEditRules: () -> Void
+    var onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RSSFaviconImage(url: URL(string: source.resolvedFaviconURLString ?? ""))
+                .scaledToFit()
+                .frame(width: 40, height: 40)
+                .background(Color(uiColor: .systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(source.name)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(lastUpdatedDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(source.autoDownload ? Color.green : Color.gray)
+                    .frame(width: 10, height: 10)
+
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        .contextMenu {
+            Button(action: onRefresh) {
+                Label(LanguageManager.shared.localized("Refresh Now"), systemImage: "arrow.clockwise")
+            }
+            Button(action: onEditRules) {
+                Label(LanguageManager.shared.localized("Edit Rules"), systemImage: "slider.horizontal.3")
+            }
+            Button(role: .destructive, action: onDelete) {
+                Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
+            }
+        }
+    }
+
+    private var lastUpdatedDescription: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        formatter.locale = LanguageManager.shared.currentLocale
+        let relative = formatter.localizedString(for: source.lastUpdated, relativeTo: Date())
+        return String(format: LanguageManager.shared.localized("Updated %@"), relative)
+    }
+}
+
 #Preview {
     ZStack {
         Color(.systemGroupedBackground).ignoresSafeArea()

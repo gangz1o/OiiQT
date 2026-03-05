@@ -64,10 +64,19 @@ struct SeedPilotApp: App {
                 .id(languageManager.selectedLanguage.rawValue)
                 .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
                 .onChange(of: scenePhase) { _, newPhase in
-                    guard newPhase == .active else { return }
-                    iCloudSyncManager.shared.refreshFromCloudIfNeeded()
-                    Task {
-                        await StoreManager.shared.updateCustomerProductStatus()
+                    switch newPhase {
+                    case .active:
+                        // Pull any changes made on other devices while this device was backgrounded
+                        iCloudSyncManager.shared.refreshFromCloudIfNeeded()
+                        Task {
+                            await StoreManager.shared.updateCustomerProductStatus()
+                        }
+                    case .background:
+                        // Safety-net push: flush all pending local changes to iCloud
+                        // before the OS may suspend the process.
+                        iCloudSyncManager.shared.forcePushToCloud()
+                    default:
+                        break
                     }
                 }
         }

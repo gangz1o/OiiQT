@@ -13,6 +13,7 @@ final class TrackerAliasManager: ObservableObject {
     static let shared = TrackerAliasManager()
 
     private let storageKey = "trackerAliasMappings"
+    private let envelopeKey = "trackerAliasesSyncEnvelope"
     private let defaults: UserDefaults
 
     @Published private(set) var aliasMap: [String: String] = [:]
@@ -94,6 +95,14 @@ final class TrackerAliasManager: ObservableObject {
     }
 
     private func loadFromStorage() {
+        // Prefer loading from the envelope key (has timestamp metadata)
+        if let envelopeData = defaults.data(forKey: envelopeKey),
+           let envelope = try? JSONDecoder().decode(SyncableData<[String: String]>.self, from: envelopeData) {
+            aliasMap = normalize(map: envelope.payload)
+            return
+        }
+
+        // Fallback: legacy raw data key (no timestamp; written by older app versions)
         guard let data = defaults.data(forKey: storageKey) else {
             aliasMap = [:]
             return
@@ -104,23 +113,43 @@ final class TrackerAliasManager: ObservableObject {
             return
         }
 
+        aliasMap = normalize(map: decoded)
+    }
+
+    private func normalize(map: [String: String]) -> [String: String] {
         var normalized: [String: String] = [:]
-        for (domain, alias) in decoded {
+        for (domain, alias) in map {
             let key = normalizeTrackerDomain(domain)
             let value = alias.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !key.isEmpty, !value.isEmpty else { continue }
             normalized[key] = value
         }
-        aliasMap = normalized
+        return normalized
     }
 
     private func persist() {
+        let now = Date().timeIntervalSince1970
+
         if aliasMap.isEmpty {
             defaults.removeObject(forKey: storageKey)
+            // Keep envelope with empty payload + updated timestamp so the merge guard
+            // knows this device intentionally cleared the aliases.
+            let emptyEnvelope = SyncableData(payload: [String: String](), lastUpdated: now)
+            if let data = try? JSONEncoder().encode(emptyEnvelope) {
+                defaults.set(data, forKey: envelopeKey)
+            }
             return
         }
 
-        guard let encoded = try? JSONEncoder().encode(aliasMap) else { return }
-        defaults.set(encoded, forKey: storageKey)
+        // 1. Persist raw payload (for legacy readers & trackerAliasMappings key)
+        if let encoded = try? JSONEncoder().encode(aliasMap) {
+            defaults.set(encoded, forKey: storageKey)
+        }
+
+        // 2. Persist envelope with timestamp (used by iCloudSyncManager merge guard)
+        let envelope = SyncableData(payload: aliasMap, lastUpdated: now)
+        if let envelopeData = try? JSONEncoder().encode(envelope) {
+            defaults.set(envelopeData, forKey: envelopeKey)
+        }
     }
 }

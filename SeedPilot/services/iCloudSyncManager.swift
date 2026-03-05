@@ -1,7 +1,16 @@
 import Foundation
+import Combine
 
 extension Notification.Name {
     static let iCloudSyncStatusDidChange = Notification.Name("iCloudSyncStatusDidChange")
+}
+
+// MARK: - SyncableData Envelope
+// Wraps a payload with a last-modification timestamp for Last-Write-Wins conflict resolution.
+struct SyncableData<T: Codable>: Codable {
+    var payload: T
+    /// Unix epoch seconds of the last local modification.
+    var lastUpdated: TimeInterval
 }
 
 // WARNING: Server credentials (Passwords/Tokens) MUST use Keychain. NEVER add them to syncableKeys.
@@ -46,11 +55,17 @@ final class iCloudSyncManager {
         "hideDataNodeName"
     ]
 
+    // Keys whose cloud value is wrapped in a SyncableData timestamp envelope.
+    // Only these keys participate in Last-Write-Wins merge arbitration.
+    private let timestampedKeys: Set<String> = ["trackerAliases"]
+
     private enum Keys {
         static let iCloudSyncEnabled = "iCloudSyncEnabled"
         static let lastSuccessfulSync = "iCloudSyncLastSuccessfulSync"
         static let lastErrorCode = "iCloudSyncLastErrorCode"
         static let isSyncing = "iCloudSyncIsSyncing"
+        // Local timestamp envelope storage key for trackerAliases
+        static let trackerAliasesEnvelope = "trackerAliasesSyncEnvelope"
     }
 
     private let defaults: UserDefaults
@@ -77,6 +92,12 @@ final class iCloudSyncManager {
     private var isSyncing = false
     private var lastLocalSignatures: [String: Data] = [:]
     private var observers: [NSObjectProtocol] = []
+
+    // MARK: - Debounce tasks
+    private var localChangeDebounceTask: Task<Void, Never>?
+    private var cloudChangeDebounceTask: Task<Void, Never>?
+    /// Keys buffered from rapid cloud notifications, flushed after debounce window.
+    private var pendingCloudChangedKeys: Set<String> = []
 
     private init(
         defaults: UserDefaults = .standard,
@@ -195,9 +216,7 @@ final class iCloudSyncManager {
             if let sender = note.object as? UserDefaults, sender !== self.defaults {
                 return
             }
-            self.syncQueue.async {
-                self.handleLocalDefaultsChanged()
-            }
+            self.scheduleLocalChangePush()
         }
 
         let cloudObserver = NotificationCenter.default.addObserver(
@@ -208,13 +227,27 @@ final class iCloudSyncManager {
             guard let self else { return }
             let changedKeys = note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]
             let reason = note.userInfo?[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
-            self.syncQueue.async {
-                self.handleCloudStoreChanged(changedKeys: changedKeys, reason: reason)
-            }
+            self.scheduleCloudChangePull(changedKeys: changedKeys, reason: reason)
         }
 
         observers.append(defaultsObserver)
         observers.append(cloudObserver)
+    }
+
+    // MARK: - Debounced Local → Cloud Push
+
+    /// Debounces rapid UserDefaults changes (e.g., live Slider/TextField input) before pushing to cloud.
+    private func scheduleLocalChangePush() {
+        localChangeDebounceTask?.cancel()
+        localChangeDebounceTask = Task { [weak self] in
+            guard let self else { return }
+            // 0.8s debounce window — collapses rapid writes into one push
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else { return }
+            self.syncQueue.async {
+                self.handleLocalDefaultsChanged()
+            }
+        }
     }
 
     private func handleLocalDefaultsChanged() {
@@ -231,21 +264,45 @@ final class iCloudSyncManager {
         setSyncing(false)
     }
 
-    private func handleCloudStoreChanged(changedKeys: [String]?, reason: Int?) {
-        guard isSyncEnabled else { return }
+    // MARK: - Debounced Cloud → Local Pull
+
+    /// Buffers incoming cloud change keys and debounces rapid notifications before applying.
+    private func scheduleCloudChangePull(changedKeys: [String]?, reason: Int?) {
         if reason == NSUbiquitousKeyValueStoreQuotaViolationChange {
-            markFailure(.quotaExceeded)
+            syncQueue.async { self.markFailure(.quotaExceeded) }
             return
         }
 
-        let validChangedKeys = (changedKeys ?? syncableKeys).filter { syncableKeys.contains($0) }
-        guard !validChangedKeys.isEmpty else { return }
+        syncQueue.async {
+            // Buffer the incoming keys
+            let incoming = changedKeys ?? self.syncableKeys
+            for key in incoming where self.syncableKeys.contains(key) {
+                self.pendingCloudChangedKeys.insert(key)
+            }
+        }
+
+        cloudChangeDebounceTask?.cancel()
+        cloudChangeDebounceTask = Task { [weak self] in
+            guard let self else { return }
+            // 1.0s debounce — prevents UI thrash from burst cloud notifications
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            self.syncQueue.async {
+                self.flushPendingCloudChanges()
+            }
+        }
+    }
+
+    private func flushPendingCloudChanges() {
+        let keys = Array(pendingCloudChangedKeys)
+        pendingCloudChangedKeys.removeAll()
+        guard !keys.isEmpty, isSyncEnabled else { return }
         setSyncing(true)
         guard ensureICloudAvailable() else {
             setSyncing(false)
             return
         }
-        pullFromCloud(keys: validChangedKeys)
+        pullFromCloud(keys: keys)
         markSuccess()
         setSyncing(false)
     }
@@ -253,6 +310,8 @@ final class iCloudSyncManager {
     private func forcePushToCloudLocked() {
         pushLocalKeysToCloud(changedKeys: syncableKeys)
     }
+
+    // MARK: - Core Sync: Pull (Cloud → Local) with Merge Guard
 
     private func pullFromCloud(keys: [String]) {
         guard !keys.isEmpty else { return }
@@ -264,13 +323,94 @@ final class iCloudSyncManager {
 
         for key in keys {
             guard syncableKeys.contains(key) else { continue }
-            let cloudValue = cloudStore.object(forKey: key)
-            let localValue = resolvedLocalValue(for: key)
-            guard !valuesEqual(localValue, cloudValue) else { continue }
-            applyCloudValueToLocal(cloudValue, canonicalKey: key)
-            handlePostCloudApplyIfNeeded(canonicalKey: key, cloudValue: cloudValue)
+            let cloudRaw = cloudStore.object(forKey: key)
+            let localRaw = resolvedLocalValue(for: key)
+
+            // --- Merge Guard ---
+            // For timestamped keys, compare timestamps before applying.
+            // For plain keys, always accept the cloud value.
+            if timestampedKeys.contains(key) {
+                let decision = mergeDecision(cloudRaw: cloudRaw, localRaw: localRaw, key: key)
+                switch decision {
+                case .acceptCloud:
+                    break // fall through to apply
+                case .keepLocal:
+                    // Cloud data is stale — push local back to fix the cloud
+                    print("[iCloudSync] Merge Guard: keeping local for '\(key)' (local is newer). Triggering reverse push.")
+                    pushLocalKeysToCloud(changedKeys: [key])
+                    continue
+                case .noChange:
+                    continue
+                }
+            } else {
+                // Non-timestamped: standard equality check
+                guard !valuesEqual(localRaw, cloudRaw) else { continue }
+            }
+
+            applyCloudValueToLocal(cloudRaw, canonicalKey: key)
+            handlePostCloudApplyIfNeeded(canonicalKey: key, cloudValue: cloudRaw)
         }
     }
+
+    // MARK: - Merge Decision
+
+    private enum MergeDecision {
+        case acceptCloud  // cloud timestamp is newer; overwrite local
+        case keepLocal    // local timestamp is newer; reject cloud, push local back
+        case noChange     // identical or both nil
+    }
+
+    /// Compares `lastUpdated` timestamps embedded in cloud vs. local envelope values.
+    private func mergeDecision(cloudRaw: Any?, localRaw: Any?, key: String) -> MergeDecision {
+        let cloudTimestamp = extractTimestamp(from: cloudRaw)
+        let localTimestamp = localEnvelopeTimestamp(for: key)
+
+        switch (cloudTimestamp, localTimestamp) {
+        case (nil, nil):
+            // Neither side has timestamp data — fall back to equality
+            return valuesEqual(localRaw, cloudRaw) ? .noChange : .acceptCloud
+        case (let ct?, nil):
+            // Cloud has timestamp, local doesn't — cloud wins (first-sync scenario)
+            _ = ct
+            return .acceptCloud
+        case (nil, _):
+            // Local has timestamp, cloud doesn't — local is authoritative, push back
+            return .keepLocal
+        case (let ct?, let lt?):
+            if ct > lt {
+                return .acceptCloud
+            } else if ct < lt {
+                return .keepLocal
+            } else {
+                // Exactly equal timestamps — treat as no meaningful change
+                return valuesEqual(localRaw, cloudRaw) ? .noChange : .acceptCloud
+            }
+        }
+    }
+
+    /// Extracts the `lastUpdated` timestamp from a cloud envelope value if present.
+    private func extractTimestamp(from cloudRaw: Any?) -> TimeInterval? {
+        guard let data = cloudRaw as? Data else { return nil }
+        // Try decoding as SyncableData<[String: String]> (trackerAliases)
+        if let envelope = try? JSONDecoder().decode(SyncableData<[String: String]>.self, from: data) {
+            return envelope.lastUpdated
+        }
+        return nil
+    }
+
+    /// Reads the locally stored timestamp for a timestamped key.
+    private func localEnvelopeTimestamp(for key: String) -> TimeInterval? {
+        guard timestampedKeys.contains(key) else { return nil }
+        switch key {
+        case "trackerAliases":
+            guard let data = defaults.data(forKey: Keys.trackerAliasesEnvelope) else { return nil }
+            return (try? JSONDecoder().decode(SyncableData<[String: String]>.self, from: data))?.lastUpdated
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - Core Sync: Push (Local → Cloud)
 
     private func pushLocalKeysToCloud(changedKeys: [String]) {
         for key in changedKeys {
@@ -388,30 +528,27 @@ final class iCloudSyncManager {
         return wrapped
     }
 
+    // MARK: - Value Normalization
+
+    /// Converts a local storage value into the format stored in iCloud.
+    /// For timestamped keys, wraps the payload in a SyncableData envelope.
     private func normalizeLocalValueForCloud(_ value: Any, canonicalKey: String) -> Any? {
         switch canonicalKey {
         case "presetSavePaths":
-            if let raw = value as? String {
-                return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
-            }
-            if let paths = value as? [String] {
-                return PresetSavePathsCodec.encode(paths)
-            }
-            if let data = value as? Data {
-                if let decoded = try? JSONDecoder().decode([String].self, from: data) {
-                    return PresetSavePathsCodec.encode(decoded)
-                }
-                if let raw = String(data: data, encoding: .utf8) {
-                    return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
-                }
-                return nil
-            }
-            return nil
+            return normalizePresetPathsForCloud(value)
         case "trackerAliases":
+            // Decode raw alias map and wrap in a timestamp envelope for cloud storage
+            let aliasMap: [String: String]?
             if let data = value as? Data {
-                return (try? JSONDecoder().decode([String: String].self, from: data)) ?? data
+                aliasMap = try? JSONDecoder().decode([String: String].self, from: data)
+            } else {
+                aliasMap = value as? [String: String]
             }
-            return value as? [String: String]
+            guard let aliasMap else { return nil }
+            // Read current local timestamp (written by TrackerAliasManager)
+            let timestamp = localEnvelopeTimestamp(for: canonicalKey) ?? Date().timeIntervalSince1970
+            let envelope = SyncableData(payload: aliasMap, lastUpdated: timestamp)
+            return try? JSONEncoder().encode(envelope)
         case "dashboardModuleOrder":
             if let data = value as? Data {
                 return (try? JSONDecoder().decode([String].self, from: data)) ?? data
@@ -422,6 +559,8 @@ final class iCloudSyncManager {
         }
     }
 
+    /// Converts an iCloud value into the format stored locally.
+    /// For timestamped keys, strips the envelope and returns the raw payload.
     private func normalizeCloudValueForLocalStorage(
         _ cloudValue: Any?,
         canonicalKey: String,
@@ -429,25 +568,20 @@ final class iCloudSyncManager {
     ) -> Any? {
         switch canonicalKey {
         case "presetSavePaths":
-            if let raw = cloudValue as? String {
-                return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
-            }
-            if let paths = cloudValue as? [String] {
-                return PresetSavePathsCodec.encode(paths)
-            }
-            if let data = cloudValue as? Data {
-                if let decoded = try? JSONDecoder().decode([String].self, from: data) {
-                    return PresetSavePathsCodec.encode(decoded)
-                }
-                if let raw = String(data: data, encoding: .utf8) {
-                    return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
-                }
-                return nil
-            }
-            return nil
+            return normalizePresetPathsForLocal(cloudValue)
         case "trackerAliases":
+            // Strip the SyncableData envelope; store only the raw [String: String] payload
             if localKey == "trackerAliasMappings" {
-                if let data = cloudValue as? Data { return data }
+                if let data = cloudValue as? Data {
+                    // Try to unwrap envelope first
+                    if let envelope = try? JSONDecoder().decode(SyncableData<[String: String]>.self, from: data) {
+                        // Persist the envelope timestamp locally for future merge guard comparisons
+                        persistTrackerAliasesEnvelope(envelope)
+                        return try? JSONEncoder().encode(envelope.payload)
+                    }
+                    // Fallback: might be a raw [String: String] data (legacy cloud value)
+                    return data
+                }
                 if let aliases = cloudValue as? [String: String] {
                     return try? JSONEncoder().encode(aliases)
                 }
@@ -468,6 +602,54 @@ final class iCloudSyncManager {
         }
     }
 
+    /// Persists a trackerAliases envelope timestamp locally so the merge guard can compare
+    /// it against future cloud values without needing to track the payload separately.
+    private func persistTrackerAliasesEnvelope(_ envelope: SyncableData<[String: String]>) {
+        if let data = try? JSONEncoder().encode(envelope) {
+            defaults.set(data, forKey: Keys.trackerAliasesEnvelope)
+        }
+    }
+
+    // MARK: - PresetSavePaths Normalization Helpers
+
+    private func normalizePresetPathsForCloud(_ value: Any) -> Any? {
+        if let raw = value as? String {
+            return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+        }
+        if let paths = value as? [String] {
+            return PresetSavePathsCodec.encode(paths)
+        }
+        if let data = value as? Data {
+            if let decoded = try? JSONDecoder().decode([String].self, from: data) {
+                return PresetSavePathsCodec.encode(decoded)
+            }
+            if let raw = String(data: data, encoding: .utf8) {
+                return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+            }
+        }
+        return nil
+    }
+
+    private func normalizePresetPathsForLocal(_ cloudValue: Any?) -> Any? {
+        if let raw = cloudValue as? String {
+            return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+        }
+        if let paths = cloudValue as? [String] {
+            return PresetSavePathsCodec.encode(paths)
+        }
+        if let data = cloudValue as? Data {
+            if let decoded = try? JSONDecoder().decode([String].self, from: data) {
+                return PresetSavePathsCodec.encode(decoded)
+            }
+            if let raw = String(data: data, encoding: .utf8) {
+                return PresetSavePathsCodec.encode(PresetSavePathsCodec.decode(raw))
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Post-Apply Side Effects
+
     private func handlePostCloudApplyIfNeeded(canonicalKey: String, cloudValue: Any?) {
         if canonicalKey == "trackerAliases" {
             Task { @MainActor in
@@ -486,6 +668,8 @@ final class iCloudSyncManager {
         }
     }
 
+    // MARK: - iCloud Availability
+
     private func ensureICloudAvailable() -> Bool {
         guard FileManager.default.ubiquityIdentityToken != nil else {
             markFailure(.accountUnavailable)
@@ -493,6 +677,8 @@ final class iCloudSyncManager {
         }
         return true
     }
+
+    // MARK: - Status Helpers
 
     private func setSyncing(_ syncing: Bool) {
         guard isSyncing != syncing else { return }

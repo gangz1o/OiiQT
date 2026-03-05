@@ -403,14 +403,14 @@ private struct TorrentPeerDetailListView: View {
 
     @ObservedObject private var languageManager = LanguageManager.shared
     @State private var peers: [TorrentPeerInfo] = []
+    @State private var peerRows: [TorrentPeerRowModel] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var actionErrorMessage: String?
     @State private var showingActionError = false
-    @State private var actionMenuPeer: TorrentPeerInfo?
-    @State private var showingActionMenu = false
-    @State private var pendingBanPeer: TorrentPeerInfo?
-    @State private var showingBanConfirmation = false
+    @State private var showingAddPeersSheet = false
+    @State private var addPeersDraft = ""
+    @State private var isSubmittingAddPeers = false
 
     private var supportsPeerManagement: Bool {
         appStateManager.servers.first(where: { $0.id == task.serverID })?.type == .qBittorrent
@@ -418,7 +418,7 @@ private struct TorrentPeerDetailListView: View {
 
     var body: some View {
         List {
-            if isLoading && peers.isEmpty {
+            if isLoading && peerRows.isEmpty {
                 Section {
                     HStack {
                         Spacer()
@@ -427,7 +427,7 @@ private struct TorrentPeerDetailListView: View {
                     }
                     .padding(.vertical, 8)
                 }
-            } else if let errorMessage, peers.isEmpty {
+            } else if let errorMessage, peerRows.isEmpty {
                 Section {
                     ContentUnavailableView(
                         languageManager.localized("Failed to load peer details"),
@@ -436,7 +436,7 @@ private struct TorrentPeerDetailListView: View {
                     )
                 }
                 .listRowBackground(Color.clear)
-            } else if peers.isEmpty {
+            } else if peerRows.isEmpty {
                 Section {
                     ContentUnavailableView(
                         languageManager.localized("No Peer Data"),
@@ -447,104 +447,8 @@ private struct TorrentPeerDetailListView: View {
                 .listRowBackground(Color.clear)
             } else {
                 Section {
-                    ForEach(peers) { peer in
-                        let location = locationDisplay(for: peer)
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 8) {
-                                Text("\(location.flag) \(location.label)")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-
-                                Text(peer.endpoint)
-                                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .minimumScaleFactor(0.8)
-                                    .textSelection(.enabled)
-
-                                Spacer(minLength: 8)
-                            }
-
-                            HStack(alignment: .center, spacing: 8) {
-                                ProgressView(value: normalizedProgress(peer.progress))
-                                    .progressViewStyle(.linear)
-                                    .tint(.accentColor)
-                                    .frame(height: 4)
-
-                                Text(progressText(peer.progress))
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 12) {
-                                    Text(peer.client ?? "--")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-
-                                    Spacer(minLength: 8)
-
-                                    Text(connectionValue(for: peer))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                }
-
-                                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                    HStack(spacing: 10) {
-                                        metricText(
-                                            symbol: "arrow.down",
-                                            value: speedText(peer.downloadSpeed),
-                                            color: .blue,
-                                            font: .subheadline.monospacedDigit().weight(.medium)
-                                        )
-                                        metricText(
-                                            symbol: "arrow.up",
-                                            value: speedText(peer.uploadSpeed),
-                                            color: .green,
-                                            font: .subheadline.monospacedDigit().weight(.medium)
-                                        )
-                                    }
-
-                                    Spacer(minLength: 8)
-
-                                    HStack(spacing: 10) {
-                                        metricText(
-                                            symbol: "arrow.down",
-                                            value: bytesText(peer.downloaded),
-                                            color: Color.blue.opacity(0.75),
-                                            font: .footnote.monospacedDigit().weight(.medium)
-                                        )
-                                        metricText(
-                                            symbol: "arrow.up",
-                                            value: bytesText(peer.uploaded),
-                                            color: Color.green.opacity(0.75),
-                                            font: .footnote.monospacedDigit().weight(.medium)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(uiColor: .systemBackground))
-                        )
-                        .shadow(color: Color.black.opacity(0.04), radius: 1.5, x: 0, y: 1)
-                        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .onTapGesture {
-                            actionMenuPeer = peer
-                            showingActionMenu = true
-                        }
-                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                    ForEach(peerRows) { row in
+                        peerRowCell(row)
                     }
                 } header: {
                     Text(languageManager.localized("Peers"))
@@ -560,56 +464,45 @@ private struct TorrentPeerDetailListView: View {
         .task(id: task.id) {
             await loadPeers(showLoadingIndicator: true)
         }
-        .confirmationDialog(
-            languageManager.localized("Peer Actions"),
-            isPresented: $showingActionMenu,
-            titleVisibility: .visible,
-            presenting: actionMenuPeer
-        ) { peer in
-            Button {
-                addPeer(peer)
-            } label: {
-                Label(languageManager.localized("Add peers users..."), systemImage: "person.badge.plus")
-            }
-            .disabled(!supportsPeerManagement)
-
-            Button {
-                UIPasteboard.general.string = peer.endpoint
-            } label: {
-                Label(languageManager.localized("Copy IP:Port"), systemImage: "doc.on.doc")
-            }
-
-            Button(role: .destructive) {
-                pendingBanPeer = peer
-                showingBanConfirmation = true
-            } label: {
-                Label(languageManager.localized("Permanently Ban User"), systemImage: "person.crop.circle.badge.xmark")
-            }
-            .disabled(!supportsPeerManagement)
-
-            Button(languageManager.localized("Cancel"), role: .cancel) {}
-        } message: { _ in
-            if !supportsPeerManagement {
-                Text(languageManager.localized("Current server does not support peer management."))
-            }
+        .onChange(of: languageManager.selectedLanguage.rawValue) { _, _ in
+            rebuildPeerRowsFromCurrentPeers()
         }
-        .confirmationDialog(
-            languageManager.localized("Confirm Ban"),
-            isPresented: $showingBanConfirmation,
-            titleVisibility: .visible,
-            presenting: pendingBanPeer
-        ) { peer in
-            Button(languageManager.localized("Permanently Ban User"), role: .destructive) {
-                banPeer(peer)
+        .sheet(isPresented: $showingAddPeersSheet) {
+            NavigationStack {
+                Form {
+                    Section {
+                        Text(languageManager.localized("Peers to Add (one per line)"))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        TextEditor(text: $addPeersDraft)
+                            .frame(minHeight: 180)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+
+                        Text(languageManager.localized("Format: IPv4:port / [IPv6]:port"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle(languageManager.localized("Add peers users..."))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(languageManager.localized("Cancel")) {
+                            showingAddPeersSheet = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(languageManager.localized("Confirm")) {
+                            submitAddPeersFromDraft()
+                        }
+                        .disabled(parsedPeerInputs(from: addPeersDraft).isEmpty || isSubmittingAddPeers)
+                    }
+                }
             }
-            Button(languageManager.localized("Cancel"), role: .cancel) {}
-        } message: { peer in
-            Text(
-                String(
-                    format: languageManager.localized("Are you sure you want to permanently ban peer %@?"),
-                    peer.endpoint
-                )
-            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .alert(languageManager.localized("Error"), isPresented: $showingActionError) {
             Button(languageManager.localized("OK"), role: .cancel) {}
@@ -619,7 +512,7 @@ private struct TorrentPeerDetailListView: View {
     }
 
     private func loadPeers(showLoadingIndicator: Bool) async {
-        if showLoadingIndicator || peers.isEmpty {
+        if showLoadingIndicator || peerRows.isEmpty {
             isLoading = true
         }
         defer { isLoading = false }
@@ -627,26 +520,19 @@ private struct TorrentPeerDetailListView: View {
         do {
             let fetched = try await appStateManager.fetchPeers(for: task)
             errorMessage = nil
-            if fetched != peers {
-                peers = fetched
+            let mappedRows = fetched.map(buildPeerRowModel)
+
+            if fetched != peers || mappedRows != peerRows {
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    peers = fetched
+                    peerRows = mappedRows
+                }
             }
         } catch {
-            if peers.isEmpty {
+            if peerRows.isEmpty {
                 errorMessage = localizedErrorMessage(error)
-            }
-        }
-    }
-
-    private func addPeer(_ peer: TorrentPeerInfo) {
-        Task {
-            do {
-                try await appStateManager.addPeers(for: task, peers: [peer.endpoint])
-                await loadPeers(showLoadingIndicator: false)
-            } catch {
-                await MainActor.run {
-                    actionErrorMessage = localizedErrorMessage(error)
-                    showingActionError = true
-                }
             }
         }
     }
@@ -655,18 +541,117 @@ private struct TorrentPeerDetailListView: View {
         Task {
             do {
                 try await appStateManager.banPeers(for: task, peers: [peer.endpoint])
-                await MainActor.run {
-                    pendingBanPeer = nil
-                }
                 await loadPeers(showLoadingIndicator: false)
             } catch {
                 await MainActor.run {
-                    pendingBanPeer = nil
                     actionErrorMessage = localizedErrorMessage(error)
                     showingActionError = true
                 }
             }
         }
+    }
+
+    private func peerRowCell(_ row: TorrentPeerRowModel) -> some View {
+        TorrentPeerCardView(
+            row: row,
+            supportsPeerManagement: supportsPeerManagement,
+            copyTitle: languageManager.localized("Copy IP:Port"),
+            addPeersTitle: languageManager.localized("Add peers users..."),
+            banTitle: languageManager.localized("Permanently Ban User"),
+            onCopy: {
+                UIPasteboard.general.string = row.peer.endpoint
+            },
+            onAddPeer: {
+                presentAddPeersSheet()
+            },
+            onBanPeer: {
+                banPeer(row.peer)
+            }
+        )
+        .equatable()
+        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private func rebuildPeerRowsFromCurrentPeers() {
+        let rebuilt = peers.map(buildPeerRowModel)
+        guard rebuilt != peerRows else { return }
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            peerRows = rebuilt
+        }
+    }
+
+    private func buildPeerRowModel(_ peer: TorrentPeerInfo) -> TorrentPeerRowModel {
+        let location = locationDisplay(for: peer)
+        return TorrentPeerRowModel(
+            peer: peer,
+            locationFlag: location.flag,
+            locationLabel: location.label,
+            normalizedProgress: normalizedProgress(peer.progress),
+            progressText: progressText(peer.progress),
+            clientText: peer.client ?? "--",
+            connectionText: connectionValue(for: peer),
+            downloadSpeedText: speedText(peer.downloadSpeed),
+            uploadSpeedText: speedText(peer.uploadSpeed),
+            downloadedText: bytesText(peer.downloaded),
+            uploadedText: bytesText(peer.uploaded)
+        )
+    }
+
+    private func presentAddPeersSheet() {
+        isSubmittingAddPeers = false
+        addPeersDraft = ""
+        showingAddPeersSheet = true
+    }
+
+    private func submitAddPeersFromDraft() {
+        guard !isSubmittingAddPeers else { return }
+        let peersToAdd = parsedPeerInputs(from: addPeersDraft)
+        guard !peersToAdd.isEmpty else { return }
+
+        isSubmittingAddPeers = true
+        Task {
+            do {
+                try await appStateManager.addPeers(for: task, peers: peersToAdd)
+                await MainActor.run {
+                    isSubmittingAddPeers = false
+                    addPeersDraft = ""
+                    showingAddPeersSheet = false
+                }
+                await loadPeers(showLoadingIndicator: false)
+            } catch {
+                await MainActor.run {
+                    isSubmittingAddPeers = false
+                    actionErrorMessage = localizedErrorMessage(error)
+                    showingActionError = true
+                }
+            }
+        }
+    }
+
+    private func parsedPeerInputs(from raw: String) -> [String] {
+        let normalized = raw.replacingOccurrences(of: "\r\n", with: "\n")
+        let candidates = normalized.split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" || $0 == "|" })
+
+        var seen = Set<String>()
+        var result: [String] = []
+        result.reserveCapacity(candidates.count)
+
+        for candidate in candidates {
+            let trimmed = String(candidate).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(trimmed)
+        }
+
+        return result
     }
 
     private func countryText(for peer: TorrentPeerInfo) -> String? {
@@ -728,16 +713,6 @@ private struct TorrentPeerDetailListView: View {
         }
     }
 
-    @ViewBuilder
-    private func metricText(symbol: String, value: String, color: Color, font: Font) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol)
-            Text(value)
-        }
-        .font(font)
-        .foregroundStyle(color)
-    }
-
     private func normalizedProgress(_ value: Double?) -> Double {
         guard let value else { return 0 }
         let normalized = value > 1 ? value / 100.0 : value
@@ -765,6 +740,166 @@ private struct TorrentPeerDetailListView: View {
             return languageManager.localized(message)
         }
         return error.localizedDescription
+    }
+}
+
+private struct TorrentPeerRowModel: Identifiable, Equatable {
+    let peer: TorrentPeerInfo
+    let locationFlag: String
+    let locationLabel: String
+    let normalizedProgress: Double
+    let progressText: String
+    let clientText: String
+    let connectionText: String
+    let downloadSpeedText: String
+    let uploadSpeedText: String
+    let downloadedText: String
+    let uploadedText: String
+
+    var id: String { peer.id }
+}
+
+private struct TorrentPeerCardView: View, Equatable {
+    static func == (lhs: TorrentPeerCardView, rhs: TorrentPeerCardView) -> Bool {
+        lhs.row == rhs.row &&
+        lhs.supportsPeerManagement == rhs.supportsPeerManagement &&
+        lhs.copyTitle == rhs.copyTitle &&
+        lhs.addPeersTitle == rhs.addPeersTitle &&
+        lhs.banTitle == rhs.banTitle
+    }
+
+    let row: TorrentPeerRowModel
+    let supportsPeerManagement: Bool
+    let copyTitle: String
+    let addPeersTitle: String
+    let banTitle: String
+    let onCopy: () -> Void
+    let onAddPeer: () -> Void
+    let onBanPeer: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("\(row.locationFlag) \(row.locationLabel)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Text(row.peer.endpoint)
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .minimumScaleFactor(0.8)
+                    .textSelection(.enabled)
+
+                Spacer(minLength: 8)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                ProgressView(value: row.normalizedProgress)
+                    .progressViewStyle(.linear)
+                    .tint(.accentColor)
+                    .frame(height: 4)
+
+                Text(row.progressText)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 12) {
+                    Text(row.clientText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Spacer(minLength: 8)
+
+                    Text(row.connectionText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    HStack(spacing: 10) {
+                        metricText(
+                            symbol: "arrow.down",
+                            value: row.downloadSpeedText,
+                            color: .blue,
+                            font: .subheadline.monospacedDigit().weight(.medium)
+                        )
+                        metricText(
+                            symbol: "arrow.up",
+                            value: row.uploadSpeedText,
+                            color: .green,
+                            font: .subheadline.monospacedDigit().weight(.medium)
+                        )
+                    }
+
+                    Spacer(minLength: 8)
+
+                    HStack(spacing: 10) {
+                        metricText(
+                            symbol: "arrow.down",
+                            value: row.downloadedText,
+                            color: Color.blue.opacity(0.75),
+                            font: .footnote.monospacedDigit().weight(.medium)
+                        )
+                        metricText(
+                            symbol: "arrow.up",
+                            value: row.uploadedText,
+                            color: Color.green.opacity(0.75),
+                            font: .footnote.monospacedDigit().weight(.medium)
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(uiColor: .systemBackground))
+        )
+        .shadow(color: Color.black.opacity(0.04), radius: 1.5, x: 0, y: 1)
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contextMenu {
+            Button(action: onCopy) {
+                Label(copyTitle, systemImage: "doc.on.doc")
+            }
+
+            Button(action: onAddPeer) {
+                Label(addPeersTitle, systemImage: "person.badge.plus")
+            }
+            .disabled(!supportsPeerManagement)
+
+            Divider()
+
+            Button(role: .destructive, action: onBanPeer) {
+                Label(banTitle, systemImage: "nosign")
+            }
+            .disabled(!supportsPeerManagement)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if supportsPeerManagement {
+                Button(role: .destructive, action: onBanPeer) {
+                    Label(banTitle, systemImage: "nosign")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func metricText(symbol: String, value: String, color: Color, font: Font) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+            Text(value)
+        }
+        .font(font)
+        .foregroundStyle(color)
     }
 }
 

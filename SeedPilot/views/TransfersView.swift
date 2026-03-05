@@ -1222,32 +1222,22 @@ struct TorrentFilterMenuBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 6) {
             statusButton
-            filterDivider
 
             if isCategoryFilterSupported {
                 categoryButton
-                filterDivider
             }
 
             tagButton
-            filterDivider
             trackerButton
         }
-        .padding(.horizontal, 10)
+        .padding(4)
         .frame(height: 40)
         .background(Color(uiColor: .tertiarySystemFill))
         .clipShape(Capsule())
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
-    }
-
-    private var filterDivider: some View {
-        Divider()
-            .frame(height: 14)
-            .overlay(Color(uiColor: .separator).opacity(0.3))
-            .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -1293,7 +1283,7 @@ struct TorrentFilterMenuBar: View {
         Button(action: action) {
             label()
         }
-        .buttonStyle(.automatic)
+        .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
     }
 }
@@ -1311,8 +1301,13 @@ struct FilterMenuControl: View {
                 .font(.system(size: 10, weight: .semibold))
         }
         .font(isActive ? .subheadline.weight(.semibold) : .subheadline.weight(.regular))
-        .foregroundColor(isActive ? .accentColor : .secondary)
+        .foregroundColor(isActive ? .primary : .secondary)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            Capsule()
+                .fill(isActive ? Color(uiColor: .systemBackground) : .clear)
+        )
         .contentShape(Rectangle())
     }
 }
