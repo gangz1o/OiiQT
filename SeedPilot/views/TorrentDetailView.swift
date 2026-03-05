@@ -28,6 +28,14 @@ struct TorrentDetailView: View {
         appStateManager.servers.first(where: { $0.id == task.serverID })?.type
     }
 
+    /// All tasks sharing this torrent's hash on OTHER servers — cross-seed instances.
+    private var crossSeedTorrents: [TorrentTask] {
+        guard !task.hash.isEmpty else { return [] }
+        return appStateManager.allTasks.filter {
+            $0.hash.lowercased() == task.hash.lowercased() && $0.serverID != task.serverID
+        }
+    }
+
     private var displayCategory: String? {
         guard let serverType, serverType != .transmission else { return nil }
         let trimmed = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -353,6 +361,39 @@ struct TorrentDetailView: View {
                             .truncationMode(.middle)
                             .minimumScaleFactor(0.8)
                             .foregroundStyle(.primary)
+                    }
+                }
+
+                // MARK: Cross-Seed Entry
+                if crossSeedTorrents.isEmpty {
+                    HStack {
+                        Text(LanguageManager.shared.localized("Cross-Seed"))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(LanguageManager.shared.localized("No Related Tasks"))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    NavigationLink {
+                        CrossSeedDetailView(
+                            torrents: crossSeedTorrents,
+                            servers: appStateManager.servers
+                        )
+                    } label: {
+                        HStack {
+                            Text(LanguageManager.shared.localized("Cross-Seed"))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(
+                                String(
+                                    format: LanguageManager.shared.localized("Cross-Seed Server Count Format"),
+                                    crossSeedTorrents.count
+                                )
+                            )
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

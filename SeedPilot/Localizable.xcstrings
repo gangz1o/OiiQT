@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "·" : {
+
+    },
     "/downloads/..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -466,40 +469,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加 peers 用户..."
-          }
-        }
-      }
-    },
-    "Format: IPv4:port / [IPv6]:port" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Format: IPv4:port / [IPv6]:port"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "格式：IPv4:端口 / [IPv6]:端口"
-          }
-        }
-      }
-    },
-    "Peers to Add (one per line)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Peers to Add (one per line)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要添加的用户列表（每行一个 IP）"
           }
         }
       }
@@ -1808,6 +1777,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制路径"
+          }
+        }
+      }
+    },
+    "Cross-Seed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross-Seed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅种"
+          }
+        }
+      }
+    },
+    "Cross-Seed Count Format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d cross-seed instance(s)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 个辅种实例"
+          }
+        }
+      }
+    },
+    "Cross-Seed Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross-Seed Details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅种详情"
+          }
+        }
+      }
+    },
+    "Cross-Seed Server Count Format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d server(s)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 个服务器"
           }
         }
       }
@@ -3418,6 +3455,23 @@
         }
       }
     },
+    "Format: IPv4:port / [IPv6]:port" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format: IPv4:port / [IPv6]:port"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式：IPv4:端口 / [IPv6]:端口"
+          }
+        }
+      }
+    },
     "Fri" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4644,6 +4698,23 @@
         }
       }
     },
+    "No Related Tasks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无关联任务"
+          }
+        }
+      }
+    },
     "No RSS items" : {
 
     },
@@ -5085,6 +5156,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用户"
+          }
+        }
+      }
+    },
+    "Peers to Add (one per line)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peers to Add (one per line)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要添加的用户列表（每行一个 IP）"
           }
         }
       }
@@ -7061,40 +7149,6 @@
         }
       }
     },
-    "Switch to Grid Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Switch to Grid Layout"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换为网格布局"
-          }
-        }
-      }
-    },
-    "Switch to List Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Switch to List Layout"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换为列表布局"
-          }
-        }
-      }
-    },
     "Specify the server where matching download tasks should be pushed." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7272,6 +7326,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支持独立开发"
+          }
+        }
+      }
+    },
+    "Switch to Grid Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Grid Layout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换为网格布局"
+          }
+        }
+      }
+    },
+    "Switch to List Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to List Layout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换为列表布局"
           }
         }
       }
@@ -9510,22 +9598,6 @@
         }
       }
     },
-    "突破免费版上限，自由添加并管理任意数量的服务器节点。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bypass the free-tier limit and add or manage any number of server nodes."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "突破免费版上限，自由添加并管理任意数量的服务器节点。"
-          }
-        }
-      }
-    },
     "暂无数据" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9545,6 +9617,22 @@
     },
     "欢迎使用Downix" : {
 
+    },
+    "突破免费版上限，自由添加并管理任意数量的服务器节点。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass the free-tier limit and add or manage any number of server nodes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "突破免费版上限，自由添加并管理任意数量的服务器节点。"
+          }
+        }
+      }
     },
     "自动匹配高清海报与剧情简介，无缝适配您的系统语言。" : {
       "localizations" : {

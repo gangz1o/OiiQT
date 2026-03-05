@@ -49,15 +49,45 @@ struct ConnectionSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(
-                        languageManager.localized("Peer Connection Protocol"),
-                        selection: $selectedProtocol
-                    ) {
-                        Text(languageManager.localized("TCP and μTP")).tag(0)
-                        Text(languageManager.localized("TCP")).tag(1)
-                        Text(languageManager.localized("μTP")).tag(2)
+                    HStack(spacing: 10) {
+                        Text(languageManager.localized("Peer Connection Protocol"))
+                        Spacer(minLength: 8)
+                        Menu {
+                            Button {
+                                selectedProtocol = 0
+                            } label: {
+                                protocolMenuItem(
+                                    title: languageManager.localized("TCP and μTP"),
+                                    isSelected: selectedProtocol == 0
+                                )
+                            }
+                            Button {
+                                selectedProtocol = 1
+                            } label: {
+                                protocolMenuItem(
+                                    title: languageManager.localized("TCP"),
+                                    isSelected: selectedProtocol == 1
+                                )
+                            }
+                            Button {
+                                selectedProtocol = 2
+                            } label: {
+                                protocolMenuItem(
+                                    title: languageManager.localized("μTP"),
+                                    isSelected: selectedProtocol == 2
+                                )
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(selectedProtocolTitle)
+                                    .foregroundStyle(.primary)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .font(.body)
+                        }
                     }
-                    .pickerStyle(.menu)
                 }
 
                 Section(languageManager.localized("Listening Port")) {
@@ -68,10 +98,14 @@ struct ConnectionSettingsView: View {
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 110)
-                        Button(languageManager.localized("Random")) {
+                        Button {
                             randomizePort()
+                        } label: {
+                            Image(systemName: "shuffle")
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .buttonStyle(.bordered)
+                        .accessibilityLabel(languageManager.localized("Random"))
                     }
 
                     Toggle(
@@ -275,6 +309,27 @@ struct ConnectionSettingsView: View {
 
     private func randomizePort() {
         listenPortText = String(Int.random(in: 1024...65535))
+    }
+
+    private var selectedProtocolTitle: String {
+        switch selectedProtocol {
+        case 1:
+            return languageManager.localized("TCP")
+        case 2:
+            return languageManager.localized("μTP")
+        default:
+            return languageManager.localized("TCP and μTP")
+        }
+    }
+
+    @ViewBuilder
+    private func protocolMenuItem(title: String, isSelected: Bool) -> some View {
+        HStack(spacing: 8) {
+            if isSelected {
+                Image(systemName: "checkmark")
+            }
+            Text(title)
+        }
     }
 
     private func loadSettings() async {
