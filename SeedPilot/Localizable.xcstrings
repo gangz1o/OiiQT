@@ -9615,6 +9615,57 @@
         }
       }
     },
+    "暂无新增上传数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recent upload data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无新增上传数据"
+          }
+        }
+      }
+    },
+    "暂无新增下载数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recent download data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无新增下载数据"
+          }
+        }
+      }
+    },
+    "未归类" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unattributed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未归类"
+          }
+        }
+      }
+    },
     "欢迎使用Downix" : {
 
     },
@@ -9634,6 +9685,23 @@
         }
       }
     },
+    "自上次重置时间格式" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(since %@)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(自 %@ 起)"
+          }
+        }
+      }
+    },
     "自动匹配高清海报与剧情简介，无缝适配您的系统语言。" : {
       "localizations" : {
         "en" : {
@@ -9646,6 +9714,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自动拉取远端文件的详细描述与展示图，优化数据资产的可视化体验。"
+          }
+        }
+      }
+    },
+    "近期新增" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent Additions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期新增"
+          }
+        }
+      }
+    },
+    "近期新增统计" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent Additions Stats"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期新增统计"
+          }
+        }
+      }
+    },
+    "重置近期新增基线" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset recent additions baseline"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置近期新增基线"
           }
         }
       }

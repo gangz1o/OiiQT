@@ -14,13 +14,6 @@ struct TrackerTransferData: Identifiable {
     let trackerName: String
     let bytes: Int64
     let color: Color
-
-    init(id: String? = nil, trackerName: String, bytes: Int64, color: Color) {
-        self.id = id ?? trackerName
-        self.trackerName = trackerName
-        self.bytes = bytes
-        self.color = color
-    }
 }
 
 private struct TrackerTransferAggregate: Sendable {
@@ -38,13 +31,13 @@ private nonisolated struct TrackerTransferBaselineEntry: Codable, Sendable, Equa
 }
 
 private nonisolated struct TrackerTransferBaselineSnapshot: Codable, Sendable {
-    let startOfDayTimestamp: Int
     let tasks: [String: TrackerTransferBaselineEntry]
     let archivedByTracker: [String: TrackerTransferBaselineEntry]?
 }
 
-private struct TrackerTransferComputationResult: Sendable {
-    let aggregates: [TrackerTransferAggregate]
+private struct TrackerTransferBreakdownResult: Sendable {
+    let uploadData: [TrackerTransferData]
+    let downloadData: [TrackerTransferData]
     let baselineSnapshot: TrackerTransferBaselineSnapshot
     let encodedBaselineSnapshotData: Data
 }
@@ -69,93 +62,82 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var isUsingCachedFallback = false
     @Published private(set) var hasLoadedInitialSnapshot = false
     @Published private(set) var moduleOrder: [DashboardModuleType] = DashboardModuleType.defaultOrder
-    @Published private(set) var todayUploadData: [TrackerTransferData] = []
-    @Published private(set) var todayDownloadData: [TrackerTransferData] = []
-    @Published private(set) var isTrackerStatsComputing = false
-    @Published private(set) var hasTrackerStatsComputedAtLeastOnce = false
+    @Published private(set) var recentUploadBytes: Int64 = 0
+    @Published private(set) var recentDownloadBytes: Int64 = 0
+    @Published private(set) var recentUploadData: [TrackerTransferData] = []
+    @Published private(set) var recentDownloadData: [TrackerTransferData] = []
+    @Published private(set) var isTransferStatsLoading = false
+    @Published private(set) var hasTransferStatsLoadedAtLeastOnce = false
 
     @AppStorage(DashboardConfig.Keys.moduleOrder) private var moduleOrderStorageData: Data = Data()
-    @AppStorage("dashboard.todayTransferBaselineSnapshot") private var trackerStatsBaselineSnapshotData: Data = Data()
-
+    @AppStorage("dashboard.transferTrackerBaselineSnapshot") private var trackerTransferBaselineSnapshotData: Data = Data()
     private let statsManager: GlobalStatsManager
     private var autoRefreshTask: Task<Void, Never>?
-    private var trackerStatsComputationTask: Task<Void, Never>?
-    private var trackerStatsTasksProvider: (@MainActor () -> [TorrentTask])?
-    private var trackerStatsBaselineSnapshotCache: TrackerTransferBaselineSnapshot?
-    private var trackerStatsLastPersistedAt: Date?
     private var lastSuccessfulSnapshot: GlobalStatsSnapshot?
     private var lastKnownStorageByServer: [UUID: DashboardServerStorageEntry] = [:]
+    private var trackerTransferBaselineSnapshotCache: TrackerTransferBaselineSnapshot?
+
+    private var baselineDL: Int64 {
+        get {
+            guard let number = UserDefaults.standard.object(forKey: Self.baselineDownloadKey) as? NSNumber else {
+                return -1
+            }
+            return number.int64Value
+        }
+        set {
+            UserDefaults.standard.set(NSNumber(value: newValue), forKey: Self.baselineDownloadKey)
+        }
+    }
+
+    private var baselineUL: Int64 {
+        get {
+            guard let number = UserDefaults.standard.object(forKey: Self.baselineUploadKey) as? NSNumber else {
+                return -1
+            }
+            return number.int64Value
+        }
+        set {
+            UserDefaults.standard.set(NSNumber(value: newValue), forKey: Self.baselineUploadKey)
+        }
+    }
+
+    private var baselineTimestamp: Double {
+        get {
+            guard let number = UserDefaults.standard.object(forKey: Self.baselineTimestampKey) as? NSNumber else {
+                return 0
+            }
+            return number.doubleValue
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Self.baselineTimestampKey)
+        }
+    }
 
     init(statsManager: GlobalStatsManager) {
         self.statsManager = statsManager
         hydrateModuleOrderFromStorage()
+        normalizeBaselineTimestampIfNeeded()
     }
 
     init() {
         self.statsManager = .shared
         hydrateModuleOrderFromStorage()
+        normalizeBaselineTimestampIfNeeded()
     }
 
-    func configureTrackerStatsTasksProvider(_ provider: @escaping @MainActor () -> [TorrentTask]) {
-        trackerStatsTasksProvider = provider
+    var formattedBaselineTime: String {
+        Self.baselineTimeFormatter.string(
+            from: Date(timeIntervalSince1970: max(baselineTimestamp, 0))
+        )
     }
 
-    func calculateTrackerStats() {
-        guard let trackerStatsTasksProvider else { return }
-        calculateTrackerStats(from: trackerStatsTasksProvider())
-    }
-
-    func calculateTrackerStats(from tasks: [TorrentTask]) {
-        trackerStatsComputationTask?.cancel()
-
-        let now = Date()
-        let startOfDayTimestamp = Self.startOfDayTimestamp(for: now)
-        let baselineSnapshot = trackerStatsBaselineSnapshotCache
-            ?? Self.decodeTrackerBaselineSnapshot(from: trackerStatsBaselineSnapshotData)
-        trackerStatsBaselineSnapshotCache = baselineSnapshot
-        let trackerAliasMapSnapshot: [String: String] = UserDefaults.standard.bool(forKey: "isProUser")
-            ? TrackerAliasManager.shared.aliasMap
-            : [:]
-        let shouldShowLoadingSkeleton = !hasTrackerStatsComputedAtLeastOnce &&
-            todayUploadData.isEmpty &&
-            todayDownloadData.isEmpty
-        if shouldShowLoadingSkeleton {
-            isTrackerStatsComputing = true
-        } else {
-            isTrackerStatsComputing = false
-        }
-
-        trackerStatsComputationTask = Task {
-            [tasks, startOfDayTimestamp, baselineSnapshot, trackerAliasMapSnapshot] in
-            let result = await Task.detached(priority: .utility) {
-                DashboardViewModel.computeTrackerStats(
-                    tasks: tasks,
-                    startOfDayTimestamp: startOfDayTimestamp,
-                    baselineSnapshot: baselineSnapshot,
-                    trackerAliasMap: trackerAliasMapSnapshot
-                )
-            }.value
-
-            guard !Task.isCancelled else { return }
-
-            todayUploadData = Self.buildTransferData(aggregates: result.aggregates, direction: .upload)
-            todayDownloadData = Self.buildTransferData(aggregates: result.aggregates, direction: .download)
-            trackerStatsBaselineSnapshotCache = result.baselineSnapshot
-            hasTrackerStatsComputedAtLeastOnce = true
-            isTrackerStatsComputing = false
-
-            let shouldPersistNow: Bool = {
-                guard let lastPersistedAt = trackerStatsLastPersistedAt else { return true }
-                return now.timeIntervalSince(lastPersistedAt) >= Self.trackerStatsPersistenceInterval
-            }()
-
-            if shouldPersistNow {
-                if trackerStatsBaselineSnapshotData != result.encodedBaselineSnapshotData {
-                    trackerStatsBaselineSnapshotData = result.encodedBaselineSnapshotData
-                }
-                trackerStatsLastPersistedAt = now
-            }
-        }
+    func resetTransferBaseline() {
+        guard globalSnapshot.hasReliableTransferTotals else { return }
+        applyTransferBaseline(
+            downloaded: max(globalSnapshot.totalAllTimeDownloaded, 0),
+            uploaded: max(globalSnapshot.totalAllTimeUploaded, 0),
+            timestamp: Date().timeIntervalSince1970
+        )
     }
 
     func syncModuleOrder(availableModules: [DashboardModuleType]) {
@@ -227,12 +209,21 @@ final class DashboardViewModel: ObservableObject {
                 totalDownloadingCount: 0,
                 totalBandwidth: 0,
                 totalRemainingSpace: 0,
+                totalAllTimeDownloaded: 0,
+                totalAllTimeUploaded: 0,
                 onlineServerCount: 0,
                 failedServerCount: 0,
                 hasConnectionIssue: false,
+                hasReliableTransferTotals: false,
                 serverStorage: [],
                 lastUpdatedAt: Date()
             )
+            recentUploadBytes = 0
+            recentDownloadBytes = 0
+            recentUploadData = []
+            recentDownloadData = []
+            isTransferStatsLoading = false
+            hasTransferStatsLoadedAtLeastOnce = true
             lastSuccessfulSnapshot = nil
             return
         }
@@ -241,6 +232,8 @@ final class DashboardViewModel: ObservableObject {
         var cachedStorageByServer = lastKnownStorageByServer
 
         isRefreshing = true
+        isTransferStatsLoading = !hasTransferStatsLoadedAtLeastOnce
+
         await statsManager.refresh(servers: servers, force: force)
         let apiSnapshot = statsManager.snapshot
         let latestStorageSnapshot = cachedStorageByServer
@@ -254,7 +247,6 @@ final class DashboardViewModel: ObservableObject {
         }.value
         cachedStorageByServer = latestResult.updatedStorageByServer
 
-        // Retry both full outage and partial server failures.
         let shouldRetry = latestResult.snapshot.hasConnectionIssue || latestResult.snapshot.failedServerCount > 0
 
         var resolvedSnapshot = latestResult.snapshot
@@ -272,6 +264,7 @@ final class DashboardViewModel: ObservableObject {
             resolvedSnapshot = betterSnapshot(lhs: resolvedSnapshot, rhs: retryResult.snapshot)
         }
 
+        let finalSnapshot: GlobalStatsSnapshot
         if resolvedSnapshot.hasConnectionIssue {
             if let cached = lastSuccessfulSnapshot {
                 let fallbackStorageSnapshot = cachedStorageByServer
@@ -284,18 +277,21 @@ final class DashboardViewModel: ObservableObject {
                     )
                 }.value
                 cachedStorageByServer = cachedResult.updatedStorageByServer
-                globalSnapshot = cachedResult.snapshot
+                finalSnapshot = cachedResult.snapshot
                 isUsingCachedFallback = true
             } else {
-                globalSnapshot = resolvedSnapshot
+                finalSnapshot = resolvedSnapshot
                 isUsingCachedFallback = false
             }
         } else {
-            globalSnapshot = resolvedSnapshot
+            finalSnapshot = resolvedSnapshot
             lastSuccessfulSnapshot = resolvedSnapshot
             isUsingCachedFallback = false
         }
 
+        globalSnapshot = finalSnapshot
+        syncRecentTransferStats(from: finalSnapshot)
+        await syncTrackerBreakdown(tasks: tasks, snapshot: finalSnapshot)
         lastKnownStorageByServer = cachedStorageByServer
         isRefreshing = false
         hasLoadedInitialSnapshot = true
@@ -334,6 +330,9 @@ final class DashboardViewModel: ObservableObject {
         if rhs.onlineServerCount != lhs.onlineServerCount {
             return rhs.onlineServerCount > lhs.onlineServerCount ? rhs : lhs
         }
+        if rhs.hasReliableTransferTotals != lhs.hasReliableTransferTotals {
+            return rhs.hasReliableTransferTotals ? rhs : lhs
+        }
         let rhsActivity = rhs.totalSeedingCount + rhs.totalDownloadingCount
         let lhsActivity = lhs.totalSeedingCount + lhs.totalDownloadingCount
         if rhsActivity != lhsActivity {
@@ -343,6 +342,87 @@ final class DashboardViewModel: ObservableObject {
             return rhs.totalRemainingSpace > lhs.totalRemainingSpace ? rhs : lhs
         }
         return rhs
+    }
+
+    private func syncRecentTransferStats(from snapshot: GlobalStatsSnapshot) {
+        guard snapshot.hasReliableTransferTotals else {
+            isTransferStatsLoading = !hasTransferStatsLoadedAtLeastOnce
+            return
+        }
+
+        let currentAllTimeDownloaded = max(snapshot.totalAllTimeDownloaded, 0)
+        let currentAllTimeUploaded = max(snapshot.totalAllTimeUploaded, 0)
+
+        if baselineDL < 0 || baselineUL < 0 {
+            applyTransferBaseline(
+                downloaded: currentAllTimeDownloaded,
+                uploaded: currentAllTimeUploaded,
+                timestamp: Date().timeIntervalSince1970
+            )
+            return
+        }
+
+        // If the backend-side totals dropped, silently flatten the baseline to avoid negative UI.
+        if currentAllTimeDownloaded < baselineDL || currentAllTimeUploaded < baselineUL {
+            applyTransferBaseline(
+                downloaded: currentAllTimeDownloaded,
+                uploaded: currentAllTimeUploaded,
+                timestamp: Date().timeIntervalSince1970
+            )
+            return
+        }
+
+        recentDownloadBytes = max(currentAllTimeDownloaded - baselineDL, 0)
+        recentUploadBytes = max(currentAllTimeUploaded - baselineUL, 0)
+        hasTransferStatsLoadedAtLeastOnce = true
+        isTransferStatsLoading = false
+    }
+
+    private func applyTransferBaseline(downloaded: Int64, uploaded: Int64, timestamp: Double) {
+        baselineDL = max(downloaded, 0)
+        baselineUL = max(uploaded, 0)
+        baselineTimestamp = timestamp
+        recentDownloadBytes = 0
+        recentUploadBytes = 0
+        recentUploadData = []
+        recentDownloadData = []
+        trackerTransferBaselineSnapshotCache = nil
+        trackerTransferBaselineSnapshotData = Data()
+        hasTransferStatsLoadedAtLeastOnce = true
+        isTransferStatsLoading = false
+    }
+
+    private func syncTrackerBreakdown(tasks: [TorrentTask], snapshot: GlobalStatsSnapshot) async {
+        guard snapshot.hasReliableTransferTotals else { return }
+
+        let baselineSnapshot = trackerTransferBaselineSnapshotCache
+            ?? Self.decodeTrackerBaselineSnapshot(from: trackerTransferBaselineSnapshotData)
+        trackerTransferBaselineSnapshotCache = baselineSnapshot
+        let trackerAliasMapSnapshot: [String: String] = UserDefaults.standard.bool(forKey: "isProUser")
+            ? TrackerAliasManager.shared.aliasMap
+            : [:]
+
+        let result = await Task.detached(priority: .utility) {
+            DashboardViewModel.computeTrackerBreakdown(
+                tasks: tasks,
+                baselineSnapshot: baselineSnapshot,
+                trackerAliasMap: trackerAliasMapSnapshot
+            )
+        }.value
+
+        recentUploadData = result.uploadData
+        recentDownloadData = result.downloadData
+        trackerTransferBaselineSnapshotCache = result.baselineSnapshot
+        if trackerTransferBaselineSnapshotData != result.encodedBaselineSnapshotData {
+            trackerTransferBaselineSnapshotData = result.encodedBaselineSnapshotData
+        }
+    }
+
+    private func normalizeBaselineTimestampIfNeeded() {
+        guard baselineTimestamp > 0 else {
+            baselineTimestamp = Date().timeIntervalSince1970
+            return
+        }
     }
 
     private func hydrateModuleOrderFromStorage() {
@@ -411,25 +491,28 @@ final class DashboardViewModel: ObservableObject {
 }
 
 private extension DashboardViewModel {
+    nonisolated static let baselineDownloadKey = "dashboard.transferBaseline.download"
+    nonisolated static let baselineUploadKey = "dashboard.transferBaseline.upload"
+    nonisolated static let baselineTimestampKey = "dashboard.transferBaseline.timestamp"
+    nonisolated static let trackerPalette: [Color] = [
+        Color(red: 0.90, green: 0.24, blue: 0.22),
+        Color(red: 0.19, green: 0.39, blue: 0.76),
+        Color(red: 0.96, green: 0.52, blue: 0.14),
+        Color(red: 0.20, green: 0.63, blue: 0.17),
+        Color(red: 0.56, green: 0.27, blue: 0.68),
+        Color(red: 0.81, green: 0.17, blue: 0.46),
+        Color(red: 0.47, green: 0.15, blue: 0.13),
+        Color(red: 0.36, green: 0.30, blue: 0.85),
+        Color(red: 0.55, green: 0.37, blue: 0.12),
+        Color(red: 0.12, green: 0.57, blue: 0.55),
+        Color(red: 0.65, green: 0.37, blue: 0.15),
+        Color(red: 0.30, green: 0.47, blue: 0.17)
+    ]
+
     enum TrackerTransferDirection {
         case upload
         case download
     }
-
-    static let trackerPalette: [Color] = [
-        Color(red: 0.90, green: 0.24, blue: 0.22), // red
-        Color(red: 0.19, green: 0.39, blue: 0.76), // blue
-        Color(red: 0.96, green: 0.52, blue: 0.14), // orange
-        Color(red: 0.20, green: 0.63, blue: 0.17), // green
-        Color(red: 0.56, green: 0.27, blue: 0.68), // purple
-        Color(red: 0.81, green: 0.17, blue: 0.46), // magenta
-        Color(red: 0.47, green: 0.15, blue: 0.13), // maroon
-        Color(red: 0.36, green: 0.30, blue: 0.85), // indigo
-        Color(red: 0.55, green: 0.37, blue: 0.12), // brown
-        Color(red: 0.12, green: 0.57, blue: 0.55), // teal
-        Color(red: 0.65, green: 0.37, blue: 0.15), // ochre
-        Color(red: 0.30, green: 0.47, blue: 0.17)  // olive
-    ]
 
     nonisolated static func computeMergedGlobalSnapshot(
         apiSnapshot: GlobalStatsSnapshot,
@@ -462,10 +545,8 @@ private extension DashboardViewModel {
 
         var totalBandwidth: Int64 = 0
         if !onlineServerIDs.isEmpty {
-            for task in tasks {
-                if onlineServerIDs.contains(task.serverID) {
-                    totalBandwidth += task.downloadSpeed + task.uploadSpeed
-                }
+            for task in tasks where onlineServerIDs.contains(task.serverID) {
+                totalBandwidth += task.downloadSpeed + task.uploadSpeed
             }
         }
         if totalBandwidth <= 0 {
@@ -524,9 +605,12 @@ private extension DashboardViewModel {
             totalDownloadingCount: totalDownloadingCount,
             totalBandwidth: totalBandwidth,
             totalRemainingSpace: totalRemainingSpace,
+            totalAllTimeDownloaded: apiSnapshot.totalAllTimeDownloaded,
+            totalAllTimeUploaded: apiSnapshot.totalAllTimeUploaded,
             onlineServerCount: onlineServerCount,
             failedServerCount: failedServerCount,
             hasConnectionIssue: onlineServerCount == 0,
+            hasReliableTransferTotals: apiSnapshot.hasReliableTransferTotals,
             serverStorage: mergedStorage,
             lastUpdatedAt: Date()
         )
@@ -537,32 +621,34 @@ private extension DashboardViewModel {
         )
     }
 
-    nonisolated static func computeTrackerStats(
+    nonisolated static let baselineTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter
+    }()
+
+    nonisolated static func computeTrackerBreakdown(
         tasks: [TorrentTask],
-        startOfDayTimestamp: Int,
         baselineSnapshot: TrackerTransferBaselineSnapshot?,
         trackerAliasMap: [String: String]
-    ) -> TrackerTransferComputationResult {
-        var baselineTasks: [String: TrackerTransferBaselineEntry]
-        var archivedByTracker: [String: TrackerTransferBaselineEntry]
-        if let baselineSnapshot, baselineSnapshot.startOfDayTimestamp == startOfDayTimestamp {
-            baselineTasks = baselineSnapshot.tasks
-            archivedByTracker = baselineSnapshot.archivedByTracker ?? [:]
-        } else {
-            baselineTasks = [:]
-            archivedByTracker = [:]
-        }
+    ) -> TrackerTransferBreakdownResult {
+        var baselineTasks = baselineSnapshot?.tasks ?? [:]
+        var archivedByTracker = baselineSnapshot?.archivedByTracker ?? [:]
         baselineTasks.reserveCapacity(max(baselineTasks.count, tasks.count))
         archivedByTracker.reserveCapacity(max(archivedByTracker.count, 4))
 
         var grouped: [String: (uploaded: Int64, downloaded: Int64)] = [:]
         grouped.reserveCapacity(max(tasks.count / 2 + archivedByTracker.count, 4))
+
         for (trackerName, archived) in archivedByTracker {
             let uploaded = max(archived.uploaded, 0)
             let downloaded = max(archived.downloaded, 0)
             guard uploaded > 0 || downloaded > 0 else { continue }
             grouped[trackerName] = (uploaded, downloaded)
         }
+
         var activeTaskIDs = Set<String>()
         activeTaskIDs.reserveCapacity(max(tasks.count, 8))
         var activeServerIDs = Set<String>()
@@ -587,7 +673,6 @@ private extension DashboardViewModel {
                 baselineUploaded = baselineEntry.uploaded
                 baselineDownloaded = baselineEntry.downloaded
             } else {
-                // Counter reset / task re-added / first time seen today: treat current counters as baseline.
                 baselineUploaded = currentUploaded
                 baselineDownloaded = currentDownloaded
             }
@@ -603,7 +688,6 @@ private extension DashboardViewModel {
             let uploadDelta = max(currentUploaded - baselineUploaded, 0)
             let downloadDelta = max(currentDownloaded - baselineDownloaded, 0)
             guard uploadDelta > 0 || downloadDelta > 0 else { continue }
-
             guard trackerName != "--" else { continue }
 
             var bucket = grouped[trackerName] ?? (0, 0)
@@ -626,8 +710,6 @@ private extension DashboardViewModel {
                     continue
                 }
                 let serverID = String(taskID[..<separatorIndex])
-                // Keep baselines from servers that are absent in this round to avoid
-                // losing daily counters when startup data is incomplete or a server is temporarily unavailable.
                 guard activeServerIDs.contains(serverID) else {
                     filteredBaselineTasks[taskID] = entry
                     continue
@@ -637,8 +719,8 @@ private extension DashboardViewModel {
                 let latestDownloaded = max(entry.latestDownloaded ?? entry.downloaded, entry.downloaded)
                 let uploadDelta = max(latestUploaded - entry.uploaded, 0)
                 let downloadDelta = max(latestDownloaded - entry.downloaded, 0)
-
                 let trackerName = (entry.trackerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
                 guard trackerName != "--",
                       !trackerName.isEmpty,
                       (uploadDelta > 0 || downloadDelta > 0) else {
@@ -677,8 +759,6 @@ private extension DashboardViewModel {
                 if activeTaskIDs.contains(taskID) { return true }
                 guard let separatorIndex = taskID.firstIndex(of: "_") else { return true }
                 let serverID = String(taskID[..<separatorIndex])
-                // Keep baselines from servers that are absent in this round to avoid
-                // losing daily counters when startup data is incomplete or a server is temporarily unavailable.
                 return !activeServerIDs.contains(serverID)
             }
         }
@@ -696,18 +776,25 @@ private extension DashboardViewModel {
         }
 
         let snapshot = TrackerTransferBaselineSnapshot(
-            startOfDayTimestamp: startOfDayTimestamp,
             tasks: baselineTasks,
             archivedByTracker: archivedByTracker
         )
-        return TrackerTransferComputationResult(
-            aggregates: aggregates,
+
+        return TrackerTransferBreakdownResult(
+            uploadData: buildTransferData(
+                aggregates: aggregates,
+                direction: .upload
+            ),
+            downloadData: buildTransferData(
+                aggregates: aggregates,
+                direction: .download
+            ),
             baselineSnapshot: snapshot,
             encodedBaselineSnapshotData: encodeTrackerBaselineSnapshot(snapshot)
         )
     }
 
-    static func buildTransferData(
+    nonisolated static func buildTransferData(
         aggregates: [TrackerTransferAggregate],
         direction: TrackerTransferDirection
     ) -> [TrackerTransferData] {
@@ -734,12 +821,13 @@ private extension DashboardViewModel {
         }
 
         let colorByTracker = trackerColorMap(for: items.map(\.trackerName))
-
         var output: [TrackerTransferData] = []
         output.reserveCapacity(items.count)
+
         for item in items {
             output.append(
                 TrackerTransferData(
+                    id: item.trackerName,
                     trackerName: item.trackerName,
                     bytes: item.bytes,
                     color: colorByTracker[item.trackerName] ?? trackerColor(for: item.trackerName)
@@ -750,14 +838,16 @@ private extension DashboardViewModel {
         return output
     }
 
-    static func trackerColor(for trackerName: String) -> Color {
+    nonisolated static func trackerColor(for trackerName: String) -> Color {
         let palette = trackerPalette
         guard !palette.isEmpty else { return .blue }
         let index = Int(stableTrackerHash(trackerName) % UInt64(palette.count))
         return palette[index]
     }
 
-    private static func trackerColorMap(for trackerNames: [String]) -> [String: Color] {
+    nonisolated private static func trackerColorMap(
+        for trackerNames: [String]
+    ) -> [String: Color] {
         let palette = trackerPalette
         guard !palette.isEmpty else { return [:] }
 
@@ -788,7 +878,6 @@ private extension DashboardViewModel {
                 used.insert(selectedIndex)
                 assigned[name] = palette[selectedIndex]
             } else {
-                // Fallback for rare cases with tracker count > palette count.
                 let mixed = stableTrackerHash(name) &* 137 &+ 17
                 let hue = Double(mixed % 360) / 360.0
                 assigned[name] = Color(hue: hue, saturation: 0.78, brightness: 0.86)
@@ -798,7 +887,7 @@ private extension DashboardViewModel {
         return assigned
     }
 
-    private static func stableTrackerHash(_ trackerName: String) -> UInt64 {
+    nonisolated private static func stableTrackerHash(_ trackerName: String) -> UInt64 {
         var hash: UInt64 = 5381
         for scalar in trackerName.unicodeScalars {
             hash = ((hash << 5) &+ hash) &+ UInt64(scalar.value)
@@ -814,16 +903,4 @@ private extension DashboardViewModel {
     nonisolated static func encodeTrackerBaselineSnapshot(_ snapshot: TrackerTransferBaselineSnapshot) -> Data {
         (try? JSONEncoder().encode(snapshot)) ?? Data()
     }
-
-    nonisolated static func startOfDayTimestamp(for date: Date) -> Int {
-        Int(trackerStatsCalendar.startOfDay(for: date).timeIntervalSince1970)
-    }
-
-    nonisolated static let trackerStatsCalendar: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
-        return calendar
-    }()
-
-    nonisolated static let trackerStatsPersistenceInterval: TimeInterval = 60
 }

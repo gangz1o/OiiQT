@@ -7,7 +7,6 @@
 
 import SwiftUI
 import UIKit
-import Combine
 
 struct DashboardView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -31,14 +30,13 @@ struct DashboardView: View {
     @State private var highlightedDropTarget: DashboardModuleType?
     @State private var activeHoverTarget: DashboardModuleType?
     @State private var hasActivatedStorageAudit = false
-    private let trackerStatsSilentRefreshTimer = Timer.publish(every: 1800, on: .main, in: .common).autoconnect()
 
     private var isProCinemaEnabled: Bool {
         proDashboardBackgroundEnabled || UserDefaults.standard.bool(forKey: "proDashboardBackgroundEnabled")
     }
 
     private var shouldStartGlobalStatsRefresh: Bool {
-        showGlobalAssets || (showStorageAudit && hasActivatedStorageAudit)
+        showTodayTransfer || showGlobalAssets || (showStorageAudit && hasActivatedStorageAudit)
     }
 
     private var shouldShowStatsSkeleton: Bool {
@@ -116,14 +114,6 @@ struct DashboardView: View {
         appStateManager.selectedTab == .dashboard
     }
 
-    private var todayTransferSectionTitle: String {
-        String(
-            format: LanguageManager.shared.localized("今日传输（日期）格式"),
-            locale: LanguageManager.shared.currentLocale,
-            Self.todayTransferDateFormatter.string(from: Date())
-        )
-    }
-
     var body: some View {
         Group {
             if allModulesDisabled {
@@ -196,31 +186,22 @@ struct DashboardView: View {
                 dashboardViewModel.stopAutoRefresh()
             }
         }
-        .onReceive(trackerStatsSilentRefreshTimer) { _ in
-            refreshTrackerStatsIfNeeded()
-        }
         .onDisappear {
             dashboardViewModel.stopAutoRefresh()
         }
         .onAppear {
             guard isDashboardTabActive else { return }
-            dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
 
             if !hasSyncedModuleOrder {
                 dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
                 hasSyncedModuleOrder = true
             }
-
-            refreshTrackerStatsIfNeeded()
         }
         .onChange(of: enabledModuleKey) { _, _ in
             if !showStorageAudit {
                 hasActivatedStorageAudit = false
             }
             dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
-        }
-        .onChange(of: appStateManager.tasksRevision) { _, _ in
-            refreshTrackerStatsIfNeeded()
         }
         .onChange(of: draggedModule) { _, newValue in
             guard newValue == nil else { return }
@@ -232,9 +213,6 @@ struct DashboardView: View {
                 dashboardViewModel.stopAutoRefresh()
                 return
             }
-
-            dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
-            refreshTrackerStatsIfNeeded()
 
             if !hasSyncedModuleOrder {
                 dashboardViewModel.syncModuleOrder(availableModules: enabledModules)
@@ -249,9 +227,6 @@ struct DashboardView: View {
 
             guard appStateManager.selectedTab == .dashboard else { return }
 
-            dashboardViewModel.configureTrackerStatsTasksProvider { appStateManager.allTasks }
-            refreshTrackerStatsIfNeeded()
-
             if shouldStartGlobalStatsRefresh {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
@@ -261,14 +236,6 @@ struct DashboardView: View {
                 dashboardViewModel.stopAutoRefresh()
             }
         }
-    }
-
-    private func refreshTrackerStatsIfNeeded() {
-        guard isDashboardTabActive else { return }
-        guard scenePhase == .active else { return }
-        guard appStateManager.hasInitialDataLoaded else { return }
-        guard showTodayTransfer else { return }
-        dashboardViewModel.calculateTrackerStats()
     }
 
     private func isModuleRenderable(_ module: DashboardModuleType) -> Bool {
@@ -321,14 +288,18 @@ struct DashboardView: View {
                 )
             }
         case .todayTransfer:
-            DashboardSectionBlock(title: todayTransferSectionTitle) {
-                DashboardTodayTransferModuleView(
-                    uploadData: dashboardViewModel.todayUploadData,
-                    downloadData: dashboardViewModel.todayDownloadData,
-                    isInitialLoading: !appStateManager.hasInitialDataLoaded,
-                    isStatsComputing: dashboardViewModel.isTrackerStatsComputing
-                )
-            }
+            DashboardTodayTransferModuleView(
+                recentUploadBytes: dashboardViewModel.recentUploadBytes,
+                recentDownloadBytes: dashboardViewModel.recentDownloadBytes,
+                uploadData: dashboardViewModel.recentUploadData,
+                downloadData: dashboardViewModel.recentDownloadData,
+                formattedBaselineTime: dashboardViewModel.formattedBaselineTime,
+                isInitialLoading: !appStateManager.hasInitialDataLoaded || !dashboardViewModel.hasLoadedInitialSnapshot,
+                isStatsLoading: dashboardViewModel.isTransferStatsLoading,
+                onReset: {
+                    dashboardViewModel.resetTransferBaseline()
+                }
+            )
         case .globalAssets:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Data Aggregation")) {
                 if shouldShowStatsSkeleton {
@@ -418,17 +389,6 @@ struct DashboardView: View {
             dashboardViewModel.swapModules(source, with: target, availableModules: enabledModules)
         }
     }
-}
-
-private extension DashboardView {
-    static let todayTransferDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 }
 
 private struct DashboardGlobalAssetsSkeletonView: View {

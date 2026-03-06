@@ -8,12 +8,17 @@
 import Foundation
 import SwiftUI
 import Charts
+import UIKit
 
 struct DashboardTodayTransferModuleView: View {
+    let recentUploadBytes: Int64
+    let recentDownloadBytes: Int64
     let uploadData: [TrackerTransferData]
     let downloadData: [TrackerTransferData]
-    var isInitialLoading: Bool = false
-    var isStatsComputing: Bool = false
+    let formattedBaselineTime: String
+    let isInitialLoading: Bool
+    let isStatsLoading: Bool
+    let onReset: () -> Void
 
     @State private var selectedType: TransferType = .upload
     @State private var selectedTrackerStat: TrackerTransferData?
@@ -27,6 +32,17 @@ struct DashboardTodayTransferModuleView: View {
                 selectedType = newValue
             }
         )
+    }
+
+    private var chartSegments: [TransferRingSegment] {
+        currentData.map {
+            TransferRingSegment(
+                id: $0.id,
+                title: $0.trackerName,
+                bytes: $0.bytes,
+                color: $0.color
+            )
+        }
     }
 
     private var currentData: [TrackerTransferData] {
@@ -46,22 +62,30 @@ struct DashboardTodayTransferModuleView: View {
         totalBytes > 0
     }
 
-    private var showsInitialLoadingState: Bool {
-        (isInitialLoading || isStatsComputing) && uploadData.isEmpty && downloadData.isEmpty
-    }
-
     private var activeSelectedTrackerStat: TrackerTransferData? {
         guard let selectedTrackerStat else { return nil }
         return currentData.first(where: { $0.id == selectedTrackerStat.id })
     }
 
+    private var showsInitialLoadingState: Bool {
+        (isInitialLoading || isStatsLoading) && recentUploadBytes == 0 && recentDownloadBytes == 0
+    }
+
     private var emptyStateMessage: String {
         switch selectedType {
         case .upload:
-            return LanguageManager.shared.localized("今日暂无上传数据")
+            return LanguageManager.shared.localized("暂无新增上传数据")
         case .download:
-            return LanguageManager.shared.localized("今日暂无下载数据")
+            return LanguageManager.shared.localized("暂无新增下载数据")
         }
+    }
+
+    private var baselineSubtitle: String {
+        String(
+            format: LanguageManager.shared.localized("自上次重置时间格式"),
+            locale: LanguageManager.shared.currentLocale,
+            formattedBaselineTime
+        )
     }
 
     private var centerPrimaryText: String {
@@ -78,6 +102,8 @@ struct DashboardTodayTransferModuleView: View {
     var body: some View {
         DashboardTile(minHeight: 360) {
             VStack(alignment: .leading, spacing: 14) {
+                header
+
                 HStack(alignment: .center, spacing: 12) {
                     Spacer(minLength: 0)
                     Picker("", selection: selectionBinding) {
@@ -107,9 +133,9 @@ struct DashboardTodayTransferModuleView: View {
                         )
                         .transition(.opacity)
                     } else if hasTransferData {
-                        Chart(currentData) { item in
+                        Chart(chartSegments) { item in
                             SectorMark(
-                                angle: .value(LanguageManager.shared.localized("传输量"), max(Double(item.bytes), 0)),
+                                angle: .value(LanguageManager.shared.localized("传输量"), Double(item.bytes)),
                                 innerRadius: .ratio(0.65),
                                 angularInset: 2
                             )
@@ -171,11 +197,11 @@ struct DashboardTodayTransferModuleView: View {
                 .animation(.easeInOut(duration: 0.2), value: hasTransferData)
                 .animation(.easeInOut(duration: 0.2), value: showsInitialLoadingState)
 
-                if hasTransferData {
+                if !currentData.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(currentData) { item in
-                                legendChip(for: item)
+                                trackerChip(for: item)
                                     .onTapGesture {
                                         selectTracker(item)
                                     }
@@ -195,7 +221,35 @@ struct DashboardTodayTransferModuleView: View {
         }
     }
 
-    private func legendChip(for item: TrackerTransferData) -> some View {
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LanguageManager.shared.localized("近期新增"))
+                    .font(.headline)
+
+                Text(baselineSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.prepare()
+                generator.impactOccurred()
+                onReset()
+            } label: {
+                Image(systemName: "arrow.counterclockwise.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(LanguageManager.shared.localized("重置近期新增基线"))
+        }
+    }
+
+    private func trackerChip(for item: TrackerTransferData) -> some View {
         let isSelected = activeSelectedTrackerStat?.id == item.id
 
         return HStack(spacing: 6) {
@@ -262,6 +316,13 @@ struct DashboardTodayTransferModuleView: View {
 }
 
 private extension DashboardTodayTransferModuleView {
+    struct TransferRingSegment: Identifiable {
+        let id: String
+        let title: String
+        let bytes: Int64
+        let color: Color
+    }
+
     static let chartByteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useMB, .useGB, .useTB]
@@ -284,6 +345,15 @@ private extension DashboardTodayTransferModuleView {
                 return LanguageManager.shared.localized("Upload")
             case .download:
                 return LanguageManager.shared.localized("Download")
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .download:
+                return .green
+            case .upload:
+                return .blue
             }
         }
     }

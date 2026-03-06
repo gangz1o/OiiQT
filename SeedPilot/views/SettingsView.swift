@@ -1015,7 +1015,7 @@ private struct DashboardCustomizationView: View {
         Form {
             Section(LanguageManager.shared.localized("Module Toggles")) {
                 Toggle(isOn: dashboardConfig.showTodayTransferBinding) {
-                    SettingsRowLabel(title: LanguageManager.shared.localized("今日传输统计"), systemName: "chart.pie", tint: .orange)
+                    SettingsRowLabel(title: LanguageManager.shared.localized("近期新增统计"), systemName: "chart.pie", tint: .orange)
                 }
                 Toggle(isOn: dashboardConfig.showRecentFinishedBinding) {
                     SettingsRowLabel(title: LanguageManager.shared.localized("Recently Finished"), systemName: "clock.arrow.circlepath", tint: .teal)

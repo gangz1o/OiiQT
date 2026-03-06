@@ -1296,6 +1296,8 @@ struct FilterMenuControl: View {
         HStack(spacing: 6) {
             Text(title)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .allowsTightening(true)
                 .truncationMode(.tail)
             Image(systemName: "chevron.down")
                 .font(.system(size: 10, weight: .semibold))

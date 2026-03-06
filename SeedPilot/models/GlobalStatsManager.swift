@@ -22,9 +22,12 @@ struct GlobalStatsSnapshot: Sendable {
     var totalDownloadingCount: Int = 0
     var totalBandwidth: Int64 = 0
     var totalRemainingSpace: Int64 = 0
+    var totalAllTimeDownloaded: Int64 = 0
+    var totalAllTimeUploaded: Int64 = 0
     var onlineServerCount: Int = 0
     var failedServerCount: Int = 0
     var hasConnectionIssue: Bool = false
+    var hasReliableTransferTotals: Bool = false
     var serverStorage: [DashboardServerStorageEntry] = []
     var lastUpdatedAt: Date?
 }
@@ -203,8 +206,11 @@ final class GlobalStatsManager {
         var totalDownloadingCount = 0
         var totalBandwidth: Int64 = 0
         var totalRemainingSpace: Int64 = 0
+        var totalAllTimeDownloaded: Int64 = 0
+        var totalAllTimeUploaded: Int64 = 0
         var onlineServerCount = 0
         var failedServerCount = 0
+        var transferTotalsSourceCount = 0
 
         var storageRows: [DashboardServerStorageEntry] = []
         storageRows.reserveCapacity(servers.count)
@@ -215,8 +221,16 @@ final class GlobalStatsManager {
                 lastKnownStatsByServer[server.id] = freshStats
             }
 
+            let cachedStats = lastKnownStatsByServer[server.id]
             let isOnline = server.isOnline == true
-            let effectiveStats = result?.stats ?? (isOnline ? lastKnownStatsByServer[server.id] : nil)
+            let effectiveStats = result?.stats ?? (isOnline ? cachedStats : nil)
+            let transferTotalsStats = result?.stats ?? cachedStats
+
+            if let transferTotalsStats {
+                totalAllTimeDownloaded += max(transferTotalsStats.totalAllTimeDownloaded, 0)
+                totalAllTimeUploaded += max(transferTotalsStats.totalAllTimeUploaded, 0)
+                transferTotalsSourceCount += 1
+            }
 
             if let stats = effectiveStats, isOnline {
                 onlineServerCount += 1
@@ -255,9 +269,12 @@ final class GlobalStatsManager {
             totalDownloadingCount: totalDownloadingCount,
             totalBandwidth: totalBandwidth,
             totalRemainingSpace: totalRemainingSpace,
+            totalAllTimeDownloaded: totalAllTimeDownloaded,
+            totalAllTimeUploaded: totalAllTimeUploaded,
             onlineServerCount: onlineServerCount,
             failedServerCount: failedServerCount,
             hasConnectionIssue: onlineServerCount == 0,
+            hasReliableTransferTotals: transferTotalsSourceCount == servers.count && !servers.isEmpty,
             serverStorage: storageRows,
             lastUpdatedAt: Date()
         )
@@ -279,6 +296,8 @@ private struct GlobalStatsServerSnapshot: Sendable {
     let totalBandwidth: Int64
     let remainingSpace: Int64
     let defaultSavePath: String
+    let totalAllTimeDownloaded: Int64
+    let totalAllTimeUploaded: Int64
 }
 
 private struct GlobalServerFetchResult: Sendable {
@@ -387,6 +406,20 @@ private enum GlobalStatsFetcher {
         let downloadSpeed = serverState?.dlInfoSpeed ?? transferInfo?.dlInfoSpeed ?? 0
         let uploadSpeed = serverState?.upInfoSpeed ?? transferInfo?.upInfoSpeed ?? 0
         let totalBandwidth = Int64(downloadSpeed) + Int64(uploadSpeed)
+        let torrentTotalDownloaded = torrentItems.reduce(Int64(0)) { partialResult, item in
+            partialResult + max(item.downloaded ?? 0, 0)
+        }
+        let torrentTotalUploaded = torrentItems.reduce(Int64(0)) { partialResult, item in
+            partialResult + max(item.uploaded ?? 0, 0)
+        }
+        let totalAllTimeDownloaded = max(
+            serverState?.allTimeDownloaded ?? transferInfo?.allTimeDownloaded ?? torrentTotalDownloaded,
+            0
+        )
+        let totalAllTimeUploaded = max(
+            serverState?.allTimeUploaded ?? transferInfo?.allTimeUploaded ?? torrentTotalUploaded,
+            0
+        )
 
         let remainingSpace = serverState?.freeSpaceOnDisk ?? transferInfo?.freeSpaceOnDisk ?? 0
 
@@ -412,7 +445,9 @@ private enum GlobalStatsFetcher {
             downloadingCount: downloadingCount,
             totalBandwidth: totalBandwidth,
             remainingSpace: remainingSpace,
-            defaultSavePath: resolvedPath
+            defaultSavePath: resolvedPath,
+            totalAllTimeDownloaded: totalAllTimeDownloaded,
+            totalAllTimeUploaded: totalAllTimeUploaded
         )
     }
 
@@ -490,7 +525,9 @@ private enum GlobalStatsFetcher {
             return QBTransferInfoLite(
                 dlInfoSpeed: intValue(object["dl_info_speed"]),
                 upInfoSpeed: intValue(object["up_info_speed"]),
-                freeSpaceOnDisk: int64Value(object["free_space_on_disk"])
+                freeSpaceOnDisk: int64Value(object["free_space_on_disk"]),
+                allTimeDownloaded: int64Value(object["alltime_dl"]),
+                allTimeUploaded: int64Value(object["alltime_ul"])
             )
         } catch {
             return nil
@@ -522,7 +559,9 @@ private enum GlobalStatsFetcher {
                 freeSpaceOnDisk: int64Value(serverStateObject["free_space_on_disk"]),
                 dlInfoSpeed: intValue(serverStateObject["dl_info_speed"]),
                 upInfoSpeed: intValue(serverStateObject["up_info_speed"]),
-                defaultSavePath: stringValue(serverStateObject["default_save_path"])
+                defaultSavePath: stringValue(serverStateObject["default_save_path"]),
+                allTimeDownloaded: int64Value(serverStateObject["alltime_dl"]),
+                allTimeUploaded: int64Value(serverStateObject["alltime_ul"])
             )
             return QBMainDataLite(serverState: serverState)
         } catch {
@@ -561,13 +600,19 @@ private enum GlobalStatsFetcher {
             session: session,
             sessionID: &sessionID,
             method: "torrent-get",
-            arguments: ["fields": ["status", "rateDownload", "rateUpload"]]
+            arguments: ["fields": ["status", "rateDownload", "rateUpload", "downloadedEver", "uploadedEver"]]
         )
         let torrents = try decodeTransmissionRPC(data: torrentData, as: TransmissionTorrentGetLite.self).torrents
 
         let seedingCount = torrents.filter { $0.status == 5 || $0.status == 6 }.count
         let downloadingCount = torrents.filter { $0.status == 3 || $0.status == 4 }.count
         let totalBandwidth = torrents.reduce(Int64(0)) { $0 + $1.rateDownload + $1.rateUpload }
+        let torrentTotalDownloaded = torrents.reduce(Int64(0)) { partialResult, item in
+            partialResult + max(item.downloadedEver ?? 0, 0)
+        }
+        let torrentTotalUploaded = torrents.reduce(Int64(0)) { partialResult, item in
+            partialResult + max(item.uploadedEver ?? 0, 0)
+        }
 
         let sessionData = try await transmissionRPC(
             endpoint: endpoint,
@@ -586,13 +631,33 @@ private enum GlobalStatsFetcher {
             arguments: ["path": sessionInfo.downloadDir]
         )
         let freeSpace = try decodeTransmissionRPC(data: freeSpaceData, as: TransmissionFreeSpaceLite.self).sizeBytes
+        let sessionStatsData = try? await transmissionRPC(
+            endpoint: endpoint,
+            session: session,
+            sessionID: &sessionID,
+            method: "session-stats",
+            arguments: nil
+        )
+        let sessionStats = sessionStatsData.flatMap {
+            try? decodeTransmissionRPC(data: $0, as: TransmissionSessionStatsLite.self)
+        }
+        let totalAllTimeDownloaded = max(
+            sessionStats?.cumulativeStats.downloadedBytes ?? torrentTotalDownloaded,
+            torrentTotalDownloaded
+        )
+        let totalAllTimeUploaded = max(
+            sessionStats?.cumulativeStats.uploadedBytes ?? torrentTotalUploaded,
+            torrentTotalUploaded
+        )
 
         return GlobalStatsServerSnapshot(
             seedingCount: seedingCount,
             downloadingCount: downloadingCount,
             totalBandwidth: totalBandwidth,
             remainingSpace: freeSpace,
-            defaultSavePath: sessionInfo.downloadDir
+            defaultSavePath: sessionInfo.downloadDir,
+            totalAllTimeDownloaded: totalAllTimeDownloaded,
+            totalAllTimeUploaded: totalAllTimeUploaded
         )
     }
 
@@ -756,17 +821,23 @@ private enum GlobalStatsFetcher {
 
 private struct QBTorrentLite: Decodable {
     let state: String
+    let downloaded: Int64?
+    let uploaded: Int64?
 }
 
 private struct QBTransferInfoLite: Decodable {
     let dlInfoSpeed: Int?
     let upInfoSpeed: Int?
     let freeSpaceOnDisk: Int64?
+    let allTimeDownloaded: Int64?
+    let allTimeUploaded: Int64?
 
     enum CodingKeys: String, CodingKey {
         case dlInfoSpeed = "dl_info_speed"
         case upInfoSpeed = "up_info_speed"
         case freeSpaceOnDisk = "free_space_on_disk"
+        case allTimeDownloaded = "alltime_dl"
+        case allTimeUploaded = "alltime_ul"
     }
 }
 
@@ -776,12 +847,16 @@ private struct QBMainDataLite: Decodable {
         let dlInfoSpeed: Int?
         let upInfoSpeed: Int?
         let defaultSavePath: String?
+        let allTimeDownloaded: Int64?
+        let allTimeUploaded: Int64?
 
         enum CodingKeys: String, CodingKey {
             case freeSpaceOnDisk = "free_space_on_disk"
             case dlInfoSpeed = "dl_info_speed"
             case upInfoSpeed = "up_info_speed"
             case defaultSavePath = "default_save_path"
+            case allTimeDownloaded = "alltime_dl"
+            case allTimeUploaded = "alltime_ul"
         }
     }
 
@@ -810,6 +885,16 @@ private struct TransmissionTorrentGetLite: Decodable {
         let status: Int
         let rateDownload: Int64
         let rateUpload: Int64
+        let downloadedEver: Int64?
+        let uploadedEver: Int64?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case rateDownload
+            case rateUpload
+            case downloadedEver
+            case uploadedEver
+        }
     }
 
     let torrents: [Item]
@@ -828,5 +913,18 @@ private struct TransmissionFreeSpaceLite: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case sizeBytes = "size-bytes"
+    }
+}
+
+private struct TransmissionSessionStatsLite: Decodable {
+    struct CumulativeStats: Decodable {
+        let downloadedBytes: Int64
+        let uploadedBytes: Int64
+    }
+
+    let cumulativeStats: CumulativeStats
+
+    enum CodingKeys: String, CodingKey {
+        case cumulativeStats = "cumulative-stats"
     }
 }
