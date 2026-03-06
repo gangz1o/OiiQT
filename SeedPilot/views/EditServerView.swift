@@ -26,6 +26,7 @@ struct EditServerView: View {
     @State private var rpcPath = "/transmission/rpc"
     @State private var isPasswordVisible = false
     @State private var showingDeleteConfirmation = false
+    @FocusState private var focusedField: InputField?
 
     // Test Connection State
     @State private var isTesting = false
@@ -34,6 +35,11 @@ struct EditServerView: View {
     enum TestResult {
         case success(String)
         case failure(String)
+    }
+
+    private enum InputField: Hashable {
+        case username
+        case password
     }
 
     var isFormValid: Bool {
@@ -169,8 +175,15 @@ struct EditServerView: View {
                         TextField(LanguageManager.shared.localized("Username"), text: $username)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .multilineTextAlignment(.trailing)
+                            .keyboardType(.asciiCapable)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .textContentType(.username)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .username)
+                            .onSubmit {
+                                focusedField = .password
+                            }
                     }
 
                     HStack(spacing: 12) {
@@ -189,8 +202,12 @@ struct EditServerView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .multilineTextAlignment(.trailing)
+                        .keyboardType(.asciiCapable)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .textContentType(.password)
+                        .submitLabel(.done)
+                        .focused($focusedField, equals: .password)
 
                         Button {
                             isPasswordVisible.toggle()

@@ -54,6 +54,7 @@ private struct DashboardStorageServerTile: View {
                     Circle()
                         .fill(entry.connectionState.indicatorColor)
                         .frame(width: 8, height: 8)
+                        .animation(.easeInOut(duration: 0.3), value: entry.connectionState)
 
                     Text(entry.serverName)
                         .font(.subheadline)

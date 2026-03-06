@@ -98,10 +98,7 @@ final class GlobalStatsManager {
         refreshInFlight = true
         isRefreshing = true
         for server in servers {
-            if isSilent && server.connectionState == .online {
-                continue
-            }
-            server.connectionState = .pending
+            server.beginConnectionRefresh(isSilent: isSilent)
         }
         defer {
             isRefreshing = false
@@ -174,14 +171,14 @@ final class GlobalStatsManager {
 
         for server in servers {
             guard let result = resultMap[server.id] else {
-                server.connectionState = .offline
+                server.registerConnectionFailure()
                 continue
             }
 
             if result.isOnline {
-                server.connectionState = .online
+                server.registerConnectionSuccess()
             } else {
-                server.connectionState = .offline
+                server.registerConnectionFailure()
             }
         }
     }

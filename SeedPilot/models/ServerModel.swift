@@ -258,6 +258,9 @@ final class ServerConfig {
     var connectionState: ServerConnectionState = .pending
 
     @Transient
+    var consecutiveFailures: Int = 0
+
+    @Transient
     var isOnline: Bool? {
         get { connectionState.isOnline }
         set {
@@ -274,6 +277,9 @@ final class ServerConfig {
 }
 
 extension ServerConfig {
+    private static let connectionStateAnimation = Animation.easeInOut(duration: 0.3)
+    private static let connectionFailureThreshold = 3
+
     @Transient
     var resolvedPassword: String {
         let securePassword = ServerCredentialStore.shared.password(for: id) ?? ""
@@ -291,6 +297,38 @@ extension ServerConfig {
         ServerCredentialStore.shared.deletePassword(for: id)
         if !password.isEmpty {
             password = ""
+        }
+    }
+
+    @MainActor
+    func beginConnectionRefresh(isSilent: Bool) {
+        guard !isSilent, connectionState != .online else { return }
+        withAnimation(Self.connectionStateAnimation) {
+            connectionState = .pending
+        }
+    }
+
+    @MainActor
+    func registerConnectionSuccess() {
+        consecutiveFailures = 0
+        guard connectionState != .online else { return }
+        withAnimation(Self.connectionStateAnimation) {
+            connectionState = .online
+        }
+    }
+
+    @MainActor
+    func registerConnectionFailure() {
+        consecutiveFailures += 1
+
+        guard consecutiveFailures >= Self.connectionFailureThreshold else {
+            print("⚠️ 网络微小抖动，第 \(consecutiveFailures) 次失败，状态机保持原样 (防闪烁保护)")
+            return
+        }
+
+        guard connectionState != .offline else { return }
+        withAnimation(Self.connectionStateAnimation) {
+            connectionState = .offline
         }
     }
 

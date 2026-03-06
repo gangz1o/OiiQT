@@ -23,6 +23,7 @@ struct DashboardTodayTransferModuleView: View {
     @State private var selectedType: TransferType = .upload
     @State private var selectedTrackerStat: TrackerTransferData?
     @State private var selectionResetTimer: Timer?
+    @State private var resetRotation: Double = 0
 
     private var selectionBinding: Binding<TransferType> {
         Binding(
@@ -238,11 +239,17 @@ struct DashboardTodayTransferModuleView: View {
                 let generator = UIImpactFeedbackGenerator(style: .light)
                 generator.prepare()
                 generator.impactOccurred()
+                withAnimation(.interpolatingSpring(stiffness: 170, damping: 15)) {
+                    resetRotation += 360
+                }
                 onReset()
             } label: {
-                Image(systemName: "arrow.counterclockwise.circle.fill")
-                    .font(.system(size: 20, weight: .semibold))
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(resetRotation))
+                    .padding(8)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(LanguageManager.shared.localized("重置近期新增基线"))

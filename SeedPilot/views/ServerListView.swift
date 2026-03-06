@@ -217,6 +217,7 @@ struct ServerCardView: View {
                 Circle()
                     .fill(server.statusColor)
                     .frame(width: 8, height: 8)
+                    .animation(.easeInOut(duration: 0.3), value: server.connectionState)
             }
             .padding(.bottom, 2)
 

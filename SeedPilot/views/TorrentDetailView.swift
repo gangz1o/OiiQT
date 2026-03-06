@@ -28,11 +28,21 @@ struct TorrentDetailView: View {
         appStateManager.servers.first(where: { $0.id == task.serverID })?.type
     }
 
-    /// All tasks sharing this torrent's hash on OTHER servers — cross-seed instances.
+    /// All tasks that are cross-seed instances of this torrent.
+    /// Matches by hash (same hash = same content, possibly different tracker) OR by full name.
+    /// Includes same-server instances. Excludes self via the globally unique composite id.
     private var crossSeedTorrents: [TorrentTask] {
-        guard !task.hash.isEmpty else { return [] }
-        return appStateManager.allTasks.filter {
-            $0.hash.lowercased() == task.hash.lowercased() && $0.serverID != task.serverID
+        guard !task.hash.isEmpty || !task.name.isEmpty else { return [] }
+        return appStateManager.allTasks.filter { torrent in
+            // 1. Match: same hash (different tracker may produce different hash is handled
+            //    by the name check) OR exact same full name
+            let isMatch = torrent.hash.lowercased() == task.hash.lowercased()
+                || torrent.name == task.name
+
+            // 2. Exclude self: id is the composite key "\(serverID)_\(hash)", globally unique
+            let isNotSelf = torrent.id != task.id
+
+            return isMatch && isNotSelf
         }
     }
 

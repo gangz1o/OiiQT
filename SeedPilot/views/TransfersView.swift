@@ -16,7 +16,7 @@ enum ActiveFilterSheet: String, Identifiable {
     var id: String { rawValue }
 }
 
-private struct ServerBasicInfo: Identifiable, Equatable {
+private struct ServerMenuSnapshot: Identifiable, Equatable {
     let id: UUID
     let name: String
     let type: ServerType
@@ -29,18 +29,18 @@ private struct ServerBasicInfo: Identifiable, Equatable {
     }
 }
 
-private struct ServerSwitcherToolbarMenu: View, Equatable {
+private struct ServerDropdownMenuView: View, Equatable {
     let activeServerType: ServerType?
     let activeServerID: UUID?
-    let serverBasicInfos: [ServerBasicInfo]
+    let serverMenuSnapshots: [ServerMenuSnapshot]
     let canUseGlobalTaskAggregation: Bool
     let isDisabled: Bool
     let onSelectServer: (UUID?) -> Void
 
-    static func == (lhs: ServerSwitcherToolbarMenu, rhs: ServerSwitcherToolbarMenu) -> Bool {
+    static func == (lhs: ServerDropdownMenuView, rhs: ServerDropdownMenuView) -> Bool {
         lhs.activeServerType == rhs.activeServerType &&
         lhs.activeServerID == rhs.activeServerID &&
-        lhs.serverBasicInfos == rhs.serverBasicInfos &&
+        lhs.serverMenuSnapshots == rhs.serverMenuSnapshots &&
         lhs.canUseGlobalTaskAggregation == rhs.canUseGlobalTaskAggregation &&
         lhs.isDisabled == rhs.isDisabled
     }
@@ -55,14 +55,14 @@ private struct ServerSwitcherToolbarMenu: View, Equatable {
                 }
             }
 
-            ForEach(serverBasicInfos) { server in
+            ForEach(serverMenuSnapshots) { snapshot in
                 Button {
-                    onSelectServer(server.id)
+                    onSelectServer(snapshot.id)
                 } label: {
-                    Label {
-                        Text(server.name)
-                    } icon: {
-                        ServerBrandIcon(type: server.type, size: 20)
+                    HStack(spacing: 10) {
+                        ServerBrandIcon(type: snapshot.type, size: 20)
+
+                        Text(snapshot.name)
                     }
                 }
             }
@@ -70,7 +70,7 @@ private struct ServerSwitcherToolbarMenu: View, Equatable {
             ServerBrandIcon(type: activeServerType, size: 22)
         }
         .disabled(isDisabled)
-        .animation(nil, value: serverBasicInfos)
+        .animation(nil, value: serverMenuSnapshots)
         .zIndex(100)
     }
 }
@@ -136,8 +136,8 @@ struct TransfersView: View {
     }
 
     @MainActor
-    private var serverBasicInfos: [ServerBasicInfo] {
-        appStateManager.servers.map(ServerBasicInfo.init)
+    private var serverMenuSnapshots: [ServerMenuSnapshot] {
+        appStateManager.servers.map(ServerMenuSnapshot.init)
     }
 
     private var navigationTitle: String {
@@ -462,10 +462,10 @@ struct TransfersView: View {
                     )
                 }
             } else {
-                ServerSwitcherToolbarMenu(
+                ServerDropdownMenuView(
                     activeServerType: appStateManager.activeServerType,
                     activeServerID: appStateManager.activeServerId,
-                    serverBasicInfos: serverBasicInfos,
+                    serverMenuSnapshots: serverMenuSnapshots,
                     canUseGlobalTaskAggregation: canUseGlobalTaskAggregation,
                     isDisabled: appStateManager.servers.isEmpty || shouldShowServerEmptyState,
                     onSelectServer: { serverID in

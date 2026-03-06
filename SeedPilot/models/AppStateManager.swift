@@ -331,10 +331,11 @@ class AppStateManager {
         }
     }
 
+    @MainActor
     func checkServerStatus() {
         for server in servers {
             let client = getClient(for: server)
-            server.connectionState = .pending
+            markServerPending(server, isSilent: false)
 
             Task {
                 var success = false
@@ -364,20 +365,17 @@ class AppStateManager {
 
     @MainActor
     private func markServerPending(_ server: ServerConfig, isSilent: Bool) {
-        if isSilent && server.connectionState == .online {
-            return
-        }
-        server.connectionState = .pending
+        server.beginConnectionRefresh(isSilent: isSilent)
     }
 
     @MainActor
     private func markServerOnline(_ server: ServerConfig) {
-        server.connectionState = .online
+        server.registerConnectionSuccess()
     }
 
     @MainActor
     private func markServerFailure(_ server: ServerConfig) {
-        server.connectionState = .offline
+        server.registerConnectionFailure()
     }
 
     private func getClient(for server: ServerConfig) -> TorrentClient {
