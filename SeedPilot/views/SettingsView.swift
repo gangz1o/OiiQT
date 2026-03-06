@@ -38,8 +38,6 @@ struct SettingsView: View {
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
     @State private var showingProPaywallSheet = false
-    @State private var showingTMDBAPIKeySettings = false
-    @State private var showingTrackerAliasList = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
@@ -242,13 +240,11 @@ struct SettingsView: View {
                     DashboardCustomizationView()
                 case .proFeatures:
                     proFeaturesSettingsView
+                case .tmdbAPIKey:
+                    TMDBAPIKeySettingsView()
+                case .trackerAliases:
+                    TrackerAliasListView()
                 }
-            }
-            .navigationDestination(isPresented: $showingTrackerAliasList) {
-                TrackerAliasListView()
-            }
-            .navigationDestination(isPresented: $showingTMDBAPIKeySettings) {
-                TMDBAPIKeySettingsView()
             }
             .onAppear {
                 if !hasPerformedInitialLoad {
@@ -312,7 +308,7 @@ struct SettingsView: View {
 
         Button {
             guardProAccess {
-                showingTMDBAPIKeySettings = true
+                settingsPath.append(.tmdbAPIKey)
             }
         } label: {
             HStack {
@@ -333,6 +329,7 @@ struct SettingsView: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
 
@@ -350,7 +347,7 @@ struct SettingsView: View {
 
         Button {
             guardProAccess {
-                showingTrackerAliasList = true
+                settingsPath.append(.trackerAliases)
             }
         } label: {
             HStack {
@@ -360,6 +357,7 @@ struct SettingsView: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
 

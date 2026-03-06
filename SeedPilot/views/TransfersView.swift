@@ -16,6 +16,65 @@ enum ActiveFilterSheet: String, Identifiable {
     var id: String { rawValue }
 }
 
+private struct ServerBasicInfo: Identifiable, Equatable {
+    let id: UUID
+    let name: String
+    let type: ServerType
+
+    init(server: ServerConfig) {
+        self.id = server.id
+        let trimmedName = server.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.name = trimmedName.isEmpty ? server.type.rawValue : trimmedName
+        self.type = server.type
+    }
+}
+
+private struct ServerSwitcherToolbarMenu: View, Equatable {
+    let activeServerType: ServerType?
+    let activeServerID: UUID?
+    let serverBasicInfos: [ServerBasicInfo]
+    let canUseGlobalTaskAggregation: Bool
+    let isDisabled: Bool
+    let onSelectServer: (UUID?) -> Void
+
+    static func == (lhs: ServerSwitcherToolbarMenu, rhs: ServerSwitcherToolbarMenu) -> Bool {
+        lhs.activeServerType == rhs.activeServerType &&
+        lhs.activeServerID == rhs.activeServerID &&
+        lhs.serverBasicInfos == rhs.serverBasicInfos &&
+        lhs.canUseGlobalTaskAggregation == rhs.canUseGlobalTaskAggregation &&
+        lhs.isDisabled == rhs.isDisabled
+    }
+
+    var body: some View {
+        Menu {
+            if canUseGlobalTaskAggregation {
+                Button {
+                    onSelectServer(nil)
+                } label: {
+                    Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
+                }
+            }
+
+            ForEach(serverBasicInfos) { server in
+                Button {
+                    onSelectServer(server.id)
+                } label: {
+                    Label {
+                        Text(server.name)
+                    } icon: {
+                        ServerBrandIcon(type: server.type, size: 20)
+                    }
+                }
+            }
+        } label: {
+            ServerBrandIcon(type: activeServerType, size: 22)
+        }
+        .disabled(isDisabled)
+        .animation(nil, value: serverBasicInfos)
+        .zIndex(100)
+    }
+}
+
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @ObservedObject private var storeManager = StoreManager.shared
@@ -74,6 +133,11 @@ struct TransfersView: View {
     var uniqueTrackers: [String] {
         guard isTransfersTabActive else { return [Self.allTrackersToken] }
         return uniqueTrackersCache
+    }
+
+    @MainActor
+    private var serverBasicInfos: [ServerBasicInfo] {
+        appStateManager.servers.map(ServerBasicInfo.init)
     }
 
     private var navigationTitle: String {
@@ -398,35 +462,17 @@ struct TransfersView: View {
                     )
                 }
             } else {
-                Menu {
-                    if canUseGlobalTaskAggregation {
-                        Button {
-                            appStateManager.activeServerId = nil
-                        } label: {
-                            Label(LanguageManager.shared.localized("All Servers"), systemImage: "rectangle.stack.fill")
-                        }
+                ServerSwitcherToolbarMenu(
+                    activeServerType: appStateManager.activeServerType,
+                    activeServerID: appStateManager.activeServerId,
+                    serverBasicInfos: serverBasicInfos,
+                    canUseGlobalTaskAggregation: canUseGlobalTaskAggregation,
+                    isDisabled: appStateManager.servers.isEmpty || shouldShowServerEmptyState,
+                    onSelectServer: { serverID in
+                        appStateManager.activeServerId = serverID
                     }
-
-                    ForEach(appStateManager.servers) { server in
-                        Button {
-                            appStateManager.activeServerId = server.id
-                        } label: {
-                            HStack {
-                                ServerBrandIcon(type: server.type, size: 20)
-                                Text(server.name)
-                                Spacer()
-                                if server.isOnline == true {
-                                    Image(systemName: "circle.fill").foregroundStyle(.green)
-                                } else {
-                                    Image(systemName: "circle.fill").foregroundStyle(.red)
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    ServerBrandIcon(type: appStateManager.activeServerType, size: 22)
-                }
-                .disabled(appStateManager.servers.isEmpty || shouldShowServerEmptyState)
+                )
+                .equatable()
             }
         }
 

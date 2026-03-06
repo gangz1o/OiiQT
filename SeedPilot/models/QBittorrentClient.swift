@@ -8,12 +8,17 @@
 import Foundation
 
 class QBittorrentClient: NSObject, TorrentClient {
+    private static let standardRequestTimeout: TimeInterval = 30
+    private static let heavyPayloadTimeout: TimeInterval = 60
+
     private let config: ServerConfig
 
     private lazy var session: URLSession = {
         let sessionConfig = URLSessionConfiguration.default
         sessionConfig.httpCookieStorage = HTTPCookieStorage.shared
         sessionConfig.httpCookieAcceptPolicy = .always
+        sessionConfig.timeoutIntervalForRequest = Self.standardRequestTimeout
+        sessionConfig.timeoutIntervalForResource = Self.heavyPayloadTimeout
         // Use NetworkManager instance with specific SSL setting
         let delegate = NetworkManager(allowInsecureSSL: config.allowInsecureSSL)
         return URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
@@ -99,6 +104,7 @@ class QBittorrentClient: NSObject, TorrentClient {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = Self.heavyPayloadTimeout
 
         let (data, response) = try await session.data(for: request)
 

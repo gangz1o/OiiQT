@@ -17,6 +17,8 @@ enum AppTab: Int {
 enum SettingsRoute: Hashable {
     case dashboardCustomization
     case proFeatures
+    case tmdbAPIKey
+    case trackerAliases
 }
 
 struct SpeedPoint: Identifiable {
@@ -73,8 +75,6 @@ class AppStateManager {
 
     // Client Cache
     private var clients: [UUID: TorrentClient] = [:]
-    private var lastKnownServerStatus: [UUID: Bool] = [:]
-    private var serverStatusFailureStreak: [UUID: Int] = [:]
     private var autoRefreshTask: Task<Void, Never>?
     private var refreshDataInFlightCount: Int = 0
     private var totalDownloadSpeedCache: Int64 = 0
@@ -162,8 +162,6 @@ class AppStateManager {
     func updateServers(_ newServers: [ServerConfig]) {
         self.servers = newServers
         let validServerIDs = Set(newServers.map(\.id))
-        lastKnownServerStatus = lastKnownServerStatus.filter { validServerIDs.contains($0.key) }
-        serverStatusFailureStreak = serverStatusFailureStreak.filter { validServerIDs.contains($0.key) }
         speedTotalsByServerID = speedTotalsByServerID.filter { validServerIDs.contains($0.key) }
         seedingTotalsByServerID = seedingTotalsByServerID.filter { validServerIDs.contains($0.key) }
         hasRecentFinishedByServerID = hasRecentFinishedByServerID.filter { validServerIDs.contains($0.key) }
@@ -181,7 +179,7 @@ class AppStateManager {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                 guard !Task.isCancelled else { break }
-                await self.refreshData()
+                await self.refreshData(isSilent: true)
             }
         }
     }
@@ -192,7 +190,7 @@ class AppStateManager {
     }
 
     /// 刷新所有服务器的任务 (对应 User Request: refreshData)
-    func refreshData() async {
+    func refreshData(isSilent: Bool = false) async {
         await MainActor.run {
             refreshDataInFlightCount += 1
             isRefreshingTasks = true
@@ -249,6 +247,9 @@ class AppStateManager {
         // Parallel fetching could be done with TaskGroup, but for now serial is safer for debug
         for server in servers {
             let client = getClient(for: server)
+            await MainActor.run {
+                markServerPending(server, isSilent: isSilent)
+            }
             do {
                 // Try fetch
                 let tasks = try await client.fetchTorrents()
@@ -333,6 +334,7 @@ class AppStateManager {
     func checkServerStatus() {
         for server in servers {
             let client = getClient(for: server)
+            server.connectionState = .pending
 
             Task {
                 var success = false
@@ -361,21 +363,21 @@ class AppStateManager {
     }
 
     @MainActor
+    private func markServerPending(_ server: ServerConfig, isSilent: Bool) {
+        if isSilent && server.connectionState == .online {
+            return
+        }
+        server.connectionState = .pending
+    }
+
+    @MainActor
     private func markServerOnline(_ server: ServerConfig) {
-        server.isOnline = true
-        lastKnownServerStatus[server.id] = true
-        serverStatusFailureStreak[server.id] = 0
+        server.connectionState = .online
     }
 
     @MainActor
     private func markServerFailure(_ server: ServerConfig) {
-        let streak = (serverStatusFailureStreak[server.id] ?? 0) + 1
-        serverStatusFailureStreak[server.id] = streak
-
-        let previousOnline = lastKnownServerStatus[server.id] ?? (server.isOnline == true)
-        let keepOnline = previousOnline && streak <= 1
-        server.isOnline = keepOnline
-        lastKnownServerStatus[server.id] = keepOnline
+        server.connectionState = .offline
     }
 
     private func getClient(for server: ServerConfig) -> TorrentClient {

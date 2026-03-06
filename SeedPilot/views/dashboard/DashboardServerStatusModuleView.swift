@@ -55,9 +55,7 @@ private struct DashboardServerStatusTile: View {
 
                     Spacer(minLength: 8)
 
-                    Circle()
-                        .fill(server.statusColor)
-                        .frame(width: 8, height: 8)
+                    statusIndicator
                 }
 
                 VStack(spacing: 8) {
@@ -90,6 +88,25 @@ private struct DashboardServerStatusTile: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch server.connectionState {
+        case .online:
+            Circle()
+                .fill(Color.green)
+                .frame(width: 8, height: 8)
+        case .offline:
+            Circle()
+                .fill(Color.red)
+                .frame(width: 8, height: 8)
+        case .pending:
+            ProgressView()
+                .controlSize(.mini)
+                .tint(.orange)
+                .frame(width: 10, height: 10)
         }
     }
 }

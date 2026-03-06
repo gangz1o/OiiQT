@@ -45,6 +45,7 @@ private struct TrackerTransferBreakdownResult: Sendable {
 private struct DashboardServerRuntimeInput: Sendable {
     let id: UUID
     let name: String
+    let connectionState: ServerConnectionState
     let isOnline: Bool?
     let totalSeedingCount: Int
     let totalDownloadingCount: Int
@@ -189,7 +190,11 @@ final class DashboardViewModel: ObservableObject {
                 guard !Task.isCancelled else { break }
                 let currentServers = serversProvider()
                 let currentTasks = tasksProvider()
-                await self.refreshGlobalStats(servers: currentServers, tasks: currentTasks)
+                await self.refreshGlobalStats(
+                    servers: currentServers,
+                    tasks: currentTasks,
+                    isSilent: true
+                )
             }
         }
     }
@@ -199,7 +204,12 @@ final class DashboardViewModel: ObservableObject {
         autoRefreshTask = nil
     }
 
-    func refreshGlobalStats(servers: [ServerConfig], tasks: [TorrentTask], force: Bool = false) async {
+    func refreshGlobalStats(
+        servers: [ServerConfig],
+        tasks: [TorrentTask],
+        force: Bool = false,
+        isSilent: Bool = false
+    ) async {
         guard !servers.isEmpty else {
             isRefreshing = false
             isUsingCachedFallback = false
@@ -234,7 +244,7 @@ final class DashboardViewModel: ObservableObject {
         isRefreshing = true
         isTransferStatsLoading = !hasTransferStatsLoadedAtLeastOnce
 
-        await statsManager.refresh(servers: servers, force: force)
+        await statsManager.refresh(servers: servers, force: force, isSilent: isSilent)
         let apiSnapshot = statsManager.snapshot
         let latestStorageSnapshot = cachedStorageByServer
         let latestResult = await Task.detached(priority: .utility) {
@@ -250,7 +260,11 @@ final class DashboardViewModel: ObservableObject {
         let shouldRetry = latestResult.snapshot.hasConnectionIssue || latestResult.snapshot.failedServerCount > 0
 
         var resolvedSnapshot = latestResult.snapshot
-        if shouldRetry, let retried = await retryGlobalStats(servers: servers, retryCount: 2) {
+        if shouldRetry, let retried = await retryGlobalStats(
+            servers: servers,
+            retryCount: 2,
+            isSilent: isSilent
+        ) {
             let retryStorageSnapshot = cachedStorageByServer
             let retryResult = await Task.detached(priority: .utility) {
                 DashboardViewModel.computeMergedGlobalSnapshot(
@@ -301,7 +315,11 @@ final class DashboardViewModel: ObservableObject {
         await refreshGlobalStats(servers: servers, tasks: tasks, force: true)
     }
 
-    private func retryGlobalStats(servers: [ServerConfig], retryCount: Int) async -> GlobalStatsSnapshot? {
+    private func retryGlobalStats(
+        servers: [ServerConfig],
+        retryCount: Int,
+        isSilent: Bool
+    ) async -> GlobalStatsSnapshot? {
         var bestSnapshot: GlobalStatsSnapshot?
 
         for _ in 0..<retryCount {
@@ -310,7 +328,7 @@ final class DashboardViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled else { return nil }
 
-            await statsManager.refresh(servers: servers, force: true)
+            await statsManager.refresh(servers: servers, force: true, isSilent: isSilent)
             let retried = statsManager.snapshot
             if let currentBest = bestSnapshot {
                 bestSnapshot = betterSnapshot(lhs: currentBest, rhs: retried)
@@ -479,6 +497,7 @@ final class DashboardViewModel: ObservableObject {
                 DashboardServerRuntimeInput(
                     id: server.id,
                     name: server.name,
+                    connectionState: server.connectionState,
                     isOnline: server.isOnline,
                     totalSeedingCount: server.totalSeedingCount,
                     totalDownloadingCount: server.totalDownloadingCount
@@ -528,9 +547,9 @@ private extension DashboardViewModel {
 
         for server in servers {
             let isOnline: Bool
-            if server.isOnline == true {
+            if server.connectionState == .online {
                 isOnline = true
-            } else if server.isOnline == false {
+            } else if server.connectionState == .offline {
                 isOnline = server.totalSeedingCount > 0 || server.totalDownloadingCount > 0
             } else {
                 isOnline = true
@@ -576,16 +595,17 @@ private extension DashboardViewModel {
 
         for server in servers {
             let serverID = server.id
-            let isOnline = onlineServerIDs.contains(serverID)
             let apiEntry = storageByServer[serverID]
+            let connectionState = apiEntry?.connectionState ?? server.connectionState
+            let isOnline = onlineServerIDs.contains(serverID)
 
             let mergedEntry = DashboardServerStorageEntry(
                 id: serverID,
                 serverName: server.name,
                 defaultSavePath: apiEntry?.defaultSavePath ?? "--",
                 remainingSpace: apiEntry?.remainingSpace,
-                isOnline: isOnline,
-                statusMessage: isOnline ? "在线" : "连接异常"
+                connectionState: connectionState,
+                statusMessage: connectionState.statusMessage
             )
             mergedStorage.append(mergedEntry)
 
@@ -598,7 +618,7 @@ private extension DashboardViewModel {
         }
 
         let onlineServerCount = onlineServerIDs.count
-        let failedServerCount = max(servers.count - onlineServerCount, 0)
+        let failedServerCount = mergedStorage.filter { $0.connectionState == .offline }.count
 
         let mergedSnapshot = GlobalStatsSnapshot(
             totalSeedingCount: totalSeedingCount,
@@ -609,7 +629,7 @@ private extension DashboardViewModel {
             totalAllTimeUploaded: apiSnapshot.totalAllTimeUploaded,
             onlineServerCount: onlineServerCount,
             failedServerCount: failedServerCount,
-            hasConnectionIssue: onlineServerCount == 0,
+            hasConnectionIssue: onlineServerCount == 0 && failedServerCount > 0,
             hasReliableTransferTotals: apiSnapshot.hasReliableTransferTotals,
             serverStorage: mergedStorage,
             lastUpdatedAt: Date()

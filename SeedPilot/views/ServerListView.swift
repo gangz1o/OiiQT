@@ -14,6 +14,7 @@ struct ServerListView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Query private var servers: [ServerConfig]
     @AppStorage("isProUser") private var isProUser: Bool = false
+    @AppStorage("hideServerAddress") private var hideServerAddress: Bool = false
 
     @State private var showingAddServer = false
     @State private var showingProPaywall = false
@@ -90,7 +91,16 @@ struct ServerListView: View {
         .navigationTitle(LanguageManager.shared.localized("Server Management"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        hideServerAddress.toggle()
+                    }
+                } label: {
+                    Image(systemName: hideServerAddress ? "eye.slash.fill" : "eye")
+                        .foregroundStyle(hideServerAddress ? .secondary : .primary)
+                }
+
                 Button {
                     handleAddServerTapped()
                 } label: {
@@ -160,6 +170,7 @@ struct ServerListView: View {
 
 struct ServerCardView: View {
     let server: ServerConfig
+    @AppStorage("hideServerAddress") private var hideServerAddress: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -210,11 +221,12 @@ struct ServerCardView: View {
             .padding(.bottom, 2)
 
             // Subheadline (URL)
-            Text(server.address)
+            Text(hideServerAddress ? "••••••••" : server.address)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+                .contentTransition(.numericText())
 
             Spacer()
 

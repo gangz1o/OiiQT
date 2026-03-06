@@ -52,7 +52,7 @@ private struct DashboardStorageServerTile: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(entry.isOnline ? Color.green : Color.red)
+                        .fill(entry.connectionState.indicatorColor)
                         .frame(width: 8, height: 8)
 
                     Text(entry.serverName)
@@ -71,9 +71,9 @@ private struct DashboardStorageServerTile: View {
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(.primary)
                 } else {
-                    Text(entry.isOnline ? LanguageManager.shared.localized("Online") : LanguageManager.shared.localized("Connection Error"))
+                    Text(entry.statusMessage)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(entry.connectionState == .offline ? .red : .secondary)
                 }
             }
         }

@@ -8,6 +8,45 @@ enum ServerType: String, Codable, CaseIterable, Sendable {
     case transmission = "Transmission"
 }
 
+enum ServerConnectionState: String, Codable, Hashable, Sendable {
+    case pending
+    case online
+    case offline
+
+    nonisolated var isOnline: Bool? {
+        switch self {
+        case .pending:
+            return nil
+        case .online:
+            return true
+        case .offline:
+            return false
+        }
+    }
+
+    nonisolated var indicatorColor: Color {
+        switch self {
+        case .pending:
+            return .orange
+        case .online:
+            return .green
+        case .offline:
+            return .red
+        }
+    }
+
+    nonisolated var statusMessage: String {
+        switch self {
+        case .pending:
+            return "连接中"
+        case .online:
+            return "在线"
+        case .offline:
+            return "连接异常"
+        }
+    }
+}
+
 enum TorrentStatus: String, Codable, CaseIterable, Equatable, Sendable {
     case downloading = "下载中"
     case queued = "排队中"
@@ -214,9 +253,24 @@ final class ServerConfig {
         return useHTTPS ? "https" : "http"
     }
 
-    /// 在线状态：nil=检测中, true=在线, false=离线
+    /// 连接状态：pending=请求中, online=在线, offline=离线
     @Transient
-    var isOnline: Bool? = nil
+    var connectionState: ServerConnectionState = .pending
+
+    @Transient
+    var isOnline: Bool? {
+        get { connectionState.isOnline }
+        set {
+            switch newValue {
+            case true:
+                connectionState = .online
+            case false:
+                connectionState = .offline
+            case nil:
+                connectionState = .pending
+            }
+        }
+    }
 }
 
 extension ServerConfig {
@@ -241,11 +295,15 @@ extension ServerConfig {
     }
 
     var statusColor: Color {
-        switch isOnline {
-        case true: return .green
-        case false: return .red
-        case nil: return .gray
-        }
+        connectionState.indicatorColor
+    }
+}
+
+extension ServerConfig: Equatable {
+    static func == (lhs: ServerConfig, rhs: ServerConfig) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.name == rhs.name &&
+        lhs.type == rhs.type
     }
 }
 

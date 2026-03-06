@@ -8,6 +8,9 @@
 import Foundation
 
 class TransmissionClient: NSObject, TorrentClient {
+    private static let standardRequestTimeout: TimeInterval = 30
+    private static let heavyPayloadTimeout: TimeInterval = 60
+
     private let config: ServerConfig
     private var sessionID: String?
 
@@ -16,8 +19,8 @@ class TransmissionClient: NSObject, TorrentClient {
         sessionConfig.httpCookieStorage = HTTPCookieStorage.shared
         sessionConfig.httpCookieAcceptPolicy = .always
         sessionConfig.waitsForConnectivity = false
-        sessionConfig.timeoutIntervalForRequest = 10
-        sessionConfig.timeoutIntervalForResource = 20
+        sessionConfig.timeoutIntervalForRequest = Self.standardRequestTimeout
+        sessionConfig.timeoutIntervalForResource = Self.heavyPayloadTimeout
         let delegate = NetworkManager(allowInsecureSSL: config.allowInsecureSSL)
         return URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     }()
@@ -69,6 +72,9 @@ class TransmissionClient: NSObject, TorrentClient {
             do {
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
+                request.timeoutInterval = method == "torrent-get" || method == "session-stats"
+                    ? Self.heavyPayloadTimeout
+                    : Self.standardRequestTimeout
 
                 let body: [String: Any] = [
                     "method": method,

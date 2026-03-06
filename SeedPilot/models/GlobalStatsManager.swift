@@ -13,8 +13,12 @@ struct DashboardServerStorageEntry: Identifiable, Hashable, Sendable {
     let serverName: String
     let defaultSavePath: String
     let remainingSpace: Int64?
-    let isOnline: Bool
+    let connectionState: ServerConnectionState
     let statusMessage: String
+
+    var isOnline: Bool {
+        connectionState == .online
+    }
 }
 
 struct GlobalStatsSnapshot: Sendable {
@@ -75,16 +79,12 @@ final class GlobalStatsManager {
     private var refreshInFlight = false
     private var lastFetchedAt: Date?
     private var lastServerSignature: String = ""
-    private var lastKnownStatusByServer: [UUID: Bool] = [:]
-    private var failureStreakByServer: [UUID: Int] = [:]
     private var lastKnownStatsByServer: [UUID: GlobalStatsServerSnapshot] = [:]
 
     private init() {}
 
-    func refresh(servers: [ServerConfig], force: Bool = false) async {
+    func refresh(servers: [ServerConfig], force: Bool = false, isSilent: Bool = false) async {
         let validServerIDs = Set(servers.map(\.id))
-        lastKnownStatusByServer = lastKnownStatusByServer.filter { validServerIDs.contains($0.key) }
-        failureStreakByServer = failureStreakByServer.filter { validServerIDs.contains($0.key) }
         lastKnownStatsByServer = lastKnownStatsByServer.filter { validServerIDs.contains($0.key) }
 
         let signature = serverSignature(servers)
@@ -97,6 +97,12 @@ final class GlobalStatsManager {
         guard !refreshInFlight else { return }
         refreshInFlight = true
         isRefreshing = true
+        for server in servers {
+            if isSilent && server.connectionState == .online {
+                continue
+            }
+            server.connectionState = .pending
+        }
         defer {
             isRefreshing = false
             refreshInFlight = false
@@ -114,8 +120,6 @@ final class GlobalStatsManager {
                 serverStorage: [],
                 lastUpdatedAt: Date()
             )
-            lastKnownStatusByServer.removeAll()
-            failureStreakByServer.removeAll()
             lastKnownStatsByServer.removeAll()
             lastFetchedAt = Date()
             lastServerSignature = signature
@@ -146,26 +150,23 @@ final class GlobalStatsManager {
     }
 
     private func syncCachedConnectionState(from servers: [ServerConfig]) {
-        let onlineMap = Dictionary(uniqueKeysWithValues: servers.map { ($0.id, $0.isOnline == true) })
-        for server in servers {
-            lastKnownStatusByServer[server.id] = server.isOnline == true
-        }
+        let stateMap = Dictionary(uniqueKeysWithValues: servers.map { ($0.id, $0.connectionState) })
 
         snapshot.serverStorage = snapshot.serverStorage.map { entry in
-            let isOnline = onlineMap[entry.id] ?? lastKnownStatusByServer[entry.id] ?? entry.isOnline
+            let state = stateMap[entry.id] ?? entry.connectionState
             return DashboardServerStorageEntry(
                 id: entry.id,
                 serverName: entry.serverName,
                 defaultSavePath: entry.defaultSavePath,
                 remainingSpace: entry.remainingSpace,
-                isOnline: isOnline,
-                statusMessage: isOnline ? "在线" : "连接异常"
+                connectionState: state,
+                statusMessage: state.statusMessage
             )
         }
 
-        snapshot.onlineServerCount = servers.filter { $0.isOnline == true }.count
-        snapshot.failedServerCount = servers.count - snapshot.onlineServerCount
-        snapshot.hasConnectionIssue = !servers.isEmpty && snapshot.onlineServerCount == 0
+        snapshot.onlineServerCount = servers.filter { $0.connectionState == .online }.count
+        snapshot.failedServerCount = servers.filter { $0.connectionState == .offline }.count
+        snapshot.hasConnectionIssue = !servers.isEmpty && snapshot.onlineServerCount == 0 && snapshot.failedServerCount > 0
     }
 
     private func applyConnectionState(to servers: [ServerConfig], results: [GlobalServerFetchResult]) {
@@ -173,28 +174,14 @@ final class GlobalStatsManager {
 
         for server in servers {
             guard let result = resultMap[server.id] else {
-                let streak = (failureStreakByServer[server.id] ?? 0) + 1
-                failureStreakByServer[server.id] = streak
-                let keepOnline = (lastKnownStatusByServer[server.id] == true) && streak <= 1
-                server.isOnline = keepOnline
-                if !keepOnline {
-                    lastKnownStatusByServer[server.id] = false
-                }
+                server.connectionState = .offline
                 continue
             }
 
             if result.isOnline {
-                failureStreakByServer[server.id] = 0
-                lastKnownStatusByServer[server.id] = true
-                server.isOnline = true
+                server.connectionState = .online
             } else {
-                let streak = (failureStreakByServer[server.id] ?? 0) + 1
-                failureStreakByServer[server.id] = streak
-                let keepOnline = (lastKnownStatusByServer[server.id] == true) && streak <= 1
-                server.isOnline = keepOnline
-                if !keepOnline {
-                    lastKnownStatusByServer[server.id] = false
-                }
+                server.connectionState = .offline
             }
         }
     }
@@ -222,7 +209,8 @@ final class GlobalStatsManager {
             }
 
             let cachedStats = lastKnownStatsByServer[server.id]
-            let isOnline = server.isOnline == true
+            let connectionState = server.connectionState
+            let isOnline = connectionState == .online
             let effectiveStats = result?.stats ?? (isOnline ? cachedStats : nil)
             let transferTotalsStats = result?.stats ?? cachedStats
 
@@ -245,20 +233,22 @@ final class GlobalStatsManager {
                         serverName: server.name,
                         defaultSavePath: stats.defaultSavePath,
                         remainingSpace: stats.remainingSpace,
-                        isOnline: true,
-                        statusMessage: "在线"
+                        connectionState: .online,
+                        statusMessage: ServerConnectionState.online.statusMessage
                     )
                 )
             } else {
-                failedServerCount += 1
+                if connectionState == .offline {
+                    failedServerCount += 1
+                }
                 storageRows.append(
                     DashboardServerStorageEntry(
                         id: server.id,
                         serverName: server.name,
                         defaultSavePath: effectiveStats?.defaultSavePath ?? "--",
                         remainingSpace: nil,
-                        isOnline: false,
-                        statusMessage: "连接异常"
+                        connectionState: connectionState,
+                        statusMessage: connectionState.statusMessage
                     )
                 )
             }
@@ -273,7 +263,7 @@ final class GlobalStatsManager {
             totalAllTimeUploaded: totalAllTimeUploaded,
             onlineServerCount: onlineServerCount,
             failedServerCount: failedServerCount,
-            hasConnectionIssue: onlineServerCount == 0,
+            hasConnectionIssue: onlineServerCount == 0 && failedServerCount > 0,
             hasReliableTransferTotals: transferTotalsSourceCount == servers.count && !servers.isEmpty,
             serverStorage: storageRows,
             lastUpdatedAt: Date()
@@ -335,6 +325,9 @@ private struct GlobalStatsServerEndpoint: Sendable {
 }
 
 private enum GlobalStatsFetcher {
+    private static let standardRequestTimeout: TimeInterval = 30
+    private static let heavyPayloadTimeout: TimeInterval = 60
+
     static func fetchAll(endpoints: [GlobalStatsServerEndpoint], retryCount: Int) async -> [GlobalServerFetchResult] {
         await withTaskGroup(of: GlobalServerFetchResult.self, returning: [GlobalServerFetchResult].self) { group in
             for endpoint in endpoints {
@@ -464,6 +457,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = standardRequestTimeout
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue(baseURL, forHTTPHeaderField: "Referer")
@@ -495,6 +489,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = heavyPayloadTimeout
         configureQBRequest(&request, baseURL: baseURL)
 
         let (data, response) = try await session.data(for: request)
@@ -512,6 +507,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = standardRequestTimeout
         configureQBRequest(&request, baseURL: baseURL)
 
         do {
@@ -541,6 +537,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = heavyPayloadTimeout
         configureQBRequest(&request, baseURL: baseURL)
 
         do {
@@ -576,6 +573,7 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = standardRequestTimeout
         configureQBRequest(&request, baseURL: baseURL)
 
         do {
@@ -674,6 +672,9 @@ private enum GlobalStatsFetcher {
 
         var request = URLRequest(url: rpcURL)
         request.httpMethod = "POST"
+        request.timeoutInterval = method == "torrent-get" || method == "session-stats"
+            ? heavyPayloadTimeout
+            : standardRequestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(basicAuthHeaderValue(username: endpoint.username, password: endpoint.password), forHTTPHeaderField: "Authorization")
         if let sessionID {
@@ -714,6 +715,8 @@ private enum GlobalStatsFetcher {
         let config = URLSessionConfiguration.default
         config.httpCookieStorage = HTTPCookieStorage.shared
         config.httpCookieAcceptPolicy = .always
+        config.timeoutIntervalForRequest = standardRequestTimeout
+        config.timeoutIntervalForResource = heavyPayloadTimeout
         let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL)
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }
