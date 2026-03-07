@@ -22,8 +22,6 @@ struct TorrentActionSheetView: View {
     @State private var showingCategorySelector = false
     @State private var showingTagSelector = false
     @State private var draftSavePath = ""
-    @State private var categoryOptions: [String] = []
-    @State private var tagOptions: [String] = []
     @State private var selectedCategory = ""
     @State private var selectedTags: Set<String> = []
     @State private var taxonomyErrorMessage = ""
@@ -58,6 +56,14 @@ struct TorrentActionSheetView: View {
 
     private var supportsTags: Bool {
         taskServerType == .qBittorrent || taskServerType == .transmission
+    }
+
+    private var categoryOptions: [String] {
+        appStateManager.availableCategoryOptions(for: task)
+    }
+
+    private var tagOptions: [String] {
+        appStateManager.availableTagOptions(for: task)
     }
 
     var body: some View {
@@ -175,7 +181,7 @@ struct TorrentActionSheetView: View {
                             isAutoMatching = true
                             Task {
                                 defer { isAutoMatching = false }
-                                TMDBService.shared.clearPosterMatch(for: task.hash, context: modelContext)
+                                TMDBService.shared.clearPosterMatch(for: task.hash, name: task.name, context: modelContext)
                                 let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
                                 if let newURL {
                                     displayPosterURL = newURL
@@ -248,6 +254,11 @@ struct TorrentActionSheetView: View {
             .background(Color.clear)
         }
         .background(Color(uiColor: .systemBackground))
+        .onAppear {
+            if supportsCategory || supportsTags {
+                appStateManager.prewarmTaxonomyIfNeeded(for: task)
+            }
+        }
         .confirmationDialog(languageManager.localized("Confirm Deletion"), isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
             Button(languageManager.localized("Delete Task (Keep Data)"), role: .destructive) {
                 appStateManager.deleteTask(task, withData: false)
@@ -459,42 +470,14 @@ struct TorrentActionSheetView: View {
 
     private func handleSetCategoryTapped() {
         guard supportsCategory else { return }
-        Task {
-            do {
-                let categories = try await appStateManager.fetchTaskCategoryOptions(for: task)
-                await MainActor.run {
-                    categoryOptions = categories
-                    selectedCategory = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
-                    showingCategorySelector = true
-                }
-            } catch {
-                await MainActor.run {
-                    taxonomyErrorMessage = localizedErrorMessage(error)
-                    showingTaxonomyError = true
-                }
-            }
-        }
+        selectedCategory = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
+        showingCategorySelector = true
     }
 
     private func handleEditTagsTapped() {
         guard supportsTags else { return }
-        Task {
-            do {
-                let fetchedOptions = try await appStateManager.fetchTaskTagOptions(for: task)
-                let current = parseTags(task.tags)
-                await MainActor.run {
-                    selectedTags = Set(current)
-                    tagOptions = Array(Set(fetchedOptions).union(selectedTags))
-                        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-                    showingTagSelector = true
-                }
-            } catch {
-                await MainActor.run {
-                    taxonomyErrorMessage = localizedErrorMessage(error)
-                    showingTaxonomyError = true
-                }
-            }
-        }
+        selectedTags = Set(parseTags(task.tags))
+        showingTagSelector = true
     }
 
     private func applyCategory(_ category: String) async {

@@ -21,8 +21,6 @@ struct BatchActionMenu: View {
     @State private var showingCategoryUnsupportedAlert = false
     @State private var showingBatchCategorySelector = false
     @State private var showingBatchTagSelector = false
-    @State private var batchCategoryOptions: [String] = []
-    @State private var batchTagOptions: [String] = []
     @State private var batchSelectedCategory = ""
     @State private var batchSelectedTags: Set<String> = []
     @State private var actionErrorMessage = ""
@@ -65,6 +63,14 @@ struct BatchActionMenu: View {
 
     private var presetSavePaths: [String] {
         PresetSavePathsCodec.decode(presetSavePathsRaw)
+    }
+
+    private var batchCategoryOptions: [String] {
+        appStateManager.availableCategoryOptions(for: selectedTasksSet)
+    }
+
+    private var batchTagOptions: [String] {
+        appStateManager.availableTagOptions(for: selectedTasksSet)
     }
 
     var body: some View {
@@ -138,6 +144,12 @@ struct BatchActionMenu: View {
                 .foregroundStyle(.primary)
         }
         .disabled(selectedTasks.isEmpty)
+        .onAppear {
+            prewarmTaxonomy()
+        }
+        .onChange(of: selectedTaskHashes) { _, _ in
+            prewarmTaxonomy()
+        }
         .alert(LanguageManager.shared.localized("Batch Set Save Path"), isPresented: $showingBatchLocationAlert) {
             TextField(LanguageManager.shared.localized("New Path"), text: $newBatchLocation)
             Button(LanguageManager.shared.localized("Choose Preset Path")) {
@@ -258,49 +270,26 @@ struct BatchActionMenu: View {
             showingCategoryUnsupportedAlert = true
             return
         }
-        Task {
-            do {
-                let options = try await appStateManager.fetchTaskCategoryOptions(for: selectedTasksSet)
-                await MainActor.run {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    batchCategoryOptions = options
-                    batchSelectedCategory = ""
-                    showingBatchCategorySelector = true
-                }
-            } catch {
-                await MainActor.run {
-                    actionErrorMessage = localizedErrorMessage(error)
-                    showingActionErrorAlert = true
-                }
-            }
-        }
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        batchSelectedCategory = ""
+        showingBatchCategorySelector = true
     }
 
     private func handleBatchTagsTapped() {
-        Task {
-            do {
-                let options = try await appStateManager.fetchTaskTagOptions(for: selectedTasksSet)
-                let current = Set(selectedTasks.flatMap { parseTags($0.tags) })
-                await MainActor.run {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    batchSelectedTags = current
-                    batchTagOptions = Array(Set(options).union(current))
-                        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-                    showingBatchTagSelector = true
-                }
-            } catch {
-                await MainActor.run {
-                    actionErrorMessage = localizedErrorMessage(error)
-                    showingActionErrorAlert = true
-                }
-            }
-        }
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        batchSelectedTags = Set(selectedTasks.flatMap { parseTags($0.tags) })
+        showingBatchTagSelector = true
     }
 
     private var selectedTasksSet: Set<TorrentTask> {
         Set(selectedTasks)
+    }
+
+    private func prewarmTaxonomy() {
+        guard !selectedTasksSet.isEmpty else { return }
+        appStateManager.prewarmTaxonomyIfNeeded(for: selectedTasksSet)
     }
 
     private func applyBatchCategory(_ category: String) async {

@@ -85,6 +85,7 @@ private struct AddTrackerAliasView: View {
     @State private var originalDomain = ""
     @State private var alias = ""
     @State private var trackerDomainCandidates: [String] = []
+    @State private var duplicateErrorMessage: String?
 
     init(mode: Mode) {
         self.mode = mode
@@ -102,7 +103,7 @@ private struct AddTrackerAliasView: View {
     private var canSave: Bool {
         !originalDomain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !alias.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !isDuplicateDomain
+        !hasDuplicateValidationError
     }
 
     private var titleKey: String {
@@ -122,12 +123,12 @@ private struct AddTrackerAliasView: View {
         Set(aliasManager.aliasMap.keys)
     }
 
-    private var normalizedInputDomain: String {
-        aliasManager.normalizeTrackerDomain(originalDomain)
+    private var hasDuplicateValidationError: Bool {
+        duplicateErrorMessage != nil
     }
 
-    private var isDuplicateDomain: Bool {
-        let normalized = normalizedInputDomain
+    private func isDuplicateDomain(_ candidate: String) -> Bool {
+        let normalized = aliasManager.normalizeTrackerDomain(candidate)
         guard !normalized.isEmpty else { return false }
         if let editingNormalizedDomain, editingNormalizedDomain == normalized {
             return false
@@ -174,17 +175,25 @@ private struct AddTrackerAliasView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    if isDuplicateDomain {
-                        Text(LanguageManager.shared.localized("This tracker domain already exists"))
+                    if let duplicateErrorMessage {
+                        Text(duplicateErrorMessage)
                             .font(.footnote)
                             .foregroundStyle(.red)
+                            .transition(.opacity)
                     }
                 }
             }
             .navigationTitle(LanguageManager.shared.localized(titleKey))
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
+                resetFormStateForPresentation()
                 rebuildTrackerDomainCandidates()
+            }
+            .onDisappear {
+                clearTransientState()
+            }
+            .onChange(of: originalDomain) { _, newValue in
+                validateDuplicateDomain(newValue)
             }
             .onChange(of: appStateManager.tasksRevision) { _, _ in
                 rebuildTrackerDomainCandidates()
@@ -197,9 +206,12 @@ private struct AddTrackerAliasView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(LanguageManager.shared.localized("Save")) {
-                        guard !isDuplicateDomain else { return }
                         let trimmedOriginal = originalDomain.trimmingCharacters(in: .whitespacesAndNewlines)
                         let trimmedAlias = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !isDuplicateDomain(trimmedOriginal) else {
+                            validateDuplicateDomain(trimmedOriginal)
+                            return
+                        }
 
                         if case .edit(let rule) = mode {
                             let oldDomain = aliasManager.normalizeTrackerDomain(rule.originalDomain)
@@ -237,6 +249,42 @@ private struct AddTrackerAliasView: View {
 
         trackerDomainCandidates = result.sorted {
             $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
+    private func resetFormStateForPresentation() {
+        switch mode {
+        case .add:
+            originalDomain = ""
+            alias = ""
+        case .edit(let rule):
+            originalDomain = rule.originalDomain
+            alias = rule.alias
+        }
+        duplicateErrorMessage = nil
+    }
+
+    private func clearTransientState() {
+        originalDomain = ""
+        alias = ""
+        duplicateErrorMessage = nil
+    }
+
+    private func validateDuplicateDomain(_ candidate: String) {
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                duplicateErrorMessage = nil
+            }
+            return
+        }
+
+        let message = isDuplicateDomain(trimmed)
+            ? LanguageManager.shared.localized("This tracker domain already exists")
+            : nil
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            duplicateErrorMessage = message
         }
     }
 }

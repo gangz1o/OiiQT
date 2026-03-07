@@ -213,7 +213,7 @@ struct TransfersView: View {
                     posterURL: selectedTorrentPosterURL,
                     appStateManager: appStateManager,
                     onPosterChanged: {
-                        TMDBService.shared.clearCache(for: selectedTask.hash)
+                        TMDBService.shared.clearCache(for: selectedTask.hash, name: selectedTask.name)
                         NotificationCenter.default.post(
                             name: .tmdbPosterDidChange,
                             object: nil,
@@ -582,6 +582,7 @@ struct TransfersView: View {
         } actions: {
             Button {
                 appStateManager.selectedTab = .settings
+                appStateManager.settingsRoute = .serverSettings
             } label: {
                 Text(LanguageManager.shared.localized("Go to Server Settings"))
             }

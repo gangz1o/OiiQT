@@ -15,6 +15,7 @@ enum AppTab: Int {
 }
 
 enum SettingsRoute: Hashable {
+    case serverSettings
     case dashboardCustomization
     case proFeatures
     case tmdbAPIKey
@@ -57,6 +58,8 @@ class AppStateManager {
     var isRefreshingTasks: Bool = false
     var hasInitialDataLoaded: Bool = false
     var downloadingTaskBadgeCount: Int = 0
+    var availableCategories: [String] = []
+    var availableTags: [String] = []
 
     var activeServerId: UUID?
 
@@ -85,6 +88,13 @@ class AppStateManager {
     private var seedingTotalsByServerID: [UUID: ServerSeedingTotals] = [:]
     private var hasRecentFinishedTasksAll: Bool = false
     private var hasRecentFinishedByServerID: [UUID: Bool] = [:]
+    private var taskDerivedCategoriesByServerID: [UUID: [String]] = [:]
+    private var taskDerivedTagsByServerID: [UUID: [String]] = [:]
+    private var serverCategoriesByServerID: [UUID: [String]] = [:]
+    private var serverTagsByServerID: [UUID: [String]] = [:]
+    private var taxonomyWarmupTasksByServerID: [UUID: Task<Void, Never>] = [:]
+    private var taxonomyWarmupDatesByServerID: [UUID: Date] = [:]
+    private let taxonomyWarmupTTL: TimeInterval = 300
 
     // MARK: - Computed Properties
 
@@ -162,9 +172,20 @@ class AppStateManager {
     func updateServers(_ newServers: [ServerConfig]) {
         self.servers = newServers
         let validServerIDs = Set(newServers.map(\.id))
+        let removedServerIDs = Set(taxonomyWarmupTasksByServerID.keys).subtracting(validServerIDs)
+        for serverID in removedServerIDs {
+            taxonomyWarmupTasksByServerID[serverID]?.cancel()
+        }
         speedTotalsByServerID = speedTotalsByServerID.filter { validServerIDs.contains($0.key) }
         seedingTotalsByServerID = seedingTotalsByServerID.filter { validServerIDs.contains($0.key) }
         hasRecentFinishedByServerID = hasRecentFinishedByServerID.filter { validServerIDs.contains($0.key) }
+        taskDerivedCategoriesByServerID = taskDerivedCategoriesByServerID.filter { validServerIDs.contains($0.key) }
+        taskDerivedTagsByServerID = taskDerivedTagsByServerID.filter { validServerIDs.contains($0.key) }
+        serverCategoriesByServerID = serverCategoriesByServerID.filter { validServerIDs.contains($0.key) }
+        serverTagsByServerID = serverTagsByServerID.filter { validServerIDs.contains($0.key) }
+        taxonomyWarmupDatesByServerID = taxonomyWarmupDatesByServerID.filter { validServerIDs.contains($0.key) }
+        taxonomyWarmupTasksByServerID = taxonomyWarmupTasksByServerID.filter { validServerIDs.contains($0.key) }
+        refreshAvailableTaxonomySnapshots()
     }
 
     /// 启动自动刷新 (每 2 秒)
@@ -241,6 +262,8 @@ class AppStateManager {
             await MainActor.run {
                 markServerOnline(server)
                 applyServerTaskStats(serverStats, to: server)
+                ingestTaskDerivedTaxonomy(tasks, for: server)
+                prewarmTaxonomyIfNeeded(for: server.id)
             }
         }
 
@@ -404,6 +427,163 @@ class AppStateManager {
             : 0.0
     }
 
+    func availableCategoryOptions(for task: TorrentTask) -> [String] {
+        availableCategoryOptions(for: Set([task]))
+    }
+
+    func availableCategoryOptions(for tasks: Set<TorrentTask>) -> [String] {
+        let serverIDs = Set(tasks.map(\.serverID))
+        let currentCategories = tasks.map(\.category)
+        return mergedCategoryOptions(for: serverIDs, including: currentCategories)
+    }
+
+    func availableTagOptions(for task: TorrentTask) -> [String] {
+        availableTagOptions(for: Set([task]))
+    }
+
+    func availableTagOptions(for tasks: Set<TorrentTask>) -> [String] {
+        let serverIDs = Set(tasks.map(\.serverID))
+        let currentTags = tasks.flatMap { Array(normalizedTagSet(from: $0.tags)) }
+        return mergedTagOptions(for: serverIDs, including: currentTags)
+    }
+
+    @MainActor
+    func prewarmTaxonomyIfNeeded(for task: TorrentTask) {
+        prewarmTaxonomyIfNeeded(for: Set([task]))
+    }
+
+    @MainActor
+    func prewarmTaxonomyIfNeeded(for tasks: Set<TorrentTask>) {
+        prewarmTaxonomyIfNeeded(forServerIDs: Set(tasks.map(\.serverID)))
+    }
+
+    @MainActor
+    private func ingestTaskDerivedTaxonomy(_ tasks: [TorrentTask], for server: ServerConfig) {
+        let categories = server.type == .qBittorrent
+            ? sortedUniqueValues(tasks.map(\.category))
+            : []
+        let tags = sortedUniqueValues(
+            tasks.flatMap { task in
+                Array(normalizedTagSet(from: task.tags))
+            }
+        )
+
+        var didChange = false
+        if taskDerivedCategoriesByServerID[server.id] != categories {
+            taskDerivedCategoriesByServerID[server.id] = categories
+            didChange = true
+        }
+        if taskDerivedTagsByServerID[server.id] != tags {
+            taskDerivedTagsByServerID[server.id] = tags
+            didChange = true
+        }
+
+        if didChange {
+            refreshAvailableTaxonomySnapshots()
+        }
+    }
+
+    @MainActor
+    private func prewarmTaxonomyIfNeeded(for serverID: UUID) {
+        prewarmTaxonomyIfNeeded(forServerIDs: Set([serverID]))
+    }
+
+    @MainActor
+    private func prewarmTaxonomyIfNeeded(forServerIDs serverIDs: Set<UUID>) {
+        for serverID in serverIDs {
+            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
+
+            let supportsCategories = server.type == .qBittorrent
+            let supportsTags = server.type == .qBittorrent || server.type == .transmission
+            guard supportsCategories || supportsTags else { continue }
+
+            if taxonomyWarmupTasksByServerID[serverID] != nil {
+                continue
+            }
+
+            if let lastWarmup = taxonomyWarmupDatesByServerID[serverID],
+               Date().timeIntervalSince(lastWarmup) < taxonomyWarmupTTL {
+                continue
+            }
+
+            taxonomyWarmupTasksByServerID[serverID] = Task { @MainActor [weak self] in
+                guard let self else { return }
+                defer {
+                    self.taxonomyWarmupTasksByServerID[serverID] = nil
+                }
+
+                do {
+                    if supportsCategories {
+                        _ = try await self.fetchServerCategories(for: server)
+                    }
+                    if supportsTags {
+                        _ = try await self.fetchServerTags(for: server)
+                    }
+                    self.taxonomyWarmupDatesByServerID[serverID] = Date()
+                } catch {
+                    self.taxonomyWarmupDatesByServerID[serverID] = Date()
+                    print("Taxonomy prewarm failed for \(server.name): \(error)")
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func storeServerCategories(_ categories: [String], for serverID: UUID) {
+        if serverCategoriesByServerID[serverID] != categories {
+            serverCategoriesByServerID[serverID] = categories
+            refreshAvailableTaxonomySnapshots()
+        }
+    }
+
+    @MainActor
+    private func storeServerTags(_ tags: [String], for serverID: UUID) {
+        if serverTagsByServerID[serverID] != tags {
+            serverTagsByServerID[serverID] = tags
+            refreshAvailableTaxonomySnapshots()
+        }
+    }
+
+    @MainActor
+    private func invalidateTaxonomyWarmup(for serverID: UUID) {
+        taxonomyWarmupDatesByServerID[serverID] = nil
+    }
+
+    @MainActor
+    private func refreshAvailableTaxonomySnapshots() {
+        let mergedCategories = sortedUniqueValues(
+            taskDerivedCategoriesByServerID.values.flatMap { $0 } +
+            serverCategoriesByServerID.values.flatMap { $0 }
+        )
+        let mergedTags = sortedUniqueValues(
+            taskDerivedTagsByServerID.values.flatMap { $0 } +
+            serverTagsByServerID.values.flatMap { $0 }
+        )
+
+        if availableCategories != mergedCategories {
+            availableCategories = mergedCategories
+        }
+        if availableTags != mergedTags {
+            availableTags = mergedTags
+        }
+    }
+
+    private func mergedCategoryOptions(for serverIDs: Set<UUID>, including currentCategories: [String]) -> [String] {
+        let cached = serverIDs.flatMap { serverID in
+            (taskDerivedCategoriesByServerID[serverID] ?? []) +
+            (serverCategoriesByServerID[serverID] ?? [])
+        }
+        return sortedUniqueValues(cached + currentCategories)
+    }
+
+    private func mergedTagOptions(for serverIDs: Set<UUID>, including currentTags: [String]) -> [String] {
+        let cached = serverIDs.flatMap { serverID in
+            (taskDerivedTagsByServerID[serverID] ?? []) +
+            (serverTagsByServerID[serverID] ?? [])
+        }
+        return sortedUniqueValues(cached + currentTags)
+    }
+
     private static func buildServerTaskStats(from tasks: [TorrentTask]) -> ServerTaskStats {
         var seedingCount = 0
         var downloadingCount = 0
@@ -452,7 +632,12 @@ class AppStateManager {
         guard let client = getClient(for: server) as? QBittorrentClient else {
             throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
         }
-        return try await client.fetchServerCategories()
+        let categories = try await client.fetchServerCategories()
+        let normalized = sortedUniqueValues(categories.map(\.name))
+        await MainActor.run {
+            storeServerCategories(normalized, for: server.id)
+        }
+        return categories
     }
 
     func createServerCategory(for server: ServerConfig, name: String, savePath: String) async throws {
@@ -463,6 +648,9 @@ class AppStateManager {
             throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
         }
         try await client.createServerCategory(name: name, savePath: savePath)
+        await MainActor.run {
+            invalidateTaxonomyWarmup(for: server.id)
+        }
         await refreshData()
     }
 
@@ -474,6 +662,9 @@ class AppStateManager {
             throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
         }
         try await client.renameServerCategory(oldName: oldName, newName: newName, savePath: savePath)
+        await MainActor.run {
+            invalidateTaxonomyWarmup(for: server.id)
+        }
         await refreshData()
     }
 
@@ -485,22 +676,31 @@ class AppStateManager {
             throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
         }
         try await client.deleteServerCategories([name])
+        await MainActor.run {
+            invalidateTaxonomyWarmup(for: server.id)
+        }
         await refreshData()
     }
 
     func fetchServerTags(for server: ServerConfig) async throws -> [String] {
+        let tags: [String]
         switch server.type {
         case .qBittorrent:
             guard let client = getClient(for: server) as? QBittorrentClient else {
                 throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
             }
-            return try await client.fetchServerTags()
+            tags = try await client.fetchServerTags()
         case .transmission:
             guard let client = getClient(for: server) as? TransmissionClient else {
                 throw TorrentClientError.apiError("Failed to initialize Transmission client.")
             }
-            return try await client.fetchServerTags()
+            tags = try await client.fetchServerTags()
         }
+        let normalized = sortedUniqueValues(tags)
+        await MainActor.run {
+            storeServerTags(normalized, for: server.id)
+        }
+        return tags
     }
 
     func createServerTag(for server: ServerConfig, name: String) async throws {
@@ -515,6 +715,9 @@ class AppStateManager {
                 throw TorrentClientError.apiError("Failed to initialize Transmission client.")
             }
             try await client.createServerTags([name])
+        }
+        await MainActor.run {
+            invalidateTaxonomyWarmup(for: server.id)
         }
         await refreshData()
     }
@@ -532,6 +735,9 @@ class AppStateManager {
             }
             try await client.renameServerTag(oldName: oldName, newName: newName)
         }
+        await MainActor.run {
+            invalidateTaxonomyWarmup(for: server.id)
+        }
         await refreshData()
     }
 
@@ -548,6 +754,9 @@ class AppStateManager {
             }
             try await client.deleteServerTags([name])
         }
+        await MainActor.run {
+            invalidateTaxonomyWarmup(for: server.id)
+        }
         await refreshData()
     }
 
@@ -558,21 +767,12 @@ class AppStateManager {
     }
 
     func fetchTaskCategoryOptions(for tasks: Set<TorrentTask>) async throws -> [String] {
-        var merged = Set<String>()
-        let grouped = Dictionary(grouping: tasks, by: \.serverID)
-
-        for (serverID, _) in grouped {
-            guard let server = servers.first(where: { $0.id == serverID }) else {
-                throw TorrentClientError.apiError("Server not found.")
-            }
-            guard server.type == .qBittorrent else {
-                throw TorrentClientError.apiError("Current server does not support categories.")
-            }
-            let categories = try await fetchServerCategories(for: server).map(\.name)
-            merged.formUnion(categories)
+        await MainActor.run {
+            prewarmTaxonomyIfNeeded(for: tasks)
         }
-
-        return merged.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return await MainActor.run {
+            availableCategoryOptions(for: tasks)
+        }
     }
 
     func fetchTaskTagOptions(for task: TorrentTask) async throws -> [String] {
@@ -580,19 +780,12 @@ class AppStateManager {
     }
 
     func fetchTaskTagOptions(for tasks: Set<TorrentTask>) async throws -> [String] {
-        var merged = Set<String>()
-        let grouped = Dictionary(grouping: tasks, by: \.serverID)
-
-        for (serverID, groupTasks) in grouped {
-            guard let server = servers.first(where: { $0.id == serverID }) else { continue }
-            let serverTags = try await fetchServerTags(for: server)
-            merged.formUnion(serverTags)
-            for task in groupTasks {
-                merged.formUnion(normalizedTagSet(from: task.tags))
-            }
+        await MainActor.run {
+            prewarmTaxonomyIfNeeded(for: tasks)
         }
-
-        return merged.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        return await MainActor.run {
+            availableTagOptions(for: tasks)
+        }
     }
 
     func applyCategory(_ category: String, to task: TorrentTask) async throws {
@@ -1461,13 +1654,7 @@ class AppStateManager {
     }
 
     private func normalizeTags(_ tags: [String]) -> [String] {
-        Array(
-            Set(
-                tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-            )
-        )
-        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        sortedUniqueValues(tags)
     }
 
     private func normalizedTagSet(from raw: String) -> Set<String> {
@@ -1476,6 +1663,17 @@ class AppStateManager {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         )
+    }
+
+    private func sortedUniqueValues(_ values: [String]) -> [String] {
+        Array(
+            Set(
+                values
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     private func isBenignCancellationError(_ error: Error) -> Bool {

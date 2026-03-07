@@ -8,22 +8,18 @@
 import Foundation
 import SwiftUI
 import Charts
-import UIKit
 
 struct DashboardTodayTransferModuleView: View {
     let recentUploadBytes: Int64
     let recentDownloadBytes: Int64
     let uploadData: [TrackerTransferData]
     let downloadData: [TrackerTransferData]
-    let formattedBaselineTime: String
     let isInitialLoading: Bool
     let isStatsLoading: Bool
-    let onReset: () -> Void
 
     @State private var selectedType: TransferType = .upload
     @State private var selectedTrackerStat: TrackerTransferData?
     @State private var selectionResetTimer: Timer?
-    @State private var resetRotation: Double = 0
 
     private var selectionBinding: Binding<TransferType> {
         Binding(
@@ -81,14 +77,6 @@ struct DashboardTodayTransferModuleView: View {
         }
     }
 
-    private var baselineSubtitle: String {
-        String(
-            format: LanguageManager.shared.localized("自上次重置时间格式"),
-            locale: LanguageManager.shared.currentLocale,
-            formattedBaselineTime
-        )
-    }
-
     private var centerPrimaryText: String {
         activeSelectedTrackerStat?.trackerName ?? LanguageManager.shared.localized("总计")
     }
@@ -103,8 +91,6 @@ struct DashboardTodayTransferModuleView: View {
     var body: some View {
         DashboardTile(minHeight: 360) {
             VStack(alignment: .leading, spacing: 14) {
-                header
-
                 HStack(alignment: .center, spacing: 12) {
                     Spacer(minLength: 0)
                     Picker("", selection: selectionBinding) {
@@ -222,40 +208,6 @@ struct DashboardTodayTransferModuleView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(LanguageManager.shared.localized("近期新增"))
-                    .font(.headline)
-
-                Text(baselineSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            Button {
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.prepare()
-                generator.impactOccurred()
-                withAnimation(.interpolatingSpring(stiffness: 170, damping: 15)) {
-                    resetRotation += 360
-                }
-                onReset()
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(resetRotation))
-                    .padding(8)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(LanguageManager.shared.localized("重置近期新增基线"))
-        }
-    }
-
     private func trackerChip(for item: TrackerTransferData) -> some View {
         let isSelected = activeSelectedTrackerStat?.id == item.id
 
@@ -318,7 +270,7 @@ struct DashboardTodayTransferModuleView: View {
     }
 
     private func formattedChartBytes(_ bytes: Int64) -> String {
-        Self.chartByteFormatter.string(fromByteCount: max(bytes, 0))
+        formatBytes(max(bytes, 0))
     }
 }
 
@@ -329,16 +281,6 @@ private extension DashboardTodayTransferModuleView {
         let bytes: Int64
         let color: Color
     }
-
-    static let chartByteFormatter: ByteCountFormatter = {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useGB, .useTB]
-        formatter.countStyle = .file
-        formatter.allowsNonnumericFormatting = false
-        formatter.isAdaptive = false
-        formatter.zeroPadsFractionDigits = false
-        return formatter
-    }()
 
     enum TransferType: String, CaseIterable, Identifiable {
         case upload

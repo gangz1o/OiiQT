@@ -53,14 +53,28 @@ class TMDBService {
     @MainActor
     func fetchPoster(hash: String, name: String, context: ModelContext) async -> URL? {
         let scopedHash = scopedHash(for: hash)
+        let cacheKey = extractCleanCacheKey(from: name)
+        let scopedCacheKey = scopedPosterCacheKey(for: cacheKey)
 
-        // 1. Check Memory URL Cache first
+        // 1. Check shared clean-title memory cache first
+        if let cachedPath = urlCache.object(forKey: scopedCacheKey as NSString) as String? {
+            if cachedPath == "null" {
+                urlCache.removeObject(forKey: scopedCacheKey as NSString)
+            } else {
+                cacheURL(cachedPath, for: scopedHash)
+                print("[TMDB] fetchPoster: shared cache HIT for '\(cacheKey)'")
+                return URL(string: imageBaseURL + cachedPath)
+            }
+        }
+
+        // 2. Check per-hash memory cache
         if let cachedPath = urlCache.object(forKey: scopedHash as NSString) as String? {
             if cachedPath == "null" {
                 // Negative cache is only a short-term optimization.
                 // Clear it here so future attempts can recover from transient network/match failures.
                 urlCache.removeObject(forKey: scopedHash as NSString)
             } else {
+                cacheURL(cachedPath, for: scopedCacheKey)
                 print("[TMDB] fetchPoster: memory cache HIT for '\(name)'")
                 return URL(string: imageBaseURL + cachedPath)
             }
@@ -70,6 +84,7 @@ class TMDBService {
         if let match = fetchMatch(hash: scopedHash, context: context) {
             if let path = match.posterPath {
                 cacheURL(path, for: scopedHash)
+                cacheURL(path, for: scopedCacheKey)
                 print("[TMDB] fetchPoster: SwiftData HIT for '\(name)' → \(path)")
                 return URL(string: imageBaseURL + path)
             } else if match.isManualOverride {
@@ -85,6 +100,7 @@ class TMDBService {
             let scopedMatch = TMDBMatch(hashString: scopedHash, posterPath: path, isManualOverride: true)
             context.insert(scopedMatch)
             cacheURL(path, for: scopedHash)
+            cacheURL(path, for: scopedCacheKey)
             try? context.save()
             return URL(string: imageBaseURL + path)
         }
@@ -94,6 +110,7 @@ class TMDBService {
             let match = TMDBMatch(hashString: scopedHash, posterPath: legacyPath, isManualOverride: true)
             context.insert(match)
             cacheURL(legacyPath, for: scopedHash)
+            cacheURL(legacyPath, for: scopedCacheKey)
             return URL(string: imageBaseURL + legacyPath)
         }
 
@@ -110,6 +127,7 @@ class TMDBService {
              let match = TMDBMatch(hashString: scopedHash, posterPath: nil, isManualOverride: false)
              context.insert(match)
              urlCache.setObject("null", forKey: scopedHash as NSString)
+             urlCache.setObject("null", forKey: scopedCacheKey as NSString)
             print("[TMDB] fetchPoster: NO MATCH for '\(name)'")
             return nil
         }
@@ -118,6 +136,7 @@ class TMDBService {
         let match = TMDBMatch(hashString: scopedHash, posterPath: posterPath, isManualOverride: false)
         context.insert(match)
         cacheURL(posterPath, for: scopedHash)
+        cacheURL(posterPath, for: scopedCacheKey)
 
         print("[TMDB] fetchPoster: MATCHED '\(name)' → \(posterPath)")
         return URL(string: imageBaseURL + posterPath)
@@ -208,7 +227,8 @@ class TMDBService {
 
     /// 搜索 API (支持分页，自动重试一次)
     func search(query: String, page: Int = 1) async -> [TMDBItem] {
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedQuery = extractCleanCacheKey(from: query)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let language = currentTMDBLanguage()
         let apiKey = apiKeyToUse
         guard apiKey != "YOUR_API_KEY_HERE",
@@ -294,18 +314,25 @@ class TMDBService {
     }
 
     /// 清除特定 hash 的内存缓存，允许重新匹配
-    func clearCache(for hash: String) {
+    func clearCache(for hash: String, name: String? = nil) {
         urlCache.removeObject(forKey: hash as NSString)
         for languageCode in ["zh-Hans", "en"] {
             let scoped = scopedHash(for: hash, languageCode: languageCode)
             urlCache.removeObject(forKey: scoped as NSString)
         }
+        if let name {
+            let cacheKey = extractCleanCacheKey(from: name)
+            for languageCode in ["zh-Hans", "en"] {
+                let scoped = scopedPosterCacheKey(for: cacheKey, languageCode: languageCode)
+                urlCache.removeObject(forKey: scoped as NSString)
+            }
+        }
     }
 
     /// 清除特定任务的海报缓存（内存 + 持久化匹配），用于“重新匹配海报”
     @MainActor
-    func clearPosterMatch(for hash: String, context: ModelContext) {
-        clearCache(for: hash)
+    func clearPosterMatch(for hash: String, name: String? = nil, context: ModelContext) {
+        clearCache(for: hash, name: name)
 
         var keys = Set<String>()
         keys.insert(hash)
@@ -339,6 +366,21 @@ class TMDBService {
 
     private func cacheURL(_ path: String, for hash: String) {
         urlCache.setObject(path as NSString, forKey: hash as NSString)
+    }
+
+    private func extractCleanCacheKey(from rawName: String) -> String {
+        let pattern = "(?i)[\\.\\s_\\-\\[\\(]*(S\\d{2}(E\\d{2})?|(19|20)\\d{2}|2160p|1080p|720p|4k|WEB-DL|BluRay|x265|H265).*$"
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(rawName.startIndex..., in: rawName)
+            let cleaned = regex.stringByReplacingMatches(in: rawName, options: [], range: range, withTemplate: "")
+            let finalTitle = cleaned
+                .trimmingCharacters(in: CharacterSet(charactersIn: ". _-[]()"))
+                .trimmingCharacters(in: .whitespaces)
+            return finalTitle.isEmpty ? rawName : finalTitle
+        } catch {
+            return rawName
+        }
     }
 
     /// Smart search with fallback strategy:
@@ -415,6 +457,11 @@ class TMDBService {
     private func scopedHash(for hash: String, languageCode: String? = nil) -> String {
         let code = (languageCode ?? currentStorageLanguageCode()).lowercased()
         return "\(hash)::\(code)"
+    }
+
+    private func scopedPosterCacheKey(for cacheKey: String, languageCode: String? = nil) -> String {
+        let code = (languageCode ?? currentStorageLanguageCode()).lowercased()
+        return "poster::\(cacheKey.lowercased())::\(code)"
     }
 
     private func searchCacheKey(query: String, page: Int, language: String) -> String {

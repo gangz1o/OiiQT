@@ -13,6 +13,8 @@ struct DashboardServerStorageEntry: Identifiable, Hashable, Sendable {
     let serverName: String
     let defaultSavePath: String
     let remainingSpace: Int64?
+    let totalAllTimeDownloaded: Int64?
+    let totalAllTimeUploaded: Int64?
     let connectionState: ServerConnectionState
     let statusMessage: String
 
@@ -156,6 +158,8 @@ final class GlobalStatsManager {
                 serverName: entry.serverName,
                 defaultSavePath: entry.defaultSavePath,
                 remainingSpace: entry.remainingSpace,
+                totalAllTimeDownloaded: entry.totalAllTimeDownloaded,
+                totalAllTimeUploaded: entry.totalAllTimeUploaded,
                 connectionState: state,
                 statusMessage: state.statusMessage
             )
@@ -230,6 +234,8 @@ final class GlobalStatsManager {
                         serverName: server.name,
                         defaultSavePath: stats.defaultSavePath,
                         remainingSpace: stats.remainingSpace,
+                        totalAllTimeDownloaded: stats.totalAllTimeDownloaded,
+                        totalAllTimeUploaded: stats.totalAllTimeUploaded,
                         connectionState: .online,
                         statusMessage: ServerConnectionState.online.statusMessage
                     )
@@ -244,6 +250,8 @@ final class GlobalStatsManager {
                         serverName: server.name,
                         defaultSavePath: effectiveStats?.defaultSavePath ?? "--",
                         remainingSpace: nil,
+                        totalAllTimeDownloaded: transferTotalsStats?.totalAllTimeDownloaded,
+                        totalAllTimeUploaded: transferTotalsStats?.totalAllTimeUploaded,
                         connectionState: connectionState,
                         statusMessage: connectionState.statusMessage
                     )

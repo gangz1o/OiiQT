@@ -8,6 +8,7 @@
 import SwiftUI
 import Kingfisher
 import UIKit
+import Combine
 
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
@@ -34,14 +35,12 @@ struct SettingsView: View {
 
     // UI 状态
     @State private var showingClearCacheAlert = false
-    @State private var showingSuccessAlert = false
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
     @State private var showingProPaywallSheet = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
-    @State private var hasPerformedInitialLoad = false
 
     private static let iCloudStatusDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -112,9 +111,7 @@ struct SettingsView: View {
 
                 // MARK: - 资源管理
                 Section {
-                    NavigationLink {
-                        ServerListView()
-                    } label: {
+                    NavigationLink(value: SettingsRoute.serverSettings) {
                         SettingsRowLabel(title: LanguageManager.shared.localized("Server Settings"), systemName: "server.rack", tint: .indigo)
                     }
 
@@ -205,37 +202,45 @@ struct SettingsView: View {
 
                 // MARK: - 存储与维护
                 Section {
-                    Button(role: .destructive) {
+                    Button {
                         showingClearCacheAlert = true
                     } label: {
-                        HStack {
-                            SettingsRowLabel(title: LanguageManager.shared.localized("Clear Cache"), systemName: "trash", tint: .red)
+                        HStack(spacing: 12) {
+                            SettingsRowLabel(title: LanguageManager.shared.localized("Clear Poster Cache"), systemName: "trash", tint: .red)
                             Spacer()
                             Text(cacheSizeString)
-                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                                .foregroundStyle(.red.opacity(0.75))
+                                .contentTransition(.numericText())
+                                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: cacheSizeString)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
+                        .contentShape(Rectangle())
                     }
-                    .confirmationDialog(LanguageManager.shared.localized("Are you sure you want to clear all cache?"), isPresented: $showingClearCacheAlert, titleVisibility: .visible) {
-                        Button(LanguageManager.shared.localized("Clear All Cache"), role: .destructive) {
+                    .buttonStyle(.plain)
+                    .confirmationDialog(LanguageManager.shared.localized("Are you sure you want to clear poster cache?"), isPresented: $showingClearCacheAlert, titleVisibility: .visible) {
+                        Button(LanguageManager.shared.localized("Clear All Images"), role: .destructive) {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             clearCache()
                         }
                         Button(LanguageManager.shared.localized("Cancel"), role: .cancel) { }
                     } message: {
-                        Text(LanguageManager.shared.localized("This will delete all temporary files and image cache, without affecting downloaded tasks."))
+                        Text(LanguageManager.shared.localized("This will delete all cached Torrent posters from your device."))
                     }
                 } header: {
                     Text(LanguageManager.shared.localized("Storage & Maintenance"))
                 } footer: {
                     legalFooterView
                 }
-                .alert(LanguageManager.shared.localized("Cache Cleared"), isPresented: $showingSuccessAlert) {
-                    Button(LanguageManager.shared.localized("OK"), role: .cancel) { }
-                }
             }
             .navigationTitle(LanguageManager.shared.localized("Settings"))
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: SettingsRoute.self) { route in
                 switch route {
+                case .serverSettings:
+                    ServerListView()
                 case .dashboardCustomization:
                     DashboardCustomizationView()
                 case .proFeatures:
@@ -247,15 +252,17 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
-                if !hasPerformedInitialLoad {
-                    updateCacheSize()
-                    hasPerformedInitialLoad = true
-                }
+                updateCacheSize()
                 openPendingSettingsRouteIfNeeded()
                 iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
             }
+            .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
+                guard appStateManager.selectedTab == .settings else { return }
+                updateCacheSize()
+            }
             .onChange(of: appStateManager.selectedTab) { _, newValue in
                 guard newValue == .settings else { return }
+                updateCacheSize()
                 openPendingSettingsRouteIfNeeded()
             }
             .onChange(of: appStateManager.settingsRoute) { _, _ in
@@ -472,41 +479,81 @@ struct SettingsView: View {
     }
 
     private func updateCacheSize() {
-        ImageCache.default.calculateDiskStorageSize { result in
-            Task { @MainActor in
-                if case .success(let size) = result {
-                    cacheSizeString = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
-                }
-            }
-        }
-    }
-
-    private func clearCache() {
-        // 1. Clear Kingfisher image cache (memory + disk)
-        ImageCache.default.clearMemoryCache()
-        ImageCache.default.clearDiskCache {
-            Task { @MainActor in
-                // 2. Clear URLCache (for any non-image network responses)
-                URLCache.shared.removeAllCachedResponses()
-
-                // 3. Clear temp files
-                let fileManager = FileManager.default
-                if let tempURL = URL(string: NSTemporaryDirectory()) {
-                    if let tempContents = try? fileManager.contentsOfDirectory(at: tempURL, includingPropertiesForKeys: nil) {
-                        for file in tempContents {
-                            try? fileManager.removeItem(at: file)
+        Task.detached(priority: .utility) {
+            let size = Self.calculateCachesDirectorySize()
+            await MainActor.run {
+                if size == 0 {
+                    // Fallback: try Kingfisher's own counter in case the Caches dir is empty
+                    ImageCache.default.calculateDiskStorageSize { result in
+                        Task { @MainActor in
+                            if case .success(let kfSize) = result {
+                                cacheSizeString = formatBytes(Int64(kfSize))
+                            }
                         }
                     }
+                } else {
+                    cacheSizeString = formatBytes(Int64(size))
                 }
-
-                // 4. Update UI
-                withAnimation {
-                    cacheSizeString = "0 KB"
-                }
-                showingSuccessAlert = true
             }
         }
     }
+
+    /// Walk the sandbox Library/Caches directory and sum up all file sizes.
+    nonisolated private static func calculateCachesDirectorySize() -> UInt64 {
+        guard let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return 0
+        }
+        guard let enumerator = FileManager.default.enumerator(
+            at: cachesURL,
+            includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            return 0
+        }
+        var total: UInt64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true,
+                  let size = values.fileSize else { continue }
+            total += UInt64(max(0, size))
+        }
+        return total
+    }
+
+
+    private func clearCache() {
+        // 1. Clear Kingfisher image cache (memory only — disk handled below)
+        ImageCache.default.clearMemoryCache()
+
+        // 2. Clear URLCache (in-flight network responses)
+        URLCache.shared.removeAllCachedResponses()
+
+        // 3. Wipe entire Library/Caches directory (covers Kingfisher disk cache,
+        //    URLSession disk cache, and any other cached data).
+        Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            // Library/Caches
+            if let cachesURL = fm.urls(for: .cachesDirectory, in: .userDomainMask).first,
+               let items = try? fm.contentsOfDirectory(at: cachesURL, includingPropertiesForKeys: nil) {
+                for item in items {
+                    try? fm.removeItem(at: item)
+                }
+            }
+            // NSTemporaryDirectory
+            if let tempURL = URL(string: NSTemporaryDirectory()),
+               let items = try? fm.contentsOfDirectory(at: tempURL, includingPropertiesForKeys: nil) {
+                for item in items {
+                    try? fm.removeItem(at: item)
+                }
+            }
+            await MainActor.run {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    cacheSizeString = "0 KB"
+                }
+            }
+        }
+    }
+
 
     private func openPendingSettingsRouteIfNeeded() {
         guard appStateManager.selectedTab == .settings else { return }

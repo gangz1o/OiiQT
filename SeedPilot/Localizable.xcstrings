@@ -1407,6 +1407,40 @@
         }
       }
     },
+    "Are you sure you want to clear poster cache?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to clear poster cache?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要清理海报缓存吗？"
+          }
+        }
+      }
+    },
+    "Clear All Images" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear All Images"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理所有图片"
+          }
+        }
+      }
+    },
     "Clear Cache" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1420,6 +1454,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除缓存"
+          }
+        }
+      }
+    },
+    "Clear Poster Cache" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Poster Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理海报缓存"
+          }
+        }
+      }
+    },
+    "This will delete all cached Torrent posters from your device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will delete all cached Torrent posters from your device."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这将从手机上删除所有已缓存的 Torrent 海报。"
           }
         }
       }

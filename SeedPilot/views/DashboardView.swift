@@ -288,18 +288,23 @@ struct DashboardView: View {
                 )
             }
         case .todayTransfer:
-            DashboardTodayTransferModuleView(
-                recentUploadBytes: dashboardViewModel.recentUploadBytes,
-                recentDownloadBytes: dashboardViewModel.recentDownloadBytes,
-                uploadData: dashboardViewModel.recentUploadData,
-                downloadData: dashboardViewModel.recentDownloadData,
-                formattedBaselineTime: dashboardViewModel.formattedBaselineTime,
-                isInitialLoading: !appStateManager.hasInitialDataLoaded || !dashboardViewModel.hasLoadedInitialSnapshot,
-                isStatsLoading: dashboardViewModel.isTransferStatsLoading,
-                onReset: {
-                    dashboardViewModel.resetTransferBaseline()
-                }
-            )
+            DashboardSectionBlock(title: LanguageManager.shared.localized("近期新增")) {
+                DashboardTransferBaselineMetaRow(
+                    formattedBaselineTime: dashboardViewModel.formattedBaselineTime,
+                    onReset: {
+                        dashboardViewModel.resetTransferBaseline()
+                    }
+                )
+
+                DashboardTodayTransferModuleView(
+                    recentUploadBytes: dashboardViewModel.recentUploadBytes,
+                    recentDownloadBytes: dashboardViewModel.recentDownloadBytes,
+                    uploadData: dashboardViewModel.recentUploadData,
+                    downloadData: dashboardViewModel.recentDownloadData,
+                    isInitialLoading: !appStateManager.hasInitialDataLoaded || !dashboardViewModel.hasLoadedInitialSnapshot,
+                    isStatsLoading: dashboardViewModel.isTransferStatsLoading
+                )
+            }
         case .globalAssets:
             DashboardSectionBlock(title: LanguageManager.shared.localized("Data Aggregation")) {
                 if shouldShowStatsSkeleton {
@@ -544,6 +549,44 @@ private struct DashboardSectionBlock<Content: View>: View {
                 .minimumScaleFactor(0.82)
 
             content()
+        }
+    }
+}
+
+private struct DashboardTransferBaselineMetaRow: View {
+    let formattedBaselineTime: String
+    let onReset: () -> Void
+
+    @State private var resetRotation: Double = 0
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(formattedBaselineTime)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+
+            Spacer(minLength: 0)
+
+            Button {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.prepare()
+                generator.impactOccurred()
+                withAnimation(.interpolatingSpring(stiffness: 170, damping: 15)) {
+                    resetRotation += 360
+                }
+                onReset()
+            } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(resetRotation))
+                    .padding(8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(LanguageManager.shared.localized("重置近期新增基线"))
         }
     }
 }

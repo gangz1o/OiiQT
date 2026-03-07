@@ -97,7 +97,9 @@ enum FormatHelper {
 
     static let byteCountFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
+        formatter.countStyle = .binary
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB, .useTB]
+        formatter.includesUnit = true
         formatter.allowsNonnumericFormatting = false
         return formatter
     }()
@@ -117,6 +119,10 @@ enum FormatHelper {
         let formatted = byteCountFormatter.string(fromByteCount: bytes)
         formatterLock.unlock()
         return formatted
+            .replacingOccurrences(of: "TiB", with: "TB")
+            .replacingOccurrences(of: "GiB", with: "GB")
+            .replacingOccurrences(of: "MiB", with: "MB")
+            .replacingOccurrences(of: "KiB", with: "KB")
             .replacingOccurrences(of: "bytes", with: "B")
             .replacingOccurrences(of: "byte", with: "B")
             .replacingOccurrences(of: "字节", with: "B")

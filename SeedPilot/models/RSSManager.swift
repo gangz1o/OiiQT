@@ -114,7 +114,7 @@ class RSSManager: NSObject, XMLParserDelegate {
                 currentEnclosureUrl = enclosureUrl
             }
             if let lengthStr = attributeDict["length"], let bytes = Int64(lengthStr) {
-                currentFileSize = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+                currentFileSize = formatBytes(bytes)
             }
         }
     }

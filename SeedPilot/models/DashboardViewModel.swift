@@ -78,39 +78,24 @@ final class DashboardViewModel: ObservableObject {
     private var lastKnownStorageByServer: [UUID: DashboardServerStorageEntry] = [:]
     private var trackerTransferBaselineSnapshotCache: TrackerTransferBaselineSnapshot?
 
-    private var baselineDL: Int64 {
-        get {
-            guard let number = UserDefaults.standard.object(forKey: Self.baselineDownloadKey) as? NSNumber else {
-                return -1
-            }
-            return number.int64Value
-        }
-        set {
-            UserDefaults.standard.set(NSNumber(value: newValue), forKey: Self.baselineDownloadKey)
-        }
+    private var baselineDLs: [String: Int64] {
+        get { Self.readBaselineMap(forKey: Self.kvsBaselineDLKey) }
+        set { Self.writeBaselineMap(newValue, forKey: Self.kvsBaselineDLKey) }
     }
 
-    private var baselineUL: Int64 {
-        get {
-            guard let number = UserDefaults.standard.object(forKey: Self.baselineUploadKey) as? NSNumber else {
-                return -1
-            }
-            return number.int64Value
-        }
-        set {
-            UserDefaults.standard.set(NSNumber(value: newValue), forKey: Self.baselineUploadKey)
-        }
+    private var baselineULs: [String: Int64] {
+        get { Self.readBaselineMap(forKey: Self.kvsBaselineULKey) }
+        set { Self.writeBaselineMap(newValue, forKey: Self.kvsBaselineULKey) }
     }
 
     private var baselineTimestamp: Double {
         get {
-            guard let number = UserDefaults.standard.object(forKey: Self.baselineTimestampKey) as? NSNumber else {
-                return 0
-            }
-            return number.doubleValue
+            let ts = NSUbiquitousKeyValueStore.default.double(forKey: Self.kvsBaselineTimestampKey)
+            return ts > 0 ? ts : 0
         }
         set {
-            UserDefaults.standard.set(newValue, forKey: Self.baselineTimestampKey)
+            NSUbiquitousKeyValueStore.default.set(newValue, forKey: Self.kvsBaselineTimestampKey)
+            NSUbiquitousKeyValueStore.default.synchronize()
         }
     }
 
@@ -118,12 +103,14 @@ final class DashboardViewModel: ObservableObject {
         self.statsManager = statsManager
         hydrateModuleOrderFromStorage()
         normalizeBaselineTimestampIfNeeded()
+        setupCloudBaselineObserver()
     }
 
     init() {
         self.statsManager = .shared
         hydrateModuleOrderFromStorage()
         normalizeBaselineTimestampIfNeeded()
+        setupCloudBaselineObserver()
     }
 
     var formattedBaselineTime: String {
@@ -133,10 +120,22 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func resetTransferBaseline() {
-        guard globalSnapshot.hasReliableTransferTotals else { return }
+        let entries = Self.transferBaselineEntries(from: globalSnapshot)
+        guard !entries.isEmpty else { return }
+        var downloadedByServer: [String: Int64] = [:]
+        var uploadedByServer: [String: Int64] = [:]
+        downloadedByServer.reserveCapacity(entries.count)
+        uploadedByServer.reserveCapacity(entries.count)
+
+        for entry in entries {
+            let key = entry.id.uuidString
+            downloadedByServer[key] = max(entry.totalAllTimeDownloaded ?? 0, 0)
+            uploadedByServer[key] = max(entry.totalAllTimeUploaded ?? 0, 0)
+        }
+
         applyTransferBaseline(
-            downloaded: max(globalSnapshot.totalAllTimeDownloaded, 0),
-            uploaded: max(globalSnapshot.totalAllTimeUploaded, 0),
+            downloadedByServer: downloadedByServer,
+            uploadedByServer: uploadedByServer,
             timestamp: Date().timeIntervalSince1970
         )
     }
@@ -363,42 +362,85 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func syncRecentTransferStats(from snapshot: GlobalStatsSnapshot) {
-        guard snapshot.hasReliableTransferTotals else {
+        let transferEntries = Self.transferBaselineEntries(from: snapshot)
+        guard !transferEntries.isEmpty else {
             isTransferStatsLoading = !hasTransferStatsLoadedAtLeastOnce
             return
         }
 
-        let currentAllTimeDownloaded = max(snapshot.totalAllTimeDownloaded, 0)
-        let currentAllTimeUploaded = max(snapshot.totalAllTimeUploaded, 0)
+        var currentBaselineDLs = baselineDLs
+        var currentBaselineULs = baselineULs
+        let hadStoredPerServerBaseline = !currentBaselineDLs.isEmpty || !currentBaselineULs.isEmpty
+        var totalRecentDL: Int64 = 0
+        var totalRecentUL: Int64 = 0
+        var didMutateBaseline = false
 
-        if baselineDL < 0 || baselineUL < 0 {
-            applyTransferBaseline(
-                downloaded: currentAllTimeDownloaded,
-                uploaded: currentAllTimeUploaded,
-                timestamp: Date().timeIntervalSince1970
-            )
-            return
+        for entry in transferEntries {
+            guard let rawCurrentDL = entry.totalAllTimeDownloaded,
+                  let rawCurrentUL = entry.totalAllTimeUploaded else {
+                continue
+            }
+
+            let serverID = entry.id.uuidString
+            let currentDL = max(rawCurrentDL, 0)
+            let currentUL = max(rawCurrentUL, 0)
+
+            let storedBaseDL = currentBaselineDLs[serverID] ?? currentDL
+            let storedBaseUL = currentBaselineULs[serverID] ?? currentUL
+
+            if currentBaselineDLs[serverID] == nil {
+                currentBaselineDLs[serverID] = storedBaseDL
+                didMutateBaseline = true
+            }
+            if currentBaselineULs[serverID] == nil {
+                currentBaselineULs[serverID] = storedBaseUL
+                didMutateBaseline = true
+            }
+
+            var validBaseDL = storedBaseDL
+            var validBaseUL = storedBaseUL
+
+            if currentDL > 0, currentDL < storedBaseDL {
+                validBaseDL = currentDL
+                currentBaselineDLs[serverID] = currentDL
+                didMutateBaseline = true
+            }
+
+            if currentUL > 0, currentUL < storedBaseUL {
+                validBaseUL = currentUL
+                currentBaselineULs[serverID] = currentUL
+                didMutateBaseline = true
+            }
+
+            totalRecentDL += max(currentDL - validBaseDL, 0)
+            totalRecentUL += max(currentUL - validBaseUL, 0)
         }
 
-        // If the backend-side totals dropped, silently flatten the baseline to avoid negative UI.
-        if currentAllTimeDownloaded < baselineDL || currentAllTimeUploaded < baselineUL {
-            applyTransferBaseline(
-                downloaded: currentAllTimeDownloaded,
-                uploaded: currentAllTimeUploaded,
-                timestamp: Date().timeIntervalSince1970
-            )
-            return
+        if didMutateBaseline {
+            baselineDLs = currentBaselineDLs
+            baselineULs = currentBaselineULs
+            if !hadStoredPerServerBaseline {
+                baselineTimestamp = Date().timeIntervalSince1970
+                UserDefaults.standard.removeObject(forKey: Self.legacyBaselineDownloadKey)
+                UserDefaults.standard.removeObject(forKey: Self.legacyBaselineUploadKey)
+            }
         }
 
-        recentDownloadBytes = max(currentAllTimeDownloaded - baselineDL, 0)
-        recentUploadBytes = max(currentAllTimeUploaded - baselineUL, 0)
+        recentDownloadBytes = totalRecentDL
+        recentUploadBytes = totalRecentUL
         hasTransferStatsLoadedAtLeastOnce = true
         isTransferStatsLoading = false
     }
 
-    private func applyTransferBaseline(downloaded: Int64, uploaded: Int64, timestamp: Double) {
-        baselineDL = max(downloaded, 0)
-        baselineUL = max(uploaded, 0)
+    private func applyTransferBaseline(
+        downloadedByServer: [String: Int64],
+        uploadedByServer: [String: Int64],
+        timestamp: Double
+    ) {
+        baselineDLs = downloadedByServer.mapValues { max($0, 0) }
+        baselineULs = uploadedByServer.mapValues { max($0, 0) }
+        UserDefaults.standard.removeObject(forKey: Self.legacyBaselineDownloadKey)
+        UserDefaults.standard.removeObject(forKey: Self.legacyBaselineUploadKey)
         baselineTimestamp = timestamp
         recentDownloadBytes = 0
         recentUploadBytes = 0
@@ -411,7 +453,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func syncTrackerBreakdown(tasks: [TorrentTask], snapshot: GlobalStatsSnapshot) async {
-        guard snapshot.hasReliableTransferTotals else { return }
+        guard !Self.transferBaselineEntries(from: snapshot).isEmpty else { return }
 
         let baselineSnapshot = trackerTransferBaselineSnapshotCache
             ?? Self.decodeTrackerBaselineSnapshot(from: trackerTransferBaselineSnapshotData)
@@ -441,6 +483,29 @@ final class DashboardViewModel: ObservableObject {
             baselineTimestamp = Date().timeIntervalSince1970
             return
         }
+    }
+
+    /// 注册 iCloud KVS 跨设备外部变更监听器，并主动触发一次云端拉取。
+    /// 当设备 B 收到设备 A 的重置指令时，静默重算流量差值，无弹窗。
+    private func setupCloudBaselineObserver() {
+        // 启动时主动拉取一次，与云端对齐
+        NSUbiquitousKeyValueStore.default.synchronize()
+
+        NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.recalculateRecentTrafficFromCloud()
+            }
+        }
+    }
+
+    /// 收到远端基线变更时，以当前 globalSnapshot 为基础静默重算差值。
+    private func recalculateRecentTrafficFromCloud() {
+        guard hasLoadedInitialSnapshot else { return }
+        syncRecentTransferStats(from: globalSnapshot)
     }
 
     private func hydrateModuleOrderFromStorage() {
@@ -510,9 +575,17 @@ final class DashboardViewModel: ObservableObject {
 }
 
 private extension DashboardViewModel {
-    nonisolated static let baselineDownloadKey = "dashboard.transferBaseline.download"
-    nonisolated static let baselineUploadKey = "dashboard.transferBaseline.upload"
-    nonisolated static let baselineTimestampKey = "dashboard.transferBaseline.timestamp"
+    // MARK: - iCloud KVS keys（惰性锚点同步，仅在用户手动重置时写入）
+    nonisolated static let kvsBaselineDLKey        = "iCloud_baselineDLs"
+    nonisolated static let kvsBaselineULKey        = "iCloud_baselineULs"
+    nonisolated static let kvsBaselineTimestampKey = "iCloud_baselineTimestamp"
+
+    // MARK: - Legacy UserDefaults keys（保留以便一次性清理）
+    nonisolated static let baselineDownloadMapKey  = "dashboard.transferBaseline.downloadsByServer"
+    nonisolated static let baselineUploadMapKey    = "dashboard.transferBaseline.uploadsByServer"
+    nonisolated static let legacyBaselineDownloadKey = "dashboard.transferBaseline.download"
+    nonisolated static let legacyBaselineUploadKey   = "dashboard.transferBaseline.upload"
+    nonisolated static let baselineTimestampKey    = "dashboard.transferBaseline.timestamp"
     nonisolated static let trackerPalette: [Color] = [
         Color(red: 0.90, green: 0.24, blue: 0.22),
         Color(red: 0.19, green: 0.39, blue: 0.76),
@@ -604,6 +677,8 @@ private extension DashboardViewModel {
                 serverName: server.name,
                 defaultSavePath: apiEntry?.defaultSavePath ?? "--",
                 remainingSpace: apiEntry?.remainingSpace,
+                totalAllTimeDownloaded: apiEntry?.totalAllTimeDownloaded,
+                totalAllTimeUploaded: apiEntry?.totalAllTimeUploaded,
                 connectionState: connectionState,
                 statusMessage: connectionState.statusMessage
             )
@@ -648,6 +723,54 @@ private extension DashboardViewModel {
         formatter.dateFormat = "MM-dd HH:mm"
         return formatter
     }()
+
+    nonisolated static func readBaselineMap(forKey key: String) -> [String: Int64] {
+        // 优先从 iCloud KVS 读取；key 名已切换到 kvsBaselineDL/ULKey
+        guard let stored = NSUbiquitousKeyValueStore.default.dictionary(forKey: key) else {
+            return [:]
+        }
+
+        var result: [String: Int64] = [:]
+        result.reserveCapacity(stored.count)
+
+        for (serverID, value) in stored {
+            if let number = value as? NSNumber {
+                result[serverID] = number.int64Value
+            } else if let int64Value = value as? Int64 {
+                result[serverID] = int64Value
+            } else if let intValue = value as? Int {
+                result[serverID] = Int64(intValue)
+            } else if let stringValue = value as? String,
+                      let int64Value = Int64(stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                result[serverID] = int64Value
+            }
+        }
+
+        return result
+    }
+
+    nonisolated static func writeBaselineMap(_ values: [String: Int64], forKey key: String) {
+        let kvs = NSUbiquitousKeyValueStore.default
+        if values.isEmpty {
+            kvs.removeObject(forKey: key)
+            kvs.synchronize()
+            return
+        }
+
+        let propertyListMap = values.reduce(into: [String: NSNumber]()) { partialResult, item in
+            partialResult[item.key] = NSNumber(value: item.value)
+        }
+        kvs.set(propertyListMap, forKey: key)
+        kvs.synchronize()
+    }
+
+    nonisolated static func transferBaselineEntries(from snapshot: GlobalStatsSnapshot) -> [DashboardServerStorageEntry] {
+        snapshot.serverStorage.filter {
+            $0.connectionState == .online &&
+            $0.totalAllTimeDownloaded != nil &&
+            $0.totalAllTimeUploaded != nil
+        }
+    }
 
     nonisolated static func computeTrackerBreakdown(
         tasks: [TorrentTask],
