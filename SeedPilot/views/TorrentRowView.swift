@@ -396,16 +396,13 @@ struct VerticalEdgeProgressBar: View {
     let status: TorrentStatus
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color(uiColor: .systemGray5))
+        ZStack(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(uiColor: .systemGray5))
 
-                Rectangle()
-                    .fill(progressColor)
-                    .frame(height: max(4, proxy.size.height * CGFloat(clampedProgress)))
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-            }
+            Rectangle()
+                .fill(progressColor)
+                .scaleEffect(y: clampedProgress, anchor: .bottom)
         }
         .frame(width: 4)
         .allowsHitTesting(false)
