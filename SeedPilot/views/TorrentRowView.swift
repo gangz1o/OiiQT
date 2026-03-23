@@ -240,7 +240,6 @@ struct TorrentRowView: View, Equatable {
         .overlay(alignment: .topLeading) {
             if let badge = task.resolutionBadge {
                 DiagonalRibbonView(text: badge.text, color: badge.color)
-                    .drawingGroup()
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))

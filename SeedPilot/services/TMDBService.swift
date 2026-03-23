@@ -56,28 +56,22 @@ class TMDBService {
         let cacheKey = extractCleanCacheKey(from: name)
         let scopedCacheKey = scopedPosterCacheKey(for: cacheKey)
 
-        // 1. Check shared clean-title memory cache first
+        // 1. Check shared clean-title memory cache first (fast path — no SwiftData)
         if let cachedPath = urlCache.object(forKey: scopedCacheKey as NSString) as String? {
             if cachedPath == "null" {
-                urlCache.removeObject(forKey: scopedCacheKey as NSString)
-            } else {
-                cacheURL(cachedPath, for: scopedHash)
-                print("[TMDB] fetchPoster: shared cache HIT for '\(cacheKey)'")
-                return URL(string: imageBaseURL + cachedPath)
+                return nil  // negative cache: skip SwiftData to avoid main-thread I/O during scroll
             }
+            cacheURL(cachedPath, for: scopedHash)
+            return URL(string: imageBaseURL + cachedPath)
         }
 
-        // 2. Check per-hash memory cache
+        // 2. Check per-hash memory cache (fast path — no SwiftData)
         if let cachedPath = urlCache.object(forKey: scopedHash as NSString) as String? {
             if cachedPath == "null" {
-                // Negative cache is only a short-term optimization.
-                // Clear it here so future attempts can recover from transient network/match failures.
-                urlCache.removeObject(forKey: scopedHash as NSString)
-            } else {
-                cacheURL(cachedPath, for: scopedCacheKey)
-                print("[TMDB] fetchPoster: memory cache HIT for '\(name)'")
-                return URL(string: imageBaseURL + cachedPath)
+                return nil  // negative cache: skip SwiftData to avoid main-thread I/O during scroll
             }
+            cacheURL(cachedPath, for: scopedCacheKey)
+            return URL(string: imageBaseURL + cachedPath)
         }
 
         // 2. data persistence (SwiftData)
