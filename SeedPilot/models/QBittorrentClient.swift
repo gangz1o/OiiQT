@@ -165,6 +165,7 @@ class QBittorrentClient: NSObject, TorrentClient {
                             let mappedStatus = Self.mapQBState(task.state)
                             let errorStateToken = mappedStatus == .error ? normalizedState : nil
 
+                            let rawTags = task.tags ?? ""
                             return TorrentTask(
                                 hash: task.hash,
                                 name: task.name,
@@ -180,7 +181,7 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 tracker: task.tracker ?? "",
                                 savePath: task.save_path ?? "",
                                 category: task.category ?? "",
-                                tags: task.tags ?? "",
+                                tags: rawTags,
                                 downloaded: task.downloaded ?? 0,
                                 uploaded: task.uploaded ?? 0,
                                 isSequential: task.seq_dl,
@@ -194,7 +195,8 @@ class QBittorrentClient: NSObject, TorrentClient {
                                 totalSeeds: totalSeeds,
                                 numPeers: numPeers,
                                 totalPeers: totalPeers,
-                                ratio: ratio
+                                ratio: ratio,
+                                normalizedTags: TorrentTask.normalizeTags(from: rawTags)
                             )
                         }
 

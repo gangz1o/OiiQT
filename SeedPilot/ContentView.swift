@@ -44,6 +44,14 @@ struct ContentView: View {
                 }
                 .tag(AppTab.rss)
 
+            if appStateManager.shouldMountMoviePilotTab {
+                MoviePilotView()
+                    .tabItem {
+                        Label(LanguageManager.shared.localized("MoviePilot"), systemImage: "film.stack.fill")
+                    }
+                    .tag(AppTab.moviePilot)
+            }
+
             // 管理 (设置)
             SettingsView()
                 .tabItem {
@@ -51,6 +59,7 @@ struct ContentView: View {
                 }
                 .tag(AppTab.settings)
         }
+        .animation(.easeInOut, value: appStateManager.shouldMountMoviePilotTab)
         // iOS 17 默认 TabView 已具有磨砂玻璃效果，
         // 使用 .toolbarBackground 显式指定可以确保在所有视图下的一致性
         .onAppear {

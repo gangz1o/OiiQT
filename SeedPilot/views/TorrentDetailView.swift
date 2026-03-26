@@ -133,7 +133,10 @@ struct TorrentDetailView: View {
                     HStack(alignment: .top, spacing: 16) {
                         // Poster (2:3 aspect ratio)
                         if let url = item.fullPosterURL {
-                            SimpleCachedImage(url: url)
+                            SimpleCachedImage(
+                                url: url,
+                                downsampleSize: CGSize(width: 100, height: 150)
+                            )
                                 .aspectRatio(2/3, contentMode: .fit)
                                 .frame(width: 100)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))

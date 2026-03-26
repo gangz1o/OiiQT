@@ -68,6 +68,12 @@ struct ProView: View {
             subtitle: "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。"
         ),
         ProFeature(
+            icon: "film.stack.fill",
+            color: .pink,
+            title: "MoviePilot 联动",
+            subtitle: "连接 MoviePilot 服务实例，预留媒体检索、订阅与自动化联动能力。"
+        ),
+        ProFeature(
             icon: "infinity.circle.fill",
             color: .green,
             title: "无限添加服务器",

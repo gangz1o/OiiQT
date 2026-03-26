@@ -161,7 +161,7 @@ final class TransfersViewModel {
 #endif
             
             await MainActor.run {
-                if !(computed.isEmpty && self.filteredTasks.isEmpty) {
+                if self.filteredTasks != computed {
                     self.filteredTasks = computed
                 }
                 if self.isFilteringTasks {
@@ -221,9 +221,15 @@ final class TransfersViewModel {
             guard !Task.isCancelled else { return }
             
             await MainActor.run {
-                self.uniqueCategoriesCache = computed.categories
-                self.uniqueTagsCache = computed.tags
-                self.uniqueTrackersCache = computed.trackers
+                if self.uniqueCategoriesCache != computed.categories {
+                    self.uniqueCategoriesCache = computed.categories
+                }
+                if self.uniqueTagsCache != computed.tags {
+                    self.uniqueTagsCache = computed.tags
+                }
+                if self.uniqueTrackersCache != computed.trackers {
+                    self.uniqueTrackersCache = computed.trackers
+                }
 
                 if !isCategoryFilterSupported {
                     self.selectedCategories.removeAll()

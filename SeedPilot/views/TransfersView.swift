@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 enum ActiveFilterSheet: String, Identifiable {
     case status
@@ -18,13 +19,16 @@ enum ActiveFilterSheet: String, Identifiable {
 
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject private var storeManager = StoreManager.shared
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
+    @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @AppStorage("recentSearches") private var recentSearchesData: Data = Data()
     
     @Environment(\.editMode) private var editMode
 
     @State private var viewModel = TransfersViewModel()
+    @State private var navigationPath = NavigationPath()
 
     private var isEditing: Bool {
         editMode?.wrappedValue == .active
@@ -59,6 +63,22 @@ struct TransfersView: View {
         } else {
             return appStateManager.activeServerName ?? LanguageManager.shared.localized("Transfers")
         }
+    }
+
+    private static let posterPrefetchLimit = 24
+
+    private var posterPrefetchTaskID: String {
+        guard showTMDBData, isTransfersTabActive else {
+            return "tmdb-disabled|\(showTMDBData)|\(isTransfersTabActive)"
+        }
+
+        let language = LanguageManager.shared.selectedLanguage.rawValue
+        let headTaskIDs = viewModel.filteredTasks
+            .prefix(Self.posterPrefetchLimit)
+            .map(\.id)
+            .joined(separator: "|")
+
+        return "tmdb-prefetch|\(language)|\(headTaskIDs)"
     }
 
     var body: some View {
@@ -134,6 +154,9 @@ struct TransfersView: View {
     private var transfersLifecycleBoundViewPart1: some View {
         transfersNavigationBase
             .background(Color(uiColor: .systemGroupedBackground))
+            .task(id: posterPrefetchTaskID) {
+                await prefetchVisibleTransferPostersIfNeeded()
+            }
             .onAppear {
                 handleTransfersViewAppear()
             }
@@ -148,7 +171,6 @@ struct TransfersView: View {
             }
             .onChange(of: appStateManager.tasksRevision) { _, _ in
                 viewModel.scheduleFilteredTasksRecompute(isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
-                viewModel.scheduleFilterOptionsRecompute(isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
             }
             .onChange(of: appStateManager.activeServerId) { _, _ in
                 if !isCategoryFilterSupported {
@@ -160,36 +182,41 @@ struct TransfersView: View {
                 viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
                 viewModel.scheduleFilterOptionsRecompute(isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
             }
+            .onChange(of: viewModel.activeSheet) { _, newValue in
+                guard newValue != nil else { return }
+                viewModel.scheduleFilterOptionsRecompute(isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+            }
             .onChange(of: appStateManager.selectedTab) { _, newValue in
                 handleSelectedTabChanged(newValue)
             }
     }
 
     private var transfersNavigationBase: some View {
-        AnyView(
-            NavigationStack {
-                transfersRootContent
-                    .navigationTitle(navigationTitle)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .searchable(
-                        text: $viewModel.searchText,
-                        placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: LanguageManager.shared.localized("Search Torrents or Trackers")
-                    )
-                    .searchSuggestions {
-                        if viewModel.searchText.isEmpty {
-                            ForEach(recentSearches, id: \.self) { term in
-                                Label(term, systemImage: "clock.arrow.circlepath")
-                                    .searchCompletion(term)
-                            }
+        NavigationStack(path: $navigationPath) {
+            transfersRootContent
+                .navigationTitle(navigationTitle)
+                .navigationBarTitleDisplayMode(.inline)
+                .searchable(
+                    text: $viewModel.searchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: LanguageManager.shared.localized("Search Torrents or Trackers")
+                )
+                .searchSuggestions {
+                    if viewModel.searchText.isEmpty {
+                        ForEach(recentSearches, id: \.self) { term in
+                            Label(term, systemImage: "clock.arrow.circlepath")
+                                .searchCompletion(term)
                         }
                     }
-                    .onSubmit(of: .search) {
-                        saveSearchTerm(viewModel.searchText)
-                    }
-                    .toolbar { transfersToolbarContent }
-            }
-        )
+                }
+                .onSubmit(of: .search) {
+                    saveSearchTerm(viewModel.searchText)
+                }
+                .toolbar { transfersToolbarContent }
+                .navigationDestination(for: TorrentTask.self) { task in
+                    TorrentDetailView(task: task, appStateManager: appStateManager)
+                }
+        }
     }
 
     // MARK: - Search History
@@ -223,6 +250,20 @@ struct TransfersView: View {
             triggerInitialLoadIfNeeded()
         }
         viewModel.handleSelectedTabChanged(newValue, appStateManager: appStateManager)
+    }
+
+    @MainActor
+    private func prefetchVisibleTransferPostersIfNeeded() async {
+        guard showTMDBData, isTransfersTabActive else { return }
+
+        let headTasks = Array(viewModel.filteredTasks.prefix(Self.posterPrefetchLimit))
+        guard !headTasks.isEmpty else { return }
+
+        await TMDBService.shared.prefetchPosters(
+            for: headTasks,
+            limit: Self.posterPrefetchLimit,
+            context: modelContext
+        )
     }
 
     private func applyGlobalAggregationSafetyFallbackIfNeeded() {
@@ -378,8 +419,17 @@ struct TransfersView: View {
         if emptyStatesView.shouldShowServerEmptyState || emptyStatesView.shouldShowTasksLoadingState || (viewModel.isFilteringTasks && viewModel.filteredTasks.isEmpty) || viewModel.filteredTasks.isEmpty {
             emptyStatesView
         } else {
-            TransfersListView(viewModel: viewModel, appStateManager: appStateManager, isEditing: isEditing)
+            TransfersListView(
+                viewModel: viewModel,
+                appStateManager: appStateManager,
+                isEditing: isEditing,
+                openTaskDetail: openTaskDetail
+            )
         }
+    }
+
+    private func openTaskDetail(_ task: TorrentTask) {
+        navigationPath.append(task)
     }
 
     private func filterSheetView(for sheet: ActiveFilterSheet) -> some View {

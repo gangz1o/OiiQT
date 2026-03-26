@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct TorrentActionSheetView: View {
     let task: TorrentTask
@@ -355,7 +356,11 @@ struct TorrentActionSheetView: View {
             if showTMDBData {
                 Group {
                     if let url = displayPosterURL {
-                        SimpleCachedImage(url: url)
+                        SimpleCachedImage(
+                            url: url,
+                            downsampleSize: CGSize(width: 68, height: 96),
+                            cacheOriginal: false
+                        )
                             .aspectRatio(contentMode: .fill)
                     } else {
                         RoundedRectangle(cornerRadius: 10)

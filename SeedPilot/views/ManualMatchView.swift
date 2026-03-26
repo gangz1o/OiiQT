@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ManualMatchView: View {
     let taskName: String
@@ -194,7 +195,11 @@ struct MatchRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Left: Poster
-            SimpleCachedImage(url: item.fullPosterURL)
+            SimpleCachedImage(
+                url: item.fullPosterURL,
+                downsampleSize: CGSize(width: 45, height: 67.5),
+                cacheOriginal: false
+            )
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 45, height: 67.5)
                 .cornerRadius(6)

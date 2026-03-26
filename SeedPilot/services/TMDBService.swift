@@ -23,7 +23,11 @@ class TMDBService {
     // MARK: - Caching
     // Memory Cache for Hash -> PosterURLString (NOT Image data, just mapping)
     // Image data is handled by Kingfisher
-    private let urlCache = NSCache<NSString, NSString>()
+    private let urlCache: NSCache<NSString, NSString> = {
+        let c = NSCache<NSString, NSString>()
+        c.countLimit = 5_000   // max 5K hash→path entries (~400 KB)
+        return c
+    }()
     private let searchCoordinator = TMDBSearchCoordinator(maxConcurrentRequests: 4)
 
     // Legacy UserDefaults (for migration)
@@ -40,6 +44,10 @@ class TMDBService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return customKey.isEmpty ? builtInAPIKey : customKey
     }
+
+    private let isVerboseLoggingEnabled = false
+    private var persistedPosterMatchesByHash: [String: PersistedPosterMatch] = [:]
+    private var hasHydratedPersistedPosterMatches = false
 
     private init() {}
 
@@ -74,25 +82,27 @@ class TMDBService {
             return URL(string: imageBaseURL + cachedPath)
         }
 
-        // 2. data persistence (SwiftData)
-        if let match = fetchMatch(hash: scopedHash, context: context) {
-            if let path = match.posterPath {
+        hydratePersistedPosterMatchesIfNeeded(context: context)
+
+        // 2. data persistence snapshot (SwiftData -> in-memory lookup)
+        if let persistedMatch = persistedPosterMatchesByHash[scopedHash] {
+            if let path = persistedMatch.posterPath {
                 cacheURL(path, for: scopedHash)
                 cacheURL(path, for: scopedCacheKey)
-                print("[TMDB] fetchPoster: SwiftData HIT for '\(name)' → \(path)")
+                log("[TMDB] fetchPoster: SwiftData HIT for '\(name)' → \(path)")
                 return URL(string: imageBaseURL + path)
-            } else if match.isManualOverride {
+            } else if persistedMatch.isManualOverride {
                 return nil
             }
-            print("[TMDB] fetchPoster: SwiftData had failed match for '\(name)', deleting for retry")
-            context.delete(match)
         }
 
         // 2.1 Legacy manual override migration (old hash key without language scope)
-        if let legacyManualMatch = fetchLegacyManualMatch(hash: hash, context: context),
+        if let legacyManualMatch = persistedPosterMatchesByHash[hash],
+           legacyManualMatch.isManualOverride,
            let path = legacyManualMatch.posterPath {
             let scopedMatch = TMDBMatch(hashString: scopedHash, posterPath: path, isManualOverride: true)
             context.insert(scopedMatch)
+            rememberPersistedPosterMatch(scopedMatch)
             cacheURL(path, for: scopedHash)
             cacheURL(path, for: scopedCacheKey)
             try? context.save()
@@ -103,6 +113,7 @@ class TMDBService {
         if let legacyPath = legacyOverrides[hash] {
             let match = TMDBMatch(hashString: scopedHash, posterPath: legacyPath, isManualOverride: true)
             context.insert(match)
+            rememberPersistedPosterMatch(match)
             cacheURL(legacyPath, for: scopedHash)
             cacheURL(legacyPath, for: scopedCacheKey)
             return URL(string: imageBaseURL + legacyPath)
@@ -110,9 +121,9 @@ class TMDBService {
 
         // 4. Clean Name & Search (Network)
         let metadata = SeedPilotParser.parse(name)
-        print("[TMDB] fetchPoster: parsed '\(name)' → title: '\(metadata.title)', year: \(metadata.year ?? "nil"), english: \(metadata.englishTitle ?? "nil")")
+        log("[TMDB] fetchPoster: parsed '\(name)' → title: '\(metadata.title)', year: \(metadata.year ?? "nil"), english: \(metadata.englishTitle ?? "nil")")
         guard !metadata.title.isEmpty else {
-            print("[TMDB] fetchPoster: SKIP empty title for '\(name)'")
+            log("[TMDB] fetchPoster: SKIP empty title for '\(name)'")
             return nil
         }
 
@@ -120,19 +131,21 @@ class TMDBService {
         guard let posterPath = await searchBestMatch(metadata: metadata) else {
              let match = TMDBMatch(hashString: scopedHash, posterPath: nil, isManualOverride: false)
              context.insert(match)
+             rememberPersistedPosterMatch(match)
              urlCache.setObject("null", forKey: scopedHash as NSString)
              urlCache.setObject("null", forKey: scopedCacheKey as NSString)
-            print("[TMDB] fetchPoster: NO MATCH for '\(name)'")
+            log("[TMDB] fetchPoster: NO MATCH for '\(name)'")
             return nil
         }
 
         // 5. Save Match
         let match = TMDBMatch(hashString: scopedHash, posterPath: posterPath, isManualOverride: false)
         context.insert(match)
+        rememberPersistedPosterMatch(match)
         cacheURL(posterPath, for: scopedHash)
         cacheURL(posterPath, for: scopedCacheKey)
 
-        print("[TMDB] fetchPoster: MATCHED '\(name)' → \(posterPath)")
+        log("[TMDB] fetchPoster: MATCHED '\(name)' → \(posterPath)")
         return URL(string: imageBaseURL + posterPath)
     }
 
@@ -170,9 +183,32 @@ class TMDBService {
              // But if not, we create one.
              let match = TMDBMatch(hashString: scopedHash, posterPath: items.first?.posterPath, backdropPath: backdropPath, isManualOverride: false)
              context.insert(match)
+             rememberPersistedPosterMatch(match)
         }
 
         return URL(string: "https://image.tmdb.org/t/p/w780" + backdropPath)
+    }
+
+    @MainActor
+    func prefetchPosters(
+        for tasks: [TorrentTask],
+        limit: Int = 24,
+        context: ModelContext
+    ) async {
+        guard !tasks.isEmpty, limit > 0 else { return }
+
+        hydratePersistedPosterMatchesIfNeeded(context: context)
+
+        var seenTaskIDs = Set<String>()
+        let candidates = tasks.lazy
+            .filter { seenTaskIDs.insert($0.id).inserted }
+            .prefix(limit)
+
+        for task in candidates {
+            guard !Task.isCancelled else { return }
+            _ = await fetchPoster(hash: task.hash, name: task.name, context: context)
+            await Task.yield()
+        }
     }
 
     /// 获取完整详情 (用于 Detail View)
@@ -228,7 +264,7 @@ class TMDBService {
         guard apiKey != "YOUR_API_KEY_HERE",
               let encodedQuery = normalizedQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(baseURL)/search/multi?api_key=\(apiKey)&query=\(encodedQuery)&language=\(language)&page=\(page)") else {
-            print("[TMDB] search: SKIP (invalid API key or query encoding) for '\(query)'")
+            log("[TMDB] search: SKIP (invalid API key or query encoding) for '\(query)'")
             return []
         }
 
@@ -241,7 +277,7 @@ class TMDBService {
 
         switch lookup {
         case .cached(let items):
-            print("[TMDB] search: metadata cache HIT for '\(normalizedQuery)' (language: \(language), page: \(page))")
+            log("[TMDB] search: metadata cache HIT for '\(normalizedQuery)' (language: \(language), page: \(page))")
             return items
         case .task(let task):
             return await task.value
@@ -258,9 +294,11 @@ class TMDBService {
             existing.posterPath = posterPath
             existing.isManualOverride = true
             existing.lastMatchedTime = Date()
+            rememberPersistedPosterMatch(existing)
         } else {
             let match = TMDBMatch(hashString: scopedHash, posterPath: posterPath, isManualOverride: true)
             context.insert(match)
+            rememberPersistedPosterMatch(match)
         }
 
         // 2. Update Memory
@@ -287,6 +325,7 @@ class TMDBService {
             existing.tmdbVoteAverage = item.voteAverage
             existing.isManualOverride = true
             existing.lastMatchedTime = Date()
+            rememberPersistedPosterMatch(existing)
         } else {
             let match = TMDBMatch(
                 hashString: scopedHash,
@@ -301,6 +340,7 @@ class TMDBService {
                 isManualOverride: true
             )
             context.insert(match)
+            rememberPersistedPosterMatch(match)
         }
 
         cacheURL(posterPath, for: scopedHash)
@@ -335,6 +375,7 @@ class TMDBService {
         keys.insert(scopedHash(for: hash, languageCode: "en"))
 
         for key in keys {
+            persistedPosterMatchesByHash.removeValue(forKey: key)
             let descriptor = FetchDescriptor<TMDBMatch>(
                 predicate: #Predicate { $0.hashString == key }
             )
@@ -356,6 +397,23 @@ class TMDBService {
             predicate: #Predicate { $0.hashString == hash }
         )
         return try? context.fetch(descriptor).first
+    }
+
+    @MainActor
+    private func hydratePersistedPosterMatchesIfNeeded(context: ModelContext) {
+        guard !hasHydratedPersistedPosterMatches else { return }
+
+        let descriptor = FetchDescriptor<TMDBMatch>()
+        let matches = (try? context.fetch(descriptor)) ?? []
+        persistedPosterMatchesByHash = Dictionary(
+            uniqueKeysWithValues: matches.map { ($0.hashString, PersistedPosterMatch(match: $0)) }
+        )
+        hasHydratedPersistedPosterMatches = true
+    }
+
+    @MainActor
+    private func rememberPersistedPosterMatch(_ match: TMDBMatch) {
+        persistedPosterMatchesByHash[match.hashString] = PersistedPosterMatch(match: match)
     }
 
     private func cacheURL(_ path: String, for hash: String) {
@@ -386,7 +444,7 @@ class TMDBService {
         // Strategy 1: Primary title (Chinese if available)
         let primaryResults = await search(query: metadata.title)
         if let best = selectBestMatch(from: primaryResults, year: metadata.year) {
-            print("[TMDB] Matched '\(metadata.title)' (year: \(metadata.year ?? "nil")) → \(best.title)")
+            log("[TMDB] Matched '\(metadata.title)' (year: \(metadata.year ?? "nil")) → \(best.title)")
             return best.posterPath
         }
 
@@ -394,12 +452,12 @@ class TMDBService {
         if let englishTitle = metadata.englishTitle, !englishTitle.isEmpty {
             let englishResults = await search(query: englishTitle)
             if let best = selectBestMatch(from: englishResults, year: metadata.year) {
-                print("[TMDB] Matched English '\(englishTitle)' (year: \(metadata.year ?? "nil")) → \(best.title)")
+                log("[TMDB] Matched English '\(englishTitle)' (year: \(metadata.year ?? "nil")) → \(best.title)")
                 return best.posterPath
             }
         }
 
-        print("[TMDB] No match for '\(metadata.title)'")
+        log("[TMDB] No match for '\(metadata.title)'")
         return nil
     }
 
@@ -497,12 +555,12 @@ class TMDBService {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 let response = try JSONDecoder().decode(TMDBResponse.self, from: data)
                 let items = response.results.compactMap { $0.toDomainModel() }
-                print("[TMDB] search: query='\(query)', language='\(language)' → \(items.count) results, first 3: \(items.prefix(3).map { "[\($0.title), year=\($0.year), poster=\($0.posterPath != nil)]" })")
+                log("[TMDB] search: query='\(query)', language='\(language)' → \(items.count) results, first 3: \(items.prefix(3).map { "[\($0.title), year=\($0.year), poster=\($0.posterPath != nil)]" })")
                 resultItems = items
                 shouldCacheResult = true
                 break
             } catch {
-                print("[TMDB] Search Error (attempt \(attempt)) for '\(query)': \(error)")
+                log("[TMDB] Search Error (attempt \(attempt)) for '\(query)': \(error)")
                 if attempt < 2 {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                 }
@@ -512,10 +570,29 @@ class TMDBService {
         await searchCoordinator.completeRequest(for: cacheKey, result: resultItems, cacheable: shouldCacheResult)
         return resultItems
     }
+
+    private func log(_ message: @autoclosure () -> String) {
+#if DEBUG
+        guard isVerboseLoggingEnabled else { return }
+        print(message())
+#endif
+    }
 }
 
 extension Notification.Name {
     static let tmdbPosterDidChange = Notification.Name("tmdbPosterDidChange")
+}
+
+private struct PersistedPosterMatch {
+    let hashString: String
+    let posterPath: String?
+    let isManualOverride: Bool
+
+    init(match: TMDBMatch) {
+        self.hashString = match.hashString
+        self.posterPath = match.posterPath
+        self.isManualOverride = match.isManualOverride
+    }
 }
 
 private actor TMDBSearchCoordinator {

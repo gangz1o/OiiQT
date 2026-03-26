@@ -256,6 +256,8 @@ class TransmissionClient: NSObject, TorrentClient {
                         ratio: ratio
                     )
 
+                    let precomputedTags = normalizeLabels(item.labels ?? [])
+
                     return TorrentTask(
                         hash: item.hashString,
                         name: item.name,
@@ -275,7 +277,7 @@ class TransmissionClient: NSObject, TorrentClient {
                         tracker: trackerURL,
                         savePath: item.downloadDir,
                         category: "",
-                        tags: normalizeLabels(item.labels ?? []).joined(separator: ","),
+                        tags: precomputedTags.joined(separator: ","),
                         downloaded: item.downloadedEver,
                         uploaded: item.uploadedEver,
                         isSequential: nil,
@@ -289,7 +291,8 @@ class TransmissionClient: NSObject, TorrentClient {
                         totalSeeds: totalSeeds,
                         numPeers: numPeers,
                         totalPeers: totalPeers,
-                        ratio: ratio
+                        ratio: ratio,
+                        normalizedTags: precomputedTags
                     )
                 }
 

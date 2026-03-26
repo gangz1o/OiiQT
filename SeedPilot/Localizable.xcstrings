@@ -949,6 +949,23 @@
         }
       }
     },
+    "Are you sure you want to clear poster cache?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to clear poster cache?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要清理海报缓存吗？"
+          }
+        }
+      }
+    },
     "Are you sure you want to delete %@?" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1407,23 +1424,6 @@
         }
       }
     },
-    "Are you sure you want to clear poster cache?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Are you sure you want to clear poster cache?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "确定要清理海报缓存吗？"
-          }
-        }
-      }
-    },
     "Clear All Images" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1471,23 +1471,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清理海报缓存"
-          }
-        }
-      }
-    },
-    "This will delete all cached Torrent posters from your device." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will delete all cached Torrent posters from your device."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这将从手机上删除所有已缓存的 Torrent 海报。"
           }
         }
       }
@@ -1675,6 +1658,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "确认删除"
+          }
+        }
+      }
+    },
+    "Connected as %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected as %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前连接用户：%@"
           }
         }
       }
@@ -3950,6 +3950,23 @@
         }
       }
     },
+    "Leave blank to keep the current token." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave blank to keep the current token."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空则保留当前已保存的 Token。"
+          }
+        }
+      }
+    },
     "Leave blank to use the built-in default service. Configure your own key to significantly improve poster loading stability and speed." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4558,6 +4575,73 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "电影"
+          }
+        }
+      }
+    },
+    "MoviePilot" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot"
+          }
+        }
+      }
+    },
+    "MoviePilot Server" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot Server"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot 服务器"
+          }
+        }
+      }
+    },
+    "MoviePilot Settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot 设置"
+          }
+        }
+      }
+    },
+    "MoviePilot 联动" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot Integration"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot 联动"
           }
         }
       }
@@ -5360,6 +5444,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请输入新的任务名称。"
+          }
+        }
+      }
+    },
+    "Please enter a token." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please enter a token."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 Token。"
+          }
+        }
+      }
+    },
+    "Please enter a valid MoviePilot URL." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please enter a valid MoviePilot URL."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入有效的 MoviePilot 地址。"
           }
         }
       }
@@ -7630,6 +7748,23 @@
         }
       }
     },
+    "Tap the top-right button to add your first MoviePilot server." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap the top-right button to add your first MoviePilot server."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击右上角按钮添加第一个 MoviePilot 服务器。"
+          }
+        }
+      }
+    },
     "Tap to Replace" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8293,6 +8428,23 @@
         }
       }
     },
+    "The URL must include http:// or https://." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The URL must include http:// or https://."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地址必须包含 http:// 或 https://。"
+          }
+        }
+      }
+    },
     "This feature requires Downix Pro." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8340,6 +8492,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "该 Tracker 域名已存在"
+          }
+        }
+      }
+    },
+    "This will delete all cached Torrent posters from your device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will delete all cached Torrent posters from your device."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这将从手机上删除所有已缓存的 Torrent 海报。"
           }
         }
       }
@@ -8442,6 +8611,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "TMDB 海报墙"
+          }
+        }
+      }
+    },
+    "Token" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问令牌"
+          }
+        }
+      }
+    },
+    "Token is stored securely in Keychain on this device only." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token is stored securely in Keychain on this device only."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token 仅保存在当前设备的 Keychain 中，并以安全方式加密存储。"
           }
         }
       }
@@ -9403,6 +9606,18 @@
         }
       }
     },
+    "下载" : {
+
+    },
+    "下载器" : {
+
+    },
+    "下载配置" : {
+
+    },
+    "不限制" : {
+
+    },
     "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。" : {
       "localizations" : {
         "en" : {
@@ -9418,6 +9633,9 @@
           }
         }
       }
+    },
+    "仅显示促销资源" : {
+
     },
     "今日传输" : {
       "extractionState" : "stale",
@@ -9521,6 +9739,9 @@
         }
       }
     },
+    "保存路径" : {
+
+    },
     "全局任务聚合" : {
       "localizations" : {
         "en" : {
@@ -9536,6 +9757,12 @@
           }
         }
       }
+    },
+    "剧集" : {
+
+    },
+    "加载更多" : {
+
     },
     "动态海报墙" : {
       "localizations" : {
@@ -9569,6 +9796,15 @@
         }
       }
     },
+    "发现" : {
+
+    },
+    "取消" : {
+
+    },
+    "可选。留空将使用 MoviePilot 默认配置的保存路径。" : {
+
+    },
     "在仪表盘以精美轮播图展示您最近添加的影视收藏。" : {
       "localizations" : {
         "en" : {
@@ -9600,6 +9836,21 @@
           }
         }
       }
+    },
+    "在浏览器中打开" : {
+
+    },
+    "已订阅" : {
+
+    },
+    "应用" : {
+
+    },
+    "当前分区暂时不可用。" : {
+
+    },
+    "当前媒体没有返回可展示的演员表。" : {
+
     },
     "影视海报与元数据" : {
       "localizations" : {
@@ -9634,6 +9885,24 @@
         }
       }
     },
+    "排序" : {
+
+    },
+    "排序依据" : {
+
+    },
+    "排序方向" : {
+
+    },
+    "搜索" : {
+
+    },
+    "搜索 电影/剧集" : {
+
+    },
+    "搜索失败" : {
+
+    },
     "支持独立开发" : {
       "localizations" : {
         "en" : {
@@ -9650,6 +9919,12 @@
         }
       }
     },
+    "无法打开列表" : {
+
+    },
+    "无法执行搜索" : {
+
+    },
     "无限添加服务器" : {
       "localizations" : {
         "en" : {
@@ -9665,6 +9940,9 @@
           }
         }
       }
+    },
+    "暂无内容" : {
+
     },
     "暂无数据" : {
       "extractionState" : "stale",
@@ -9717,6 +9995,12 @@
         }
       }
     },
+    "暂无演员信息" : {
+
+    },
+    "更多" : {
+
+    },
     "未归类" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9734,7 +10018,40 @@
         }
       }
     },
+    "查看详情" : {
+
+    },
+    "根据 MoviePilot 当前服务器能力动态生成订阅配置。" : {
+
+    },
     "欢迎使用Downix" : {
+
+    },
+    "正在加载下载器…" : {
+
+    },
+    "正在加载更多" : {
+
+    },
+    "正在同步详情" : {
+
+    },
+    "正在检索站点资源" : {
+
+    },
+    "没有匹配的内容" : {
+
+    },
+    "没有符合条件的资源" : {
+
+    },
+    "电影" : {
+
+    },
+    "留空使用默认路径" : {
+
+    },
+    "稍后重试或下拉刷新。" : {
 
     },
     "突破免费版上限，自由添加并管理任意数量的服务器节点。" : {
@@ -9752,6 +10069,15 @@
           }
         }
       }
+    },
+    "站点" : {
+
+    },
+    "筛选与排序" : {
+
+    },
+    "简介" : {
+
     },
     "自上次重置时间格式" : {
       "extractionState" : "stale",
@@ -9785,6 +10111,24 @@
           }
         }
       }
+    },
+    "订阅" : {
+
+    },
+    "试试其他关键词或分类。" : {
+
+    },
+    "请先配置可用的 MoviePilot 服务器。" : {
+
+    },
+    "调整筛选条件后再试。" : {
+
+    },
+    "资源" : {
+
+    },
+    "资源规格" : {
+
     },
     "近期新增" : {
       "extractionState" : "stale",
@@ -9820,6 +10164,28 @@
         }
       }
     },
+    "还没有资源结果" : {
+
+    },
+    "连接 MoviePilot 服务实例，预留媒体检索、订阅与自动化联动能力。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect MoviePilot instances for future media search, subscription, and automation workflows."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接 MoviePilot 服务实例，预留媒体检索、订阅与自动化联动能力。"
+          }
+        }
+      }
+    },
+    "重置" : {
+
+    },
     "重置近期新增基线" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9836,6 +10202,12 @@
           }
         }
       }
+    },
+    "隐藏 H&R 资源" : {
+
+    },
+    "高级筛选" : {
+
     }
   },
   "version" : "1.0"

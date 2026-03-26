@@ -4,11 +4,22 @@ struct TransfersListView: View {
     @Bindable var viewModel: TransfersViewModel
     var appStateManager: AppStateManager
     var isEditing: Bool
-    
+    var openTaskDetail: (TorrentTask) -> Void
+
+    /// Pre-computed O(1) lookup — computed once per list body, not per row.
+    private var serverTypeMap: [UUID: ServerType]? {
+        guard appStateManager.activeServerId == nil else { return nil }
+        return Dictionary(
+            appStateManager.servers.map { ($0.id, $0.type) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
     var body: some View {
+        let map = serverTypeMap // read Observable properties ONCE here
         List {
             ForEach(viewModel.filteredTasks) { task in
-                taskRowCell(task)
+                taskRowCell(task, serverTypeMap: map)
             }
         }
         .listStyle(.plain)
@@ -20,7 +31,7 @@ struct TransfersListView: View {
         }
     }
     
-    private func taskRowCell(_ task: TorrentTask) -> some View {
+    private func taskRowCell(_ task: TorrentTask, serverTypeMap: [UUID: ServerType]?) -> some View {
         TorrentRowView(
             task: task,
             isSelected: viewModel.selectedTaskHashes.contains(task.id),
@@ -32,7 +43,7 @@ struct TransfersListView: View {
                 viewModel.selectedTorrentPosterURL = posterURL
                 viewModel.selectedTorrentForAction = selectedTask
             },
-            appStateManager: appStateManager
+            serverType: serverTypeMap?[task.serverID]
         )
         .equatable()
         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
@@ -67,13 +78,9 @@ struct TransfersListView: View {
                 }
             }
         }
-        .background {
-            if !isEditing {
-                NavigationLink(destination: TorrentDetailView(task: task, appStateManager: appStateManager)) {
-                    EmptyView()
-                }
-                .opacity(0)
-            }
+        .onTapGesture {
+            guard !isEditing else { return }
+            openTaskDetail(task)
         }
     }
     

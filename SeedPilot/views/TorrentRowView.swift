@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct TorrentRowView: View, Equatable {
     static func == (lhs: TorrentRowView, rhs: TorrentRowView) -> Bool {
@@ -21,7 +22,9 @@ struct TorrentRowView: View, Equatable {
         lhs.task.category == rhs.task.category &&
         lhs.task.tags == rhs.task.tags &&
         lhs.isSelected == rhs.isSelected &&
-        lhs.isEditing == rhs.isEditing
+        lhs.isEditing == rhs.isEditing &&
+        lhs.serverType == rhs.serverType &&
+        lhs.posterURL == rhs.posterURL
     }
 
     let task: TorrentTask
@@ -33,11 +36,9 @@ struct TorrentRowView: View, Equatable {
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @AppStorage("isProUser") private var isProUser: Bool = false
     @AppStorage("hideDataNodeName") private var hideDataNodeName: Bool = false
-    @Environment(\.displayScale) private var displayScale
     @Environment(\.modelContext) private var modelContext
-    @ObservedObject private var languageManager = LanguageManager.shared
-    @ObservedObject private var trackerAliasManager = TrackerAliasManager.shared
-    var appStateManager: AppStateManager
+    /// Pre-computed at call site. nil = single-server mode (no icon shown).
+    let serverType: ServerType?
 
     @State private var posterURL: URL?
     @State private var isLoadingPoster = false
@@ -119,8 +120,7 @@ struct TorrentRowView: View, Equatable {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary)
 
-                        if appStateManager.activeServerId == nil,
-                           let serverType = appStateManager.servers.first(where: { $0.id == task.serverID })?.type {
+                        if let serverType {
                             HStack(alignment: .center, spacing: 6) {
                                 titleText
                                     .lineLimit(2)
@@ -173,11 +173,11 @@ struct TorrentRowView: View, Equatable {
                 )
             }
             .clipShape(cardShape)
-            .background(
+            .background {
                 cardShape
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    .fill(Color.clear)
                     .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2)
-            )
+            }
         }
         .contentShape(Rectangle()) // Make the whole row tappable
         .gesture(
@@ -195,34 +195,42 @@ struct TorrentRowView: View, Equatable {
                 impact.impactOccurred()
             }
         )
-        .task(id: "\(task.name)-\(languageManager.selectedLanguage.rawValue)") {
-            await refreshPosterAsync()
+        .task(id: "\(task.name)-\(LanguageManager.shared.selectedLanguage.rawValue)") {
+            guard showTMDBData, posterURL == nil else { return }
+            isLoadingPoster = true
+            let url = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+            if !Task.isCancelled {
+                self.posterURL = url
+                self.isLoadingPoster = false
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tmdbPosterDidChange)) { notification in
             guard let changedHash = notification.userInfo?["hash"] as? String else { return }
             guard changedHash == task.hash else { return }
+            // Force re-fetch: poster was manually changed
+            self.posterURL = nil
             Task {
-                await refreshPosterAsync()
+                isLoadingPoster = true
+                let url = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                if !Task.isCancelled {
+                    self.posterURL = url
+                    self.isLoadingPoster = false
+                }
             }
         }
     }
 
-    private func refreshPosterAsync() async {
-        guard showTMDBData else { return }
-        isLoadingPoster = true
-        let url = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
-        if !Task.isCancelled {
-            self.posterURL = url
-            self.isLoadingPoster = false
-        }
-    }
 
     // MARK: - Components
 
     private var posterArea: some View {
         Group {
             if let url = posterURL {
-                SimpleCachedImage(url: url, downsampleSize: posterDownsampleSize)
+                SimpleCachedImage(
+                    url: url,
+                    downsampleSize: posterDownsampleSize,
+                    cacheOriginal: false
+                )
                     .aspectRatio(contentMode: .fill)
             } else if isLoadingPoster {
                 SeedPilotPlaceholder()
@@ -278,59 +286,36 @@ struct TorrentRowView: View, Equatable {
         }
     }
 
-    private var taskServerType: ServerType? {
-        appStateManager.servers.first(where: { $0.id == task.serverID })?.type
-    }
-
     private var displayCategory: String? {
-        guard let taskServerType, taskServerType != .transmission else { return nil }
+        guard let serverType, serverType != .transmission else { return nil }
         let trimmed = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private var normalizedTags: [String] {
-        Array(
-            Set(
-                task.tags
-                    .split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-            )
-        )
-        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    private var allHeaderTaxonomyTags: [String] {
-        var merged: [String] = []
-        var seen = Set<String>()
-
-        if let category = displayCategory {
-            let key = category.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            if seen.insert(key).inserted {
-                merged.append(category)
-            }
-        }
-
-        for tag in normalizedTags {
-            let key = tag.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            if seen.insert(key).inserted {
-                merged.append(tag)
-            }
-        }
-
-        return merged
-    }
-
+    /// Lightweight merge: category (if any) + pre-computed tags, capped at 2.
+    /// No string splitting, no Set, no sort, no `folding()` — all done at parse time.
     private var displayedHeaderTaxonomyTags: [String] {
-        Array(allHeaderTaxonomyTags.prefix(2))
+        var result: [String] = []
+        if let category = displayCategory {
+            result.append(category)
+        }
+        let remaining = 2 - result.count
+        if remaining > 0 {
+            let tags = task.normalizedTags
+            let slice = tags.prefix(remaining)
+            result.append(contentsOf: slice)
+        }
+        return result
     }
 
     private var hiddenHeaderTaxonomyCount: Int {
-        max(0, allHeaderTaxonomyTags.count - displayedHeaderTaxonomyTags.count)
+        let totalCategory = (displayCategory != nil) ? 1 : 0
+        let totalTags = task.normalizedTags.count
+        return max(0, totalCategory + totalTags - 2)
     }
 
     private var hasHeaderTaxonomyTags: Bool {
-        !displayedHeaderTaxonomyTags.isEmpty
+        displayCategory != nil || !task.normalizedTags.isEmpty
     }
 
     private var headerTaxonomyInlineView: some View {
@@ -361,7 +346,7 @@ struct TorrentRowView: View, Equatable {
     }
 
     private var posterDownsampleSize: CGSize {
-        CGSize(width: 65 * displayScale, height: 97.5 * displayScale)
+        CGSize(width: 65, height: 97.5)
     }
 
     private var cardShape: RoundedRectangle {
@@ -387,7 +372,7 @@ private extension TorrentRowView {
 
     var displayedTracker: String {
         guard isProUser else { return task.trackerHost }
-        return trackerAliasManager.getAlias(for: task.trackerHost)
+        return TrackerAliasManager.shared.getAlias(for: task.trackerHost)
     }
 }
 

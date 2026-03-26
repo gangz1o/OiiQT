@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Kingfisher
+import SwiftData
 import UIKit
 import Combine
 
@@ -247,6 +248,8 @@ struct SettingsView: View {
                     proFeaturesSettingsView
                 case .tmdbAPIKey:
                     TMDBAPIKeySettingsView()
+                case .moviePilotSettings:
+                    MoviePilotServerListView()
                 case .trackerAliases:
                     TrackerAliasListView()
                 }
@@ -305,6 +308,11 @@ struct SettingsView: View {
         }
         .navigationTitle(LanguageManager.shared.localized("Pro Features"))
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: appStateManager.shouldPresentMoviePilotUpgradeSheet) { _, shouldPresent in
+            guard shouldPresent else { return }
+            showingProPaywallSheet = true
+            appStateManager.consumeMoviePilotUpgradeSheetIntent()
+        }
     }
 
     @ViewBuilder
@@ -333,6 +341,20 @@ struct SettingsView: View {
                     .lineLimit(1)
                 }
                 Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+
+        Button {
+            appStateManager.handleMoviePilotSettingsEntryTap()
+        } label: {
+            HStack {
+                SettingsRowLabel(title: LanguageManager.shared.localized("MoviePilot Settings"), systemName: "film.stack.fill", tint: .pink)
+                Spacer()
+                Image(systemName: appStateManager.moviePilotSettingsEntryTrailingSymbolName)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }

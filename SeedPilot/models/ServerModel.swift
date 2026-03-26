@@ -445,6 +445,8 @@ struct TorrentTask: Identifiable, Hashable, Sendable {
     let numPeers: Int             // 连接用户数
     let totalPeers: Int           // 总用户数
     let ratio: Double             // 分享率
+    /// Pre-computed normalized tags for display — avoids split/dedup/sort on every SwiftUI body.
+    let normalizedTags: [String]
 
     /// SwiftUI 渲染使用的复合 ID，避免多服务器聚合时 hash 冲突
     nonisolated var id: String {
@@ -510,6 +512,21 @@ struct TorrentTask: Identifiable, Hashable, Sendable {
 
     var ratioString: String {
         displayText.ratio
+    }
+
+    /// Normalize a raw comma/newline/semicolon-separated tags string into a
+    /// sorted, deduplicated array. Called once at parse time on a background thread
+    /// so the view body never has to do string processing.
+    static func normalizeTags(from raw: String) -> [String] {
+        guard !raw.isEmpty else { return [] }
+        return Array(
+            Set(
+                raw.split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 }
 

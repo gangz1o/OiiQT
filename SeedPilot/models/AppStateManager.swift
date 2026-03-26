@@ -9,9 +9,10 @@ import Foundation
 import SwiftData
 import Observation
 import SwiftUI
+import Combine
 
 enum AppTab: Int {
-    case dashboard, transfers, rss, settings
+    case dashboard, transfers, rss, moviePilot, settings
 }
 
 enum SettingsRoute: Hashable {
@@ -19,6 +20,7 @@ enum SettingsRoute: Hashable {
     case dashboardCustomization
     case proFeatures
     case tmdbAPIKey
+    case moviePilotSettings
     case trackerAliases
 }
 
@@ -43,6 +45,8 @@ private struct ServerTaskStats {
     let totalDownloadSpeed: Int64
     let totalUploadSpeed: Int64
     let hasRecentFinishedTask: Bool
+    let derivedCategories: [String]
+    let derivedTags: [String]
 }
 
 private struct ServerSeedingTotals {
@@ -50,8 +54,43 @@ private struct ServerSeedingTotals {
     let size: Int64
 }
 
+private struct ProcessedServerTasks: Sendable {
+    let tasks: [TorrentTask]
+    let stats: ServerTaskStats
+}
+
+private struct MoviePilotRouteSnapshot: Equatable {
+    let isProUser: Bool
+    let isMoviePilotConfigured: Bool
+    let isDebugTabOverrideEnabled: Bool
+
+    var shouldMountTab: Bool {
+        (isProUser && isMoviePilotConfigured) || isDebugTabOverrideEnabled
+    }
+}
+
+private struct TaskRefreshSnapshot: Sendable {
+    let allTasks: [TorrentTask]
+    let displayedTasks: [TorrentTask]
+    let activeServerID: UUID?
+    let hasRecentFinishedAll: Bool
+    let hasRecentFinishedByServerID: [UUID: Bool]
+}
+
 @Observable
 class AppStateManager {
+    @ObservationIgnored
+    private let moviePilotRouteQueue = DispatchQueue(label: "com.gangz1o.seedpilot.moviepilot-route", qos: .utility)
+
+    @ObservationIgnored
+    private var routeEngineCancellables: Set<AnyCancellable> = []
+
+    @ObservationIgnored
+    private var pendingTaskRefreshSnapshot: TaskRefreshSnapshot?
+
+    @ObservationIgnored
+    private var taskRefreshPublicationTask: Task<Void, Never>?
+
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
     var tasksRevision: Int = 0
@@ -61,11 +100,17 @@ class AppStateManager {
     var availableCategories: [String] = []
     var availableTags: [String] = []
 
-    var activeServerId: UUID?
+    var activeServerId: UUID? {
+        didSet { rebuildDisplayedTasks() }
+    }
 
     // Navigation
     var selectedTab: AppTab = .dashboard
     var settingsRoute: SettingsRoute?
+    private(set) var shouldMountMoviePilotTab = false
+    private(set) var isMoviePilotFeatureUnlocked = false
+    private(set) var isMoviePilotConfigured = false
+    var shouldPresentMoviePilotUpgradeSheet = false
 
     // Analytics
     var speedHistory: [SpeedPoint] = []
@@ -96,13 +141,72 @@ class AppStateManager {
     private var taxonomyWarmupDatesByServerID: [UUID: Date] = [:]
     private let taxonomyWarmupTTL: TimeInterval = 300
 
+    init() {
+        configureRouteStateEngine()
+    }
+
+    private static var debugForceMoviePilotTab: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-SeedPilotForceMoviePilotTab")
+            || UserDefaults.standard.bool(forKey: "debug.moviepilot.forceTab")
+#else
+        false
+#endif
+    }
+
     // MARK: - Computed Properties
 
-    var displayedTasks: [TorrentTask] {
-        if let id = activeServerId {
-            return allTasks.filter { $0.serverID == id }
+    /// Cached slice of allTasks for the active server.
+    /// Updated only when allTasks or activeServerId changes — never computed inline.
+    private(set) var displayedTasks: [TorrentTask] = []
+
+    private func rebuildDisplayedTasks() {
+        let rebuiltTasks = Self.makeDisplayedTasks(from: allTasks, activeServerID: activeServerId)
+        if displayedTasks != rebuiltTasks {
+            displayedTasks = rebuiltTasks
         }
-        return allTasks
+    }
+
+    nonisolated private static func makeDisplayedTasks(
+        from tasks: [TorrentTask],
+        activeServerID: UUID?
+    ) -> [TorrentTask] {
+        guard let activeServerID else { return tasks }
+        return tasks.filter { $0.serverID == activeServerID }
+    }
+
+    @MainActor
+    private func enqueueTaskRefreshSnapshot(_ snapshot: TaskRefreshSnapshot) {
+        pendingTaskRefreshSnapshot = snapshot
+        taskRefreshPublicationTask?.cancel()
+        taskRefreshPublicationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            self?.publishPendingTaskRefreshSnapshot()
+        }
+    }
+
+    @MainActor
+    private func publishPendingTaskRefreshSnapshot() {
+        taskRefreshPublicationTask = nil
+
+        guard let snapshot = pendingTaskRefreshSnapshot else { return }
+        pendingTaskRefreshSnapshot = nil
+
+        if allTasks != snapshot.allTasks {
+            allTasks = snapshot.allTasks
+            displayedTasks = activeServerId == snapshot.activeServerID
+                ? snapshot.displayedTasks
+                : Self.makeDisplayedTasks(from: snapshot.allTasks, activeServerID: activeServerId)
+            tasksRevision &+= 1
+        }
+
+        if hasRecentFinishedTasksAll != snapshot.hasRecentFinishedAll {
+            hasRecentFinishedTasksAll = snapshot.hasRecentFinishedAll
+        }
+        if hasRecentFinishedByServerID != snapshot.hasRecentFinishedByServerID {
+            hasRecentFinishedByServerID = snapshot.hasRecentFinishedByServerID
+        }
     }
 
     var activeServerName: String? {
@@ -113,6 +217,64 @@ class AppStateManager {
     var activeServerType: ServerType? {
         guard let id = activeServerId else { return nil }
         return servers.first(where: { $0.id == id })?.type
+    }
+
+    var moviePilotSettingsEntryTrailingSymbolName: String {
+        isMoviePilotFeatureUnlocked ? "chevron.right" : "lock.fill"
+    }
+
+    private func configureRouteStateEngine() {
+        StoreManager.shared.$isProUser
+            .prepend(StoreManager.shared.isProUser)
+            .removeDuplicates()
+            .combineLatest(
+                MoviePilotServerStore.shared.configuredStatePublisher
+                    .prepend(MoviePilotServerStore.shared.isMoviePilotConfigured)
+                    .removeDuplicates()
+            )
+            .receive(on: moviePilotRouteQueue)
+            .map { isProUser, isMoviePilotConfigured in
+                MoviePilotRouteSnapshot(
+                    isProUser: isProUser,
+                    isMoviePilotConfigured: isMoviePilotConfigured,
+                    isDebugTabOverrideEnabled: Self.debugForceMoviePilotTab
+                )
+            }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] snapshot in
+                guard let self else { return }
+                self.isMoviePilotFeatureUnlocked = snapshot.isProUser
+                self.isMoviePilotConfigured = snapshot.isMoviePilotConfigured
+                self.shouldMountMoviePilotTab = snapshot.shouldMountTab
+
+                if !snapshot.shouldMountTab, self.selectedTab == .moviePilot {
+                    self.selectedTab = .dashboard
+                }
+
+#if DEBUG
+                if snapshot.isDebugTabOverrideEnabled, self.selectedTab == .dashboard {
+                    self.selectedTab = .moviePilot
+                }
+#endif
+            }
+            .store(in: &routeEngineCancellables)
+    }
+
+    @MainActor
+    func handleMoviePilotSettingsEntryTap() {
+        if !isMoviePilotFeatureUnlocked {
+            shouldPresentMoviePilotUpgradeSheet = true
+            return
+        }
+
+        selectedTab = .settings
+        settingsRoute = .moviePilotSettings
+    }
+
+    @MainActor
+    func consumeMoviePilotUpgradeSheetIntent() {
+        shouldPresentMoviePilotUpgradeSheet = false
     }
 
     /// 显示的任务总下载速度 (Bytes/s)
@@ -223,7 +385,7 @@ class AppStateManager {
             }
         }
 
-        var gatheredTasks: [TorrentTask] = []
+        var processedServerPayloads: [ProcessedServerTasks] = []
         var aggregatedDownloadSpeed: Int64 = 0
         var aggregatedUploadSpeed: Int64 = 0
         var aggregatedDownloadingCount = 0
@@ -237,10 +399,10 @@ class AppStateManager {
         aggregatedSeedingByServerID.reserveCapacity(max(servers.count, 1))
         aggregatedHasRecentFinishedByServerID.reserveCapacity(max(servers.count, 1))
 
-        func ingestServerTasks(_ tasks: [TorrentTask], for server: ServerConfig) async {
-            gatheredTasks.append(contentsOf: tasks)
+        func ingestServerTasks(_ processed: ProcessedServerTasks, for server: ServerConfig) async {
+            processedServerPayloads.append(processed)
 
-            let serverStats = Self.buildServerTaskStats(from: tasks)
+            let serverStats = processed.stats
             aggregatedDownloadSpeed += serverStats.totalDownloadSpeed
             aggregatedUploadSpeed += serverStats.totalUploadSpeed
             aggregatedDownloadingCount += serverStats.downloadingCount
@@ -262,7 +424,11 @@ class AppStateManager {
             await MainActor.run {
                 markServerOnline(server)
                 applyServerTaskStats(serverStats, to: server)
-                ingestTaskDerivedTaxonomy(tasks, for: server)
+                ingestTaskDerivedTaxonomy(
+                    categories: serverStats.derivedCategories,
+                    tags: serverStats.derivedTags,
+                    for: server
+                )
                 prewarmTaxonomyIfNeeded(for: server.id)
             }
         }
@@ -276,14 +442,16 @@ class AppStateManager {
             do {
                 // Try fetch
                 let tasks = try await client.fetchTorrents()
-                await ingestServerTasks(tasks, for: server)
+                let processed = await Self.processFetchedTasks(tasks)
+                await ingestServerTasks(processed, for: server)
             } catch let error as TorrentClientError {
                 // If auth failed, try login and retry
                 if case .authenticationFailed = error {
                     do {
                         try await client.login()
                         let tasks = try await client.fetchTorrents()
-                        await ingestServerTasks(tasks, for: server)
+                        let processed = await Self.processFetchedTasks(tasks)
+                        await ingestServerTasks(processed, for: server)
                     } catch {
                         if isBenignCancellationError(error) {
                             continue
@@ -311,19 +479,17 @@ class AppStateManager {
             }
         }
 
-        let finalTasks = gatheredTasks
         let finalHasRecentFinished = aggregatedHasRecentFinishedTasks
         let finalHasRecentByServer = aggregatedHasRecentFinishedByServerID
-        // Defer heavy list data update to RunLoop.default — auto-pauses during scroll
-        // hasRecentFinished flags must live in the same deferred block so that when
-        // the module becomes visible, displayedTasks already contains the latest data.
-        RunLoop.main.perform(inModes: [.default]) { [self] in
-            if self.allTasks != finalTasks {
-                self.allTasks = finalTasks
-                self.tasksRevision &+= 1
-            }
-            self.hasRecentFinishedTasksAll = finalHasRecentFinished
-            self.hasRecentFinishedByServerID = finalHasRecentByServer
+        let activeServerIDSnapshot = await MainActor.run { self.activeServerId }
+        let taskRefreshSnapshot = await Self.makeTaskRefreshSnapshot(
+            from: processedServerPayloads,
+            activeServerID: activeServerIDSnapshot,
+            hasRecentFinishedAll: finalHasRecentFinished,
+            hasRecentFinishedByServerID: finalHasRecentByServer
+        )
+        await MainActor.run {
+            self.enqueueTaskRefreshSnapshot(taskRefreshSnapshot)
         }
         // Essential state flags must update immediately (not deferred)
         await MainActor.run {
@@ -458,16 +624,7 @@ class AppStateManager {
     }
 
     @MainActor
-    private func ingestTaskDerivedTaxonomy(_ tasks: [TorrentTask], for server: ServerConfig) {
-        let categories = server.type == .qBittorrent
-            ? sortedUniqueValues(tasks.map(\.category))
-            : []
-        let tags = sortedUniqueValues(
-            tasks.flatMap { task in
-                Array(normalizedTagSet(from: task.tags))
-            }
-        )
-
+    private func ingestTaskDerivedTaxonomy(categories: [String], tags: [String], for server: ServerConfig) {
         var didChange = false
         if taskDerivedCategoriesByServerID[server.id] != categories {
             taskDerivedCategoriesByServerID[server.id] = categories
@@ -551,11 +708,11 @@ class AppStateManager {
 
     @MainActor
     private func refreshAvailableTaxonomySnapshots() {
-        let mergedCategories = sortedUniqueValues(
+        let mergedCategories = Self.sortedUniqueValues(
             taskDerivedCategoriesByServerID.values.flatMap { $0 } +
             serverCategoriesByServerID.values.flatMap { $0 }
         )
-        let mergedTags = sortedUniqueValues(
+        let mergedTags = Self.sortedUniqueValues(
             taskDerivedTagsByServerID.values.flatMap { $0 } +
             serverTagsByServerID.values.flatMap { $0 }
         )
@@ -573,7 +730,7 @@ class AppStateManager {
             (taskDerivedCategoriesByServerID[serverID] ?? []) +
             (serverCategoriesByServerID[serverID] ?? [])
         }
-        return sortedUniqueValues(cached + currentCategories)
+        return Self.sortedUniqueValues(cached + currentCategories)
     }
 
     private func mergedTagOptions(for serverIDs: Set<UUID>, including currentTags: [String]) -> [String] {
@@ -581,10 +738,34 @@ class AppStateManager {
             (taskDerivedTagsByServerID[serverID] ?? []) +
             (serverTagsByServerID[serverID] ?? [])
         }
-        return sortedUniqueValues(cached + currentTags)
+        return Self.sortedUniqueValues(cached + currentTags)
     }
 
-    private static func buildServerTaskStats(from tasks: [TorrentTask]) -> ServerTaskStats {
+    nonisolated private static func processFetchedTasks(_ tasks: [TorrentTask]) async -> ProcessedServerTasks {
+        await Task.detached(priority: .userInitiated) {
+            ProcessedServerTasks(tasks: tasks, stats: Self.buildServerTaskStats(from: tasks))
+        }.value
+    }
+
+    nonisolated private static func makeTaskRefreshSnapshot(
+        from payloads: [ProcessedServerTasks],
+        activeServerID: UUID?,
+        hasRecentFinishedAll: Bool,
+        hasRecentFinishedByServerID: [UUID: Bool]
+    ) async -> TaskRefreshSnapshot {
+        await Task.detached(priority: .userInitiated) {
+            let allTasks = payloads.flatMap(\.tasks)
+            return TaskRefreshSnapshot(
+                allTasks: allTasks,
+                displayedTasks: Self.makeDisplayedTasks(from: allTasks, activeServerID: activeServerID),
+                activeServerID: activeServerID,
+                hasRecentFinishedAll: hasRecentFinishedAll,
+                hasRecentFinishedByServerID: hasRecentFinishedByServerID
+            )
+        }.value
+    }
+
+    nonisolated private static func buildServerTaskStats(from tasks: [TorrentTask]) -> ServerTaskStats {
         var seedingCount = 0
         var downloadingCount = 0
         var seedingSize: Int64 = 0
@@ -593,6 +774,10 @@ class AppStateManager {
         var totalDownloadSpeed: Int64 = 0
         var totalUploadSpeed: Int64 = 0
         var hasRecentFinishedTask = false
+        var categories = Set<String>()
+        var tags = Set<String>()
+        categories.reserveCapacity(min(tasks.count, 512))
+        tags.reserveCapacity(min(tasks.count * 2, 2048))
 
         for task in tasks {
             if task.status == .seeding {
@@ -611,6 +796,15 @@ class AppStateManager {
                 (task.status == .completed || task.status == .seeding || task.completionDate != nil || task.progress >= 0.999) {
                 hasRecentFinishedTask = true
             }
+
+            let category = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !category.isEmpty {
+                categories.insert(category)
+            }
+
+            if !task.normalizedTags.isEmpty {
+                tags.formUnion(task.normalizedTags)
+            }
         }
 
         return ServerTaskStats(
@@ -621,7 +815,9 @@ class AppStateManager {
             totalDownloaded: totalDownloaded,
             totalDownloadSpeed: totalDownloadSpeed,
             totalUploadSpeed: totalUploadSpeed,
-            hasRecentFinishedTask: hasRecentFinishedTask
+            hasRecentFinishedTask: hasRecentFinishedTask,
+            derivedCategories: Self.sortedUniqueValues(Array(categories)),
+            derivedTags: Self.sortedUniqueValues(Array(tags))
         )
     }
 
@@ -633,7 +829,7 @@ class AppStateManager {
             throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
         }
         let categories = try await client.fetchServerCategories()
-        let normalized = sortedUniqueValues(categories.map(\.name))
+        let normalized = Self.sortedUniqueValues(categories.map(\.name))
         await MainActor.run {
             storeServerCategories(normalized, for: server.id)
         }
@@ -696,7 +892,7 @@ class AppStateManager {
             }
             tags = try await client.fetchServerTags()
         }
-        let normalized = sortedUniqueValues(tags)
+        let normalized = Self.sortedUniqueValues(tags)
         await MainActor.run {
             storeServerTags(normalized, for: server.id)
         }
@@ -832,7 +1028,7 @@ class AppStateManager {
                     throw TorrentClientError.apiError("Failed to initialize qBittorrent client.")
                 }
                 for task in groupTasks {
-                    let currentTagSet = normalizedTagSet(from: task.tags)
+                    let currentTagSet = Set(task.normalizedTags)
                     let toAdd = Array(targetTagSet.subtracting(currentTagSet))
                     let toRemove = Array(currentTagSet.subtracting(targetTagSet))
                     if !toAdd.isEmpty {
@@ -1413,6 +1609,7 @@ class AppStateManager {
         // 1. Optimistic UI update — instant visual feedback on @MainActor
         if let mutation = optimisticMutation {
             mutation(&self.allTasks)
+            rebuildDisplayedTasks()
             self.tasksRevision += 1
         }
 
@@ -1635,7 +1832,8 @@ class AppStateManager {
             totalSeeds: task.totalSeeds,
             numPeers: task.numPeers,
             totalPeers: task.totalPeers,
-            ratio: task.ratio
+            ratio: task.ratio,
+            normalizedTags: task.normalizedTags
         )
     }
 
@@ -1654,7 +1852,7 @@ class AppStateManager {
     }
 
     private func normalizeTags(_ tags: [String]) -> [String] {
-        sortedUniqueValues(tags)
+        Self.sortedUniqueValues(tags)
     }
 
     private func normalizedTagSet(from raw: String) -> Set<String> {
@@ -1665,7 +1863,7 @@ class AppStateManager {
         )
     }
 
-    private func sortedUniqueValues(_ values: [String]) -> [String] {
+    nonisolated private static func sortedUniqueValues(_ values: [String]) -> [String] {
         Array(
             Set(
                 values
