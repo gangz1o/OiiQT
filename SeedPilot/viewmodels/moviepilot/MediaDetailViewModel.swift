@@ -7,6 +7,7 @@ final class MediaDetailViewModel {
     nonisolated private static let movieTypeName = "电影"
     nonisolated private static let tvTypeName = "电视剧"
     nonisolated private static let tmdbPosterBaseURLString = "https://image.tmdb.org/t/p/w500"
+    nonisolated private static let presetSavePathsDefaultsKey = "presetSavePaths"
 
     @ObservationIgnored
     private let serverStore: MoviePilotServerStore
@@ -14,7 +15,12 @@ final class MediaDetailViewModel {
     @ObservationIgnored
     private let apiClient: MoviePilotMediaDetailAPIClient
 
-    private(set) var viewState: MediaDetailViewState
+    private(set) var viewState: MediaDetailViewState {
+        didSet {
+            rebuildPageViewState()
+        }
+    }
+    private(set) var pageViewState: MediaDetailPageViewState
     private(set) var showSubscribeSheet = false
     private(set) var subscribeFormViewState: SubscribeFormViewState?
     private(set) var searchFilterSheetViewState: SearchResultFilterSheetViewState?
@@ -22,7 +28,11 @@ final class MediaDetailViewModel {
 
     private var detailContext: MoviePilotMediaDetailContext
     private var isLoadingDetail = false
-    private var searchFilterState = SearchResultFilterState.default
+    private var searchFilterState = SearchResultFilterState.default {
+        didSet {
+            rebuildPageViewState()
+        }
+    }
 
     /// Raw DTO lookup table — retained so we can serialize torrent_in back for download requests.
     @ObservationIgnored
@@ -44,6 +54,10 @@ final class MediaDetailViewModel {
         self.serverStore = serverStore
         self.apiClient = apiClient
         viewState = initialViewState
+        pageViewState = Self.makePageViewState(
+            detailViewState: initialViewState,
+            searchFilterState: .default
+        )
         detailContext = Self.makeInitialContext(from: initialViewState)
     }
 
@@ -135,11 +149,13 @@ final class MediaDetailViewModel {
         guard let result = viewState.searchResults.first(where: { $0.id == resultID }),
               torrentRawJSONByResultID[resultID] != nil else { return }
         guard let requestContext = availableServerContext() else { return }
+        let presetSavePaths = Self.loadPresetSavePaths()
 
         // Show sheet immediately with empty downloaders (loading state)
         downloadFormViewState = DownloadFormViewState(
             id: resultID,
             resourceTitle: result.title,
+            presetSavePaths: presetSavePaths,
             downloaders: [],
             selectedDownloaderID: nil,
             savePath: "",
@@ -205,29 +221,15 @@ final class MediaDetailViewModel {
         downloadFormViewState = nil
     }
 
-    var filteredSearchResults: [SearchResultViewState] {
-        let filteredResults = viewState.searchResults.filter { result in
-            Self.matches(selectedValue: searchFilterState.selectedSiteName, currentValue: result.siteName)
-                && Self.matches(selectedValue: searchFilterState.selectedResolution, currentValue: result.resolutionTag)
-                && Self.matches(selectedValue: searchFilterState.selectedQuality, currentValue: result.qualityTag)
-                && Self.matches(selectedValue: searchFilterState.selectedCodec, currentValue: result.codecTag)
-                && (!searchFilterState.showPromotionOnly || result.promotionTag != nil)
-                && (!searchFilterState.hideHitAndRun || !result.isHitAndRun)
+    private func rebuildPageViewState() {
+        let nextPageViewState = Self.makePageViewState(
+            detailViewState: viewState,
+            searchFilterState: searchFilterState
+        )
+
+        if nextPageViewState != pageViewState {
+            pageViewState = nextPageViewState
         }
-
-        return Self.sortSearchResults(filteredResults, using: searchFilterState)
-    }
-
-    var activeSearchFilterCount: Int {
-        var count = 0
-        if searchFilterState.selectedSiteName != nil { count += 1 }
-        if searchFilterState.selectedResolution != nil { count += 1 }
-        if searchFilterState.selectedQuality != nil { count += 1 }
-        if searchFilterState.selectedCodec != nil { count += 1 }
-        if searchFilterState.showPromotionOnly { count += 1 }
-        if searchFilterState.hideHitAndRun { count += 1 }
-        if searchFilterState.sortField != .relevance || searchFilterState.sortOrder != .descending { count += 1 }
-        return count
     }
 
     func presentSearchFilterSheet() {
@@ -519,24 +521,11 @@ final class MediaDetailViewModel {
     }
 
     private func availableServerContext() -> MoviePilotMediaRequestContext? {
-        for server in serverStore.servers {
-            guard let normalizedBaseURL = MoviePilotURLNormalizer.normalize(server.baseURLString) else {
-                continue
-            }
-
-            let trimmedToken = serverStore.token(for: server.id)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !trimmedToken.isEmpty else {
-                continue
-            }
-
-            return MoviePilotMediaRequestContext(
-                baseURLString: normalizedBaseURL,
-                token: trimmedToken
-            )
-        }
-
-        return nil
+        guard let context = serverStore.activeServerContext else { return nil }
+        return MoviePilotMediaRequestContext(
+            baseURLString: context.baseURLString,
+            token: context.token
+        )
     }
 
     private func fetchDetailSafely(
@@ -1630,6 +1619,105 @@ final class MediaDetailViewModel {
         return badges.first(where: { allowedSet.contains($0.text.lowercased()) })?.text
     }
 
+    nonisolated private static func makePageViewState(
+        detailViewState: MediaDetailViewState,
+        searchFilterState: SearchResultFilterState
+    ) -> MediaDetailPageViewState {
+        let filteredSearchResults = makeFilteredSearchResults(
+            from: detailViewState.searchResults,
+            using: searchFilterState
+        )
+        let activeFilterCount = countActiveSearchFilters(in: searchFilterState)
+
+        return MediaDetailPageViewState(
+            id: detailViewState.id,
+            navigationTitle: detailViewState.title.isEmpty ? "详情" : detailViewState.title,
+            hero: MediaDetailHeroSectionViewState(
+                backgroundPosterURL: URL(string: detailViewState.posterURLString),
+                bannerURL: URL(
+                    string: detailViewState.backdropURLString.nonEmpty ?? detailViewState.posterURLString
+                ),
+                title: detailViewState.title.isEmpty ? "正在载入..." : detailViewState.title,
+                mediaTypeText: detailViewState.isSeries ? "剧集" : "电影",
+                ratingText: detailViewState.ratingText,
+                isSubscribed: detailViewState.isSubscribed,
+                overviewText: detailViewState.overviewText?.nonEmpty,
+                isOverviewLoading: detailViewState.isOverviewLoading,
+                showsSyncProgress: detailViewState.isOverviewLoading || detailViewState.isActorsLoading,
+                isSearchLoading: detailViewState.isSearchLoading,
+                isSubscribeLoading: detailViewState.isSubscribeLoading
+            ),
+            actors: MediaDetailActorsSectionViewState(
+                isLoading: detailViewState.isActorsLoading,
+                actors: detailViewState.actors
+            ),
+            search: makeSearchSectionViewState(
+                detailViewState: detailViewState,
+                filteredSearchResults: filteredSearchResults,
+                activeFilterCount: activeFilterCount
+            )
+        )
+    }
+
+    nonisolated private static func makeSearchSectionViewState(
+        detailViewState: MediaDetailViewState,
+        filteredSearchResults: [SearchResultViewState],
+        activeFilterCount: Int
+    ) -> MediaDetailSearchSectionViewState {
+        let feedbackText = detailViewState.searchFeedbackText?.nonEmpty
+        let hasRawResults = !detailViewState.searchResults.isEmpty
+
+        let content: MediaDetailSearchSectionContentViewState
+        if detailViewState.isSearchLoading {
+            content = .loading
+        } else if !hasRawResults && feedbackText == nil {
+            content = .hidden
+        } else if !hasRawResults {
+            content = .empty
+        } else if filteredSearchResults.isEmpty {
+            content = .filteredEmpty
+        } else {
+            content = .results(filteredSearchResults)
+        }
+
+        return MediaDetailSearchSectionViewState(
+            feedbackText: feedbackText,
+            activeFilterCount: activeFilterCount,
+            showsFilterButton: hasRawResults,
+            content: content
+        )
+    }
+
+    nonisolated private static func makeFilteredSearchResults(
+        from results: [SearchResultViewState],
+        using filterState: SearchResultFilterState
+    ) -> [SearchResultViewState] {
+        let filteredResults = results.filter { result in
+            matches(selectedValue: filterState.selectedSiteName, currentValue: result.siteName)
+                && matches(selectedValue: filterState.selectedResolution, currentValue: result.resolutionTag)
+                && matches(selectedValue: filterState.selectedQuality, currentValue: result.qualityTag)
+                && matches(selectedValue: filterState.selectedCodec, currentValue: result.codecTag)
+                && (!filterState.showPromotionOnly || result.promotionTag != nil)
+                && (!filterState.hideHitAndRun || !result.isHitAndRun)
+        }
+
+        return sortSearchResults(filteredResults, using: filterState)
+    }
+
+    nonisolated private static func countActiveSearchFilters(
+        in filterState: SearchResultFilterState
+    ) -> Int {
+        var count = 0
+        if filterState.selectedSiteName != nil { count += 1 }
+        if filterState.selectedResolution != nil { count += 1 }
+        if filterState.selectedQuality != nil { count += 1 }
+        if filterState.selectedCodec != nil { count += 1 }
+        if filterState.showPromotionOnly { count += 1 }
+        if filterState.hideHitAndRun { count += 1 }
+        if filterState.sortField != .relevance || filterState.sortOrder != .descending { count += 1 }
+        return count
+    }
+
     nonisolated private static func matches(
         selectedValue: String?,
         currentValue: String?
@@ -1939,6 +2027,11 @@ final class MediaDetailViewModel {
         }
 
         return baseURL.appendingPathComponent(trimmedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
+    }
+
+    private static func loadPresetSavePaths() -> [String] {
+        let rawValue = UserDefaults.standard.string(forKey: presetSavePathsDefaultsKey) ?? "[]"
+        return PresetSavePathsCodec.decode(rawValue)
     }
 
 }

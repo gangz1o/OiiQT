@@ -261,6 +261,16 @@ class AppStateManager {
             .store(in: &routeEngineCancellables)
     }
 
+    nonisolated private static func configuredTaskRefreshInterval() -> TimeInterval? {
+        let refreshRateDefaultsKey = "refreshRate"
+        let defaultRefreshRateSeconds = 5
+        let defaults = UserDefaults.standard
+        let storedInterval = defaults.object(forKey: refreshRateDefaultsKey) as? Int
+        let intervalSeconds = storedInterval ?? defaultRefreshRateSeconds
+        guard intervalSeconds > 0 else { return nil }
+        return TimeInterval(intervalSeconds)
+    }
+
     @MainActor
     func handleMoviePilotSettingsEntryTap() {
         if !isMoviePilotFeatureUnlocked {
@@ -350,17 +360,22 @@ class AppStateManager {
         refreshAvailableTaxonomySnapshots()
     }
 
-    /// 启动自动刷新 (每 2 秒)
+    /// 启动任务自动刷新。
+    /// 始终先执行一次立即刷新；当 `refreshRate` 大于 0 时再启动周期轮询。
     func startAutoRefresh() {
         autoRefreshTask?.cancel()
+        let refreshInterval = Self.configuredTaskRefreshInterval()
         autoRefreshTask = Task { [weak self] in
             guard let self else { return }
             // Initial fetch
             await self.refreshData()
 
+            guard let refreshInterval else { return }
+            let intervalNanos = UInt64(refreshInterval * 1_000_000_000)
+
             // Periodic fetch
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                try? await Task.sleep(nanoseconds: intervalNanos)
                 guard !Task.isCancelled else { break }
                 await self.refreshData(isSilent: true)
             }

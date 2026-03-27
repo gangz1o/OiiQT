@@ -337,6 +337,23 @@
         }
       }
     },
+    "Active Server" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active Server"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前服务器"
+          }
+        }
+      }
+    },
     "Add" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1913,6 +1930,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%d 个服务器"
+          }
+        }
+      }
+    },
+    "Current Instance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current Instance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前实例"
           }
         }
       }
@@ -4596,6 +4630,23 @@
         }
       }
     },
+    "MoviePilot pages always use the active server selected here." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot pages always use the active server selected here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MoviePilot 页面始终使用这里选择的当前服务器。"
+          }
+        }
+      }
+    },
     "MoviePilot Server" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7059,6 +7110,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "服务器类型"
+          }
+        }
+      }
+    },
+    "Set Active" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设为当前"
           }
         }
       }
@@ -9739,6 +9807,9 @@
         }
       }
     },
+    "使用默认路径" : {
+
+    },
     "保存路径" : {
 
     },
@@ -9757,9 +9828,6 @@
           }
         }
       }
-    },
-    "剧集" : {
-
     },
     "加载更多" : {
 
@@ -9800,6 +9868,9 @@
 
     },
     "取消" : {
+
+    },
+    "可选。可直接选择预置目录，或留空使用 MoviePilot 默认配置的保存路径。" : {
 
     },
     "可选。留空将使用 MoviePilot 默认配置的保存路径。" : {
@@ -10045,9 +10116,6 @@
     "没有符合条件的资源" : {
 
     },
-    "电影" : {
-
-    },
     "留空使用默认路径" : {
 
     },
@@ -10074,9 +10142,6 @@
 
     },
     "筛选与排序" : {
-
-    },
-    "简介" : {
 
     },
     "自上次重置时间格式" : {
@@ -10182,6 +10247,9 @@
           }
         }
       }
+    },
+    "选择预置目录" : {
+
     },
     "重置" : {
 

@@ -18,6 +18,17 @@ struct MoviePilotServerListView: View {
     @State private var store = MoviePilotServerStore.shared
     @State private var presentedSheet: PresentedSheet?
 
+    private var activeServerSelection: Binding<UUID>? {
+        guard let activeServerID = store.activeServerID ?? store.availableServerContexts.first?.serverID else {
+            return nil
+        }
+
+        return Binding(
+            get: { store.activeServerID ?? activeServerID },
+            set: { store.setActiveServer($0) }
+        )
+    }
+
     var body: some View {
         Group {
             if store.servers.isEmpty {
@@ -28,14 +39,29 @@ struct MoviePilotServerListView: View {
                 )
             } else {
                 List {
+                    activeServerSection
+
                     Section {
                         ForEach(store.servers) { server in
                             Button {
                                 presentedSheet = .edit(server)
                             } label: {
-                                MoviePilotServerRow(server: server)
+                                MoviePilotServerRow(
+                                    server: server,
+                                    isActive: store.activeServerID == server.id
+                                )
                             }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if store.activeServerID != server.id {
+                                    Button {
+                                        store.setActiveServer(server.id)
+                                    } label: {
+                                        Label(LanguageManager.shared.localized("Set Active"), systemImage: "checkmark.circle")
+                                    }
+                                    .tint(.green)
+                                }
+                            }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button {
                                     presentedSheet = .edit(server)
@@ -85,10 +111,38 @@ struct MoviePilotServerListView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var activeServerSection: some View {
+        if store.hasMultipleAvailableServers, let selection = activeServerSelection {
+            Section {
+                Picker(LanguageManager.shared.localized("Active Server"), selection: selection) {
+                    ForEach(store.availableServerContexts, id: \.serverID) { context in
+                        Text(context.serverName)
+                            .tag(context.serverID)
+                    }
+                }
+            } header: {
+                Text(LanguageManager.shared.localized("Current Instance"))
+            } footer: {
+                Text(LanguageManager.shared.localized("MoviePilot pages always use the active server selected here."))
+            }
+        } else if let activeServerName = store.activeServerName {
+            Section {
+                LabeledContent(
+                    LanguageManager.shared.localized("Active Server"),
+                    value: activeServerName
+                )
+            } header: {
+                Text(LanguageManager.shared.localized("Current Instance"))
+            }
+        }
+    }
 }
 
 private struct MoviePilotServerRow: View {
     let server: MoviePilotServerConfiguration
+    let isActive: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -109,9 +163,21 @@ private struct MoviePilotServerRow: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
+            if isActive {
+                Text(LanguageManager.shared.localized("Active"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.green.opacity(0.14))
+                    )
+            }
+
+            Image(systemName: isActive ? "checkmark.circle.fill" : "chevron.right")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(isActive ? Color.green : Color.secondary)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

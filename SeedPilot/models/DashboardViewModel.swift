@@ -173,7 +173,7 @@ final class DashboardViewModel: ObservableObject {
     func startAutoRefresh(
         serversProvider: @escaping @MainActor () -> [ServerConfig],
         tasksProvider: @escaping @MainActor () -> [TorrentTask],
-        interval: TimeInterval = 8
+        interval: TimeInterval? = 8
     ) {
         stopAutoRefresh()
 
@@ -183,6 +183,7 @@ final class DashboardViewModel: ObservableObject {
             let initialTasks = tasksProvider()
             await self.refreshGlobalStats(servers: initialServers, tasks: initialTasks, force: true)
 
+            guard let interval else { return }
             let intervalNanos = UInt64(max(interval, 1) * 1_000_000_000)
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNanos)

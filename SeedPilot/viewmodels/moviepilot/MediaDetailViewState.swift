@@ -5,6 +5,31 @@ nonisolated struct ActorViewState: Identifiable, Equatable, Sendable {
     let name: String
     let characterName: String
     let profileURLString: String
+    let profileURL: URL?
+    let accessibilityLabel: String
+
+    init(
+        id: String,
+        name: String,
+        characterName: String,
+        profileURLString: String,
+        accessibilityLabel: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.characterName = characterName
+        self.profileURLString = profileURLString
+        self.profileURL = URL(string: profileURLString)
+
+        let resolvedCharacterName = characterName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let accessibilityLabel {
+            self.accessibilityLabel = accessibilityLabel
+        } else if resolvedCharacterName.isEmpty {
+            self.accessibilityLabel = name
+        } else {
+            self.accessibilityLabel = "\(name)，饰演 \(resolvedCharacterName)"
+        }
+    }
 }
 
 nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
@@ -81,6 +106,7 @@ nonisolated struct SearchResultBadgeViewState: Identifiable, Equatable, Sendable
 nonisolated struct DownloadFormViewState: Identifiable, Equatable, Sendable {
     let id: String // matches SearchResultViewState.id
     let resourceTitle: String
+    let presetSavePaths: [String]
     var downloaders: [DownloaderOptionViewState]
     var selectedDownloaderID: String?
     var savePath: String
@@ -113,6 +139,118 @@ nonisolated struct SearchResultViewState: Identifiable, Equatable, Sendable {
     let codecTag: String?
     let isHitAndRun: Bool
     let pageURLString: String
+    let pageURL: URL?
+    let accessibilityLabel: String
+
+    init(
+        id: String,
+        sortPriority: Int,
+        siteName: String,
+        seedersCount: Int,
+        leechersCount: Int,
+        title: String,
+        subtitle: String,
+        sizeInBytes: Int64,
+        sizeString: String,
+        publishTimestamp: TimeInterval?,
+        timeString: String,
+        promotionTag: String?,
+        promotionPalette: SearchResultBadgePaletteViewState?,
+        badges: [SearchResultBadgeViewState],
+        qualityTag: String?,
+        resolutionTag: String?,
+        codecTag: String?,
+        isHitAndRun: Bool,
+        pageURLString: String,
+        accessibilityLabel: String? = nil
+    ) {
+        self.id = id
+        self.sortPriority = sortPriority
+        self.siteName = siteName
+        self.seedersCount = seedersCount
+        self.leechersCount = leechersCount
+        self.title = title
+        self.subtitle = subtitle
+        self.sizeInBytes = sizeInBytes
+        self.sizeString = sizeString
+        self.publishTimestamp = publishTimestamp
+        self.timeString = timeString
+        self.promotionTag = promotionTag
+        self.promotionPalette = promotionPalette
+        self.badges = badges
+        self.qualityTag = qualityTag
+        self.resolutionTag = resolutionTag
+        self.codecTag = codecTag
+        self.isHitAndRun = isHitAndRun
+        self.pageURLString = pageURLString
+        self.pageURL = URL(string: pageURLString)
+
+        if let accessibilityLabel {
+            self.accessibilityLabel = accessibilityLabel
+        } else {
+            var components = [
+                siteName,
+                "做种 \(seedersCount)",
+                title,
+                subtitle,
+                sizeString
+            ]
+
+            if let promotionTag {
+                components.append("促销 \(promotionTag)")
+            }
+
+            if !badges.isEmpty {
+                components.append(badges.map(\.text).joined(separator: "、"))
+            }
+
+            self.accessibilityLabel = components
+                .filter { !$0.isEmpty }
+                .joined(separator: "，")
+        }
+    }
+}
+
+nonisolated struct MediaDetailHeroSectionViewState: Equatable, Sendable {
+    let backgroundPosterURL: URL?
+    let bannerURL: URL?
+    let title: String
+    let mediaTypeText: String
+    let ratingText: String
+    let isSubscribed: Bool
+    let overviewText: String?
+    let isOverviewLoading: Bool
+    let showsSyncProgress: Bool
+    let isSearchLoading: Bool
+    let isSubscribeLoading: Bool
+}
+
+nonisolated struct MediaDetailActorsSectionViewState: Equatable, Sendable {
+    let isLoading: Bool
+    let actors: [ActorViewState]
+}
+
+nonisolated enum MediaDetailSearchSectionContentViewState: Equatable, Sendable {
+    case hidden
+    case loading
+    case empty
+    case filteredEmpty
+    case results([SearchResultViewState])
+}
+
+nonisolated struct MediaDetailSearchSectionViewState: Equatable, Sendable {
+    let feedbackText: String?
+    let activeFilterCount: Int
+    let showsFilterButton: Bool
+    let content: MediaDetailSearchSectionContentViewState
+}
+
+nonisolated struct MediaDetailPageViewState: Identifiable, Equatable, Sendable {
+    let id: String
+    let navigationTitle: String
+    let hero: MediaDetailHeroSectionViewState
+    let actors: MediaDetailActorsSectionViewState
+    let search: MediaDetailSearchSectionViewState
 }
 
 nonisolated enum SearchResultSortField: String, CaseIterable, Identifiable, Equatable, Sendable {

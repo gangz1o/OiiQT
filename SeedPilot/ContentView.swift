@@ -13,6 +13,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query private var rssSources: [RSSFeedSource]
+    @AppStorage("refreshRate") private var refreshRate: Int = 5
     @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
     @ObservedObject private var dashboardViewModel: DashboardViewModel
 
@@ -78,6 +79,10 @@ struct ContentView: View {
             guard scenePhase == .active else { return }
             // Restart timer when setting changes
             RSSMonitor.shared.startAutoRefresh(sources: rssSources, context: modelContext, appStateManager: appStateManager)
+        }
+        .onChange(of: refreshRate) {
+            guard scenePhase == .active else { return }
+            appStateManager.startAutoRefresh()
         }
         .onChange(of: rssSources.count) {
             guard scenePhase == .active else { return }

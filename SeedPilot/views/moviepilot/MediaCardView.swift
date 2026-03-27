@@ -87,7 +87,7 @@ private struct MediaCardContentView: View, Equatable {
     }
 
     private var posterImage: some View {
-        let posterURL = URL(string: viewState.posterURLString)
+        let posterURL = viewState.posterURL
 
         return KFImage(posterURL)
             .placeholder {
@@ -119,15 +119,7 @@ private struct MediaCardContentView: View, Equatable {
     }
 
     private var accessibilityLabel: String {
-        let mediaTypeText = viewState.isSeries ? "剧集" : "电影"
-        guard !viewState.ratingText.isEmpty else {
-            return "\(viewState.title)，\(mediaTypeText)"
-        }
-
-        if viewState.isSeries {
-            return "\(viewState.title)，剧集，评分 \(viewState.ratingText)"
-        }
-        return "\(viewState.title)，电影，评分 \(viewState.ratingText)"
+        viewState.accessibilityLabel
     }
 }
 

@@ -13,6 +13,86 @@ import AppKit
 import UIKit
 #endif
 
+@MainActor
+enum SeedPilotImagePreheater {
+    private static let prefetchQueue = DispatchQueue(label: "seedpilot.image.prefetch", qos: .utility)
+    private static var activeResources = Set<String>()
+
+    static func prefetch(
+        _ url: URL?,
+        downsampleSize: CGSize? = nil,
+        cacheOriginal: Bool = false
+    ) {
+        guard let url else { return }
+
+        let resourceKey = cacheKey(for: url, downsampleSize: downsampleSize, cacheOriginal: cacheOriginal)
+        guard activeResources.insert(resourceKey).inserted else { return }
+
+        let options = buildOptions(for: url, downsampleSize: downsampleSize, cacheOriginal: cacheOriginal)
+        let resource = KF.ImageResource(downloadURL: url, cacheKey: resourceKey)
+        KingfisherManager.shared.retrieveImage(with: resource, options: options) { _ in
+            Task { @MainActor in
+                activeResources.remove(resourceKey)
+            }
+        }
+    }
+
+    private static func buildOptions(
+        for url: URL,
+        downsampleSize: CGSize?,
+        cacheOriginal: Bool
+    ) -> KingfisherOptionsInfo {
+        var options: KingfisherOptionsInfo = [
+            .backgroundDecode,
+            .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue)),
+            .callbackQueue(.dispatch(prefetchQueue))
+        ]
+
+        if let downsampleSize {
+            options.append(.scaleFactor(SeedPilotImageLoading.displayScale))
+            options.append(.processor(DownsamplingImageProcessor(size: downsampleSize)))
+        }
+
+        if cacheOriginal {
+            options.append(.cacheOriginalImage)
+        }
+
+        if SeedPilotImageLoading.needsDoubanHeaders(for: url) {
+            #if targetEnvironment(simulator)
+            options.append(.downloader(SeedPilotImageLoading.doubanDownloader))
+            #endif
+            options.append(
+                .requestModifier(AnyModifier { request in
+                    var request = request
+                    request.setValue("https://movie.douban.com/", forHTTPHeaderField: "Referer")
+                    request.setValue(
+                        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+                        forHTTPHeaderField: "User-Agent"
+                    )
+                    request.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
+                    return request
+                })
+            )
+        }
+
+        return options
+    }
+
+    private static func cacheKey(
+        for url: URL,
+        downsampleSize: CGSize?,
+        cacheOriginal: Bool
+    ) -> String {
+        let sizeKey: String
+        if let downsampleSize {
+            sizeKey = "|w=\(Int(downsampleSize.width.rounded()))|h=\(Int(downsampleSize.height.rounded()))|s=\(Int(SeedPilotImageLoading.displayScale.rounded()))"
+        } else {
+            sizeKey = "|full"
+        }
+        return url.absoluteString + sizeKey + "|original=\(cacheOriginal)"
+    }
+}
+
 private final class SeedPilotDoubanAuthenticationChallengeResponder: AuthenticationChallengeResponsible {
     func downloader(
         _ downloader: ImageDownloader,
@@ -121,31 +201,57 @@ struct SimpleCachedImage: View {
     let url: URL?
     var downsampleSize: CGSize? = nil
     var cacheOriginal: Bool = true
+    var enableFade: Bool = true
 
     var body: some View {
         if let downsampleSize {
-            KFImage(url)
-                .placeholder { SeedPilotPlaceholder() }
-                .seedPilotDownloader(for: url)
-                .seedPilotRequestHeaders(for: url)
-                .targetSize(downsampleSize)
-                .backgroundDecode(true)
-                .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue))
-                .cacheOriginalImage(if: cacheOriginal)
-                .fade(duration: 0.2)
-                .cancelOnDisappear(true)
-                .resizable()
+            if enableFade {
+                KFImage(url)
+                    .placeholder { SeedPilotPlaceholder() }
+                    .seedPilotDownloader(for: url)
+                    .seedPilotRequestHeaders(for: url)
+                    .targetSize(downsampleSize)
+                    .backgroundDecode(true)
+                    .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue))
+                    .cacheOriginalImage(if: cacheOriginal)
+                    .fade(duration: 0.2)
+                    .cancelOnDisappear(true)
+                    .resizable()
+            } else {
+                KFImage(url)
+                    .placeholder { SeedPilotPlaceholder() }
+                    .seedPilotDownloader(for: url)
+                    .seedPilotRequestHeaders(for: url)
+                    .targetSize(downsampleSize)
+                    .backgroundDecode(true)
+                    .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue))
+                    .cacheOriginalImage(if: cacheOriginal)
+                    .cancelOnDisappear(true)
+                    .resizable()
+            }
         } else {
-            KFImage(url)
-                .placeholder { SeedPilotPlaceholder() }
-                .seedPilotDownloader(for: url)
-                .seedPilotRequestHeaders(for: url)
-                .cacheOriginalImage(if: cacheOriginal)
-                .backgroundDecode(true)
-                .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue))
-                .fade(duration: 0.2)
-                .cancelOnDisappear(true)
-                .resizable()
+            if enableFade {
+                KFImage(url)
+                    .placeholder { SeedPilotPlaceholder() }
+                    .seedPilotDownloader(for: url)
+                    .seedPilotRequestHeaders(for: url)
+                    .cacheOriginalImage(if: cacheOriginal)
+                    .backgroundDecode(true)
+                    .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue))
+                    .fade(duration: 0.2)
+                    .cancelOnDisappear(true)
+                    .resizable()
+            } else {
+                KFImage(url)
+                    .placeholder { SeedPilotPlaceholder() }
+                    .seedPilotDownloader(for: url)
+                    .seedPilotRequestHeaders(for: url)
+                    .cacheOriginalImage(if: cacheOriginal)
+                    .backgroundDecode(true)
+                    .processingQueue(.dispatch(SeedPilotImageLoading.processingQueue))
+                    .cancelOnDisappear(true)
+                    .resizable()
+            }
         }
     }
 }

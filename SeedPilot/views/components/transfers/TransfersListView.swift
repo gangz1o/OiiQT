@@ -1,49 +1,58 @@
 import SwiftUI
 
 struct TransfersListView: View {
-    @Bindable var viewModel: TransfersViewModel
-    var appStateManager: AppStateManager
-    var isEditing: Bool
-    var openTaskDetail: (TorrentTask) -> Void
-
-    /// Pre-computed O(1) lookup — computed once per list body, not per row.
-    private var serverTypeMap: [UUID: ServerType]? {
-        guard appStateManager.activeServerId == nil else { return nil }
-        return Dictionary(
-            appStateManager.servers.map { ($0.id, $0.type) },
-            uniquingKeysWith: { first, _ in first }
-        )
-    }
+    let rows: [TransfersRowDisplayModel]
+    let selectedTaskIDs: Set<String>
+    let isEditing: Bool
+    let isOverlayLoadingVisible: Bool
+    let showTMDBData: Bool
+    var onRefresh: () async -> Void
+    var onScrollActivityChanged: (Bool) -> Void
+    var onToggleSelection: (String) -> Void
+    var posterState: (String) -> TransfersPosterState
+    var onRowAppear: (String) -> Void
+    var onShowActionSheet: (String, URL?) -> Void
+    var onDelete: (String) -> Void
+    var onResume: (String) -> Void
+    var onPause: (String) -> Void
+    var onOpenDetail: (String) -> Void
 
     var body: some View {
-        let map = serverTypeMap // read Observable properties ONCE here
         List {
-            ForEach(viewModel.filteredTasks) { task in
-                taskRowCell(task, serverTypeMap: map)
+            ForEach(rows) { row in
+                taskRowCell(row)
             }
         }
         .listStyle(.plain)
         .refreshable {
-            await appStateManager.refreshData()
+            await onRefresh()
+        }
+        .onScrollPhaseChange { _, newPhase in
+            TransfersPosterDiagnostics.log(
+                "list scroll phase isScrolling=\(newPhase.isScrolling) rows=\(rows.count) showPoster=\(showTMDBData) editing=\(isEditing)"
+            )
+            onScrollActivityChanged(newPhase.isScrolling)
         }
         .overlay(alignment: .top) {
             tasksInlineLoadingOverlay
         }
     }
-    
-    private func taskRowCell(_ task: TorrentTask, serverTypeMap: [UUID: ServerType]?) -> some View {
-        TorrentRowView(
-            task: task,
-            isSelected: viewModel.selectedTaskHashes.contains(task.id),
+
+    private func taskRowCell(_ row: TransfersRowDisplayModel) -> some View {
+        let currentPosterState = posterState(row.id)
+
+        return TorrentRowView(
+            row: row,
+            posterState: currentPosterState,
+            showPoster: showTMDBData,
+            isSelected: selectedTaskIDs.contains(row.id),
             isEditing: isEditing,
             toggleSelection: {
-                viewModel.toggleSelection(for: task.id)
+                onToggleSelection(row.id)
             },
-            onShowActionSheet: { selectedTask, posterURL in
-                viewModel.selectedTorrentPosterURL = posterURL
-                viewModel.selectedTorrentForAction = selectedTask
-            },
-            serverType: serverTypeMap?[task.serverID]
+            onShowActionSheet: {
+                onShowActionSheet(row.id, currentPosterState.url)
+            }
         )
         .equatable()
         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
@@ -52,7 +61,7 @@ struct TransfersListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if !isEditing {
                 Button {
-                    appStateManager.deleteTask(task, withData: true)
+                    onDelete(row.id)
                 } label: {
                     Label(LanguageManager.shared.localized("Delete"), systemImage: "trash")
                 }
@@ -61,16 +70,16 @@ struct TransfersListView: View {
         }
         .swipeActions(edge: .leading) {
             if !isEditing {
-                if task.status == .paused {
+                if row.status == .paused {
                     Button {
-                        appStateManager.resumeTask(task)
+                        onResume(row.id)
                     } label: {
                         Label(LanguageManager.shared.localized("Resume"), systemImage: "play.fill")
                     }
                     .tint(.green)
                 } else {
                     Button {
-                        appStateManager.pauseTask(task)
+                        onPause(row.id)
                     } label: {
                         Label(LanguageManager.shared.localized("Pause"), systemImage: "pause.fill")
                     }
@@ -80,13 +89,16 @@ struct TransfersListView: View {
         }
         .onTapGesture {
             guard !isEditing else { return }
-            openTaskDetail(task)
+            onOpenDetail(row.id)
+        }
+        .onAppear {
+            onRowAppear(row.id)
         }
     }
-    
+
     @ViewBuilder
     private var tasksInlineLoadingOverlay: some View {
-        if viewModel.isOverlayLoadingVisible {
+        if isOverlayLoadingVisible {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)

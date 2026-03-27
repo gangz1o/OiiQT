@@ -83,14 +83,33 @@ final class MoviePilotServerStore {
     private let defaults: UserDefaults
     private let tokenStore: MoviePilotTokenStore
     private let storageKey = "moviePilot.server.configurations"
+    private let activeServerIDKey = "moviePilot.server.active-id"
 
     private(set) var servers: [MoviePilotServerConfiguration] = []
     private(set) var isMoviePilotConfigured = false
+    private(set) var activeServerID: UUID?
 
     var configuredStatePublisher: AnyPublisher<Bool, Never> {
         configuredStateSubject
             .removeDuplicates()
             .eraseToAnyPublisher()
+    }
+
+    var activeServerName: String? {
+        activeServerContext?.serverName
+    }
+
+    var activeServerContext: MoviePilotServerRequestContext? {
+        guard let activeServerID else { return nil }
+        return makeRequestContext(for: activeServerID)
+    }
+
+    var availableServerContexts: [MoviePilotServerRequestContext] {
+        servers.compactMap(makeRequestContext(for:))
+    }
+
+    var hasMultipleAvailableServers: Bool {
+        availableServerContexts.count > 1
     }
 
     init(
@@ -100,6 +119,7 @@ final class MoviePilotServerStore {
         self.configuredStateSubject = CurrentValueSubject(false)
         self.defaults = defaults
         self.tokenStore = tokenStore ?? MoviePilotTokenStore.shared
+        self.activeServerID = Self.loadPersistedActiveServerID(from: defaults, key: activeServerIDKey)
         load()
     }
 
@@ -139,11 +159,22 @@ final class MoviePilotServerStore {
         persist()
     }
 
+    func setActiveServer(_ serverID: UUID) {
+        guard availableServerContexts.contains(where: { $0.serverID == serverID }) else {
+            return
+        }
+        guard activeServerID != serverID else { return }
+        activeServerID = serverID
+        persistActiveServerSelection()
+    }
+
     func reload() {
         load()
     }
 
     private func load() {
+        activeServerID = Self.loadPersistedActiveServerID(from: defaults, key: activeServerIDKey)
+
         guard let data = defaults.data(forKey: storageKey) else {
             servers = []
             updateConfiguredState()
@@ -167,6 +198,8 @@ final class MoviePilotServerStore {
         } catch {
             defaults.removeObject(forKey: storageKey)
         }
+
+        updateConfiguredState()
     }
 
     private func sortServers() {
@@ -180,18 +213,65 @@ final class MoviePilotServerStore {
     }
 
     private func updateConfiguredState() {
-        let nextValue = servers.contains { server in
-            guard MoviePilotURLNormalizer.normalize(server.baseURLString) != nil else {
-                return false
-            }
+        let availableContexts = availableServerContexts
+        let nextValue = !availableContexts.isEmpty
+        let nextActiveServerID: UUID?
 
-            let token = tokenStore.token(for: server.id)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return !token.isEmpty
+        if let activeServerID,
+           availableContexts.contains(where: { $0.serverID == activeServerID }) {
+            nextActiveServerID = activeServerID
+        } else {
+            nextActiveServerID = availableContexts.first?.serverID
+        }
+
+        if activeServerID != nextActiveServerID {
+            activeServerID = nextActiveServerID
+            persistActiveServerSelection()
         }
 
         isMoviePilotConfigured = nextValue
         configuredStateSubject.send(nextValue)
+    }
+
+    private func makeRequestContext(for server: MoviePilotServerConfiguration) -> MoviePilotServerRequestContext? {
+        guard let normalizedBaseURL = MoviePilotURLNormalizer.normalize(server.baseURLString) else {
+            return nil
+        }
+
+        let trimmedToken = tokenStore.token(for: server.id)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedToken.isEmpty else {
+            return nil
+        }
+
+        return MoviePilotServerRequestContext(
+            serverID: server.id,
+            serverName: server.name,
+            baseURLString: normalizedBaseURL,
+            token: trimmedToken
+        )
+    }
+
+    private func makeRequestContext(for serverID: UUID) -> MoviePilotServerRequestContext? {
+        guard let server = servers.first(where: { $0.id == serverID }) else {
+            return nil
+        }
+        return makeRequestContext(for: server)
+    }
+
+    private func persistActiveServerSelection() {
+        if let activeServerID {
+            defaults.set(activeServerID.uuidString, forKey: activeServerIDKey)
+        } else {
+            defaults.removeObject(forKey: activeServerIDKey)
+        }
+    }
+
+    private static func loadPersistedActiveServerID(from defaults: UserDefaults, key: String) -> UUID? {
+        guard let rawValue = defaults.string(forKey: key) else {
+            return nil
+        }
+        return UUID(uuidString: rawValue)
     }
 }
 

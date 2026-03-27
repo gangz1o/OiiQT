@@ -6,46 +6,25 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct TorrentRowView: View, Equatable {
-    static func == (lhs: TorrentRowView, rhs: TorrentRowView) -> Bool {
-        lhs.task.hash == rhs.task.hash &&
-        lhs.task.status == rhs.task.status &&
-        lhs.task.progress == rhs.task.progress &&
-        lhs.task.downloadSpeed == rhs.task.downloadSpeed &&
-        lhs.task.uploadSpeed == rhs.task.uploadSpeed &&
-        lhs.task.seedingTime == rhs.task.seedingTime &&
-        lhs.task.numSeeds == rhs.task.numSeeds &&
-        lhs.task.numPeers == rhs.task.numPeers &&
-        lhs.task.ratio == rhs.task.ratio &&
-        lhs.task.category == rhs.task.category &&
-        lhs.task.tags == rhs.task.tags &&
-        lhs.isSelected == rhs.isSelected &&
-        lhs.isEditing == rhs.isEditing &&
-        lhs.serverType == rhs.serverType &&
-        lhs.posterURL == rhs.posterURL
-    }
-
-    let task: TorrentTask
+    let row: TransfersRowDisplayModel
+    let posterState: TransfersPosterState
+    let showPoster: Bool
     let isSelected: Bool
     let isEditing: Bool
     let toggleSelection: () -> Void
-    let onShowActionSheet: (TorrentTask, URL?) -> Void
+    let onShowActionSheet: () -> Void
 
-    @AppStorage("showTMDBData") private var showTMDBData: Bool = false
-    @AppStorage("isProUser") private var isProUser: Bool = false
-    @AppStorage("hideDataNodeName") private var hideDataNodeName: Bool = false
-    @Environment(\.modelContext) private var modelContext
-    /// Pre-computed at call site. nil = single-server mode (no icon shown).
-    let serverType: ServerType?
-
-    @State private var posterURL: URL?
-    @State private var isLoadingPoster = false
+    static func == (lhs: TorrentRowView, rhs: TorrentRowView) -> Bool {
+        lhs.row == rhs.row &&
+        lhs.showPoster == rhs.showPoster &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.isEditing == rhs.isEditing
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            // MARK: - Checkbox (Edit Mode Only)
             if isEditing {
                 Button {
                     toggleSelection()
@@ -55,27 +34,22 @@ struct TorrentRowView: View, Equatable {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 22))
                         .foregroundStyle(isSelected ? Color.blue : Color.secondary)
-                        .contentShape(Rectangle()) // Make touch area larger
+                        .contentShape(Rectangle())
                 }
                 .transition(.move(edge: .leading).combined(with: .opacity))
                 .padding(.leading, 8)
             }
 
-            // MARK: - Content
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: 12) {
-                    // MARK: - 1. Left Poster Area
-                    if showTMDBData {
+                    if showPoster {
                         posterArea
                     }
 
-                    // MARK: - 2. Right Content Area
                     VStack(alignment: .leading, spacing: 8) {
-                        // Feature 1: Top Status Bar
                         HStack(spacing: 6) {
-                            // Tracker
-                            if !hideDataNodeName {
-                                Text(verbatim: displayedTracker)
+                            if let trackerText = row.trackerText {
+                                Text(verbatim: trackerText)
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.white)
                                     .lineLimit(1)
@@ -88,7 +62,7 @@ struct TorrentRowView: View, Equatable {
                                     .clipShape(Capsule())
                             }
 
-                            if hasHeaderTaxonomyTags {
+                            if !row.taxonomyTags.isEmpty {
                                 headerTaxonomyInlineView
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .clipped()
@@ -96,17 +70,16 @@ struct TorrentRowView: View, Equatable {
                                 Spacer(minLength: 0)
                             }
 
-                            // Status & Percent
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(statusColor)
                                     .frame(width: 6, height: 6)
-                                Text(verbatim: task.status.localizedDisplayName)
+                                Text(verbatim: row.status.localizedDisplayName)
                                     .font(.caption2.bold())
                                     .foregroundStyle(statusColor)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
-                                Text(verbatim: task.displayText.percent)
+                                Text(verbatim: row.percentText)
                                     .font(.caption2.monospacedDigit().bold())
                                     .foregroundStyle(statusColor)
                             }
@@ -114,13 +87,11 @@ struct TorrentRowView: View, Equatable {
                             .layoutPriority(2)
                         }
 
-                        // Title
-                        // 插入零宽空格 (\u{200B}) 允许 SwiftUI 在点号后自由换行，防止中文字符和超长英文字符串被错误地绑定成一个不可分割的单词
-                        let titleText = Text(verbatim: task.displayText.title)
+                        let titleText = Text(verbatim: row.titleText)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary)
 
-                        if let serverType {
+                        if let serverType = row.serverType {
                             HStack(alignment: .center, spacing: 6) {
                                 titleText
                                     .lineLimit(2)
@@ -138,8 +109,8 @@ struct TorrentRowView: View, Equatable {
                                             .scaledToFit()
                                     }
                                 }
-                                    .frame(width: 14, height: 14)
-                                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .frame(width: 14, height: 14)
+                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                             }
                         } else {
                             titleText
@@ -148,14 +119,14 @@ struct TorrentRowView: View, Equatable {
                         }
 
                         TaskProgressView(
-                            downloadSpeedText: task.displayText.downloadSpeed,
-                            uploadSpeedText: task.displayText.uploadSpeed,
-                            peersText: task.displayText.peers,
-                            seedsText: task.displayText.seeds,
-                            sizeText: task.displayText.size,
-                            ratioText: task.displayText.ratio,
-                            seedingTimeText: compactSeedingTimeText,
-                            savePathText: task.savePath.isEmpty ? "--" : task.savePath
+                            downloadSpeedText: row.downloadSpeedText,
+                            uploadSpeedText: row.uploadSpeedText,
+                            peersText: row.peersText,
+                            seedsText: row.seedsText,
+                            sizeText: row.sizeText,
+                            ratioText: row.ratioText,
+                            seedingTimeText: row.seedingTimeText,
+                            savePathText: row.savePathText
                         )
                         .equatable()
                     }
@@ -165,11 +136,11 @@ struct TorrentRowView: View, Equatable {
                 .padding(.trailing, 8)
                 .padding(.leading, 14)
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground)) // Card background
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
             .overlay(alignment: .leading) {
                 VerticalEdgeProgressBar(
-                    progress: task.progress,
-                    status: task.status
+                    progress: row.progress,
+                    status: row.status
                 )
             }
             .clipShape(cardShape)
@@ -179,7 +150,7 @@ struct TorrentRowView: View, Equatable {
                     .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 2)
             }
         }
-        .contentShape(Rectangle()) // Make the whole row tappable
+        .contentShape(Rectangle())
         .gesture(
             isEditing ? TapGesture().onEnded {
                 toggleSelection()
@@ -190,137 +161,28 @@ struct TorrentRowView: View, Equatable {
         .highPriorityGesture(
             LongPressGesture(minimumDuration: 0.35).onEnded { _ in
                 guard !isEditing else { return }
-                onShowActionSheet(task, posterURL)
+                onShowActionSheet()
                 let impact = UIImpactFeedbackGenerator(style: .medium)
                 impact.impactOccurred()
             }
         )
-        .task(id: "\(task.name)-\(LanguageManager.shared.selectedLanguage.rawValue)") {
-            guard showTMDBData, posterURL == nil else { return }
-            isLoadingPoster = true
-            let url = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
-            if !Task.isCancelled {
-                self.posterURL = url
-                self.isLoadingPoster = false
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .tmdbPosterDidChange)) { notification in
-            guard let changedHash = notification.userInfo?["hash"] as? String else { return }
-            guard changedHash == task.hash else { return }
-            // Force re-fetch: poster was manually changed
-            self.posterURL = nil
-            Task {
-                isLoadingPoster = true
-                let url = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
-                if !Task.isCancelled {
-                    self.posterURL = url
-                    self.isLoadingPoster = false
-                }
-            }
-        }
     }
-
-
-    // MARK: - Components
 
     private var posterArea: some View {
-        Group {
-            if let url = posterURL {
-                SimpleCachedImage(
-                    url: url,
-                    downsampleSize: posterDownsampleSize,
-                    cacheOriginal: false
-                )
-                    .aspectRatio(contentMode: .fill)
-            } else if isLoadingPoster {
-                SeedPilotPlaceholder()
-                    .overlay { ProgressView() }
-            } else {
-                SeedPilotPlaceholder()
-                    .overlay {
-                        Image(systemName: "sparkles.tv")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary.opacity(0.5))
-                    }
-            }
-        }
-        .frame(width: 65, height: 97.5)
-        .overlay(alignment: .topLeading) {
-            if let badge = task.resolutionBadge {
-                DiagonalRibbonView(text: badge.text, color: badge.color)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    private var speedCapsule: some View {
-        HStack(spacing: 4) {
-            if task.status == .downloading {
-                Image(systemName: "arrow.down")
-                    .font(.caption2)
-                Text(verbatim: formatBytes(task.downloadSpeed) + "/s")
-            } else if task.status == .seeding {
-                Image(systemName: "arrow.up")
-                    .font(.caption2)
-                Text(verbatim: formatBytes(task.uploadSpeed) + "/s")
-            } else {
-                Text(verbatim: task.status.localizedDisplayName)
-            }
-        }
-        .font(.caption.monospacedDigit())
-        .foregroundStyle(statusColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(statusColor.opacity(0.1))
-        .clipShape(Capsule())
+        TransfersPosterThumbnailView(
+            posterState: posterState,
+            resolutionBadge: row.resolutionBadge,
+            downsampleSize: posterDownsampleSize
+        )
     }
 
     private var statusColor: Color {
-        switch task.status {
-        case .downloading: return .blue
-        case .queued: return .indigo
-        case .seeding: return .green
-        case .checking: return .orange
-        case .error: return .red
-        default: return Color.gray.opacity(0.8)
-        }
-    }
-
-    private var displayCategory: String? {
-        guard let serverType, serverType != .transmission else { return nil }
-        let trimmed = task.category.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    /// Lightweight merge: category (if any) + pre-computed tags, capped at 2.
-    /// No string splitting, no Set, no sort, no `folding()` — all done at parse time.
-    private var displayedHeaderTaxonomyTags: [String] {
-        var result: [String] = []
-        if let category = displayCategory {
-            result.append(category)
-        }
-        let remaining = 2 - result.count
-        if remaining > 0 {
-            let tags = task.normalizedTags
-            let slice = tags.prefix(remaining)
-            result.append(contentsOf: slice)
-        }
-        return result
-    }
-
-    private var hiddenHeaderTaxonomyCount: Int {
-        let totalCategory = (displayCategory != nil) ? 1 : 0
-        let totalTags = task.normalizedTags.count
-        return max(0, totalCategory + totalTags - 2)
-    }
-
-    private var hasHeaderTaxonomyTags: Bool {
-        displayCategory != nil || !task.normalizedTags.isEmpty
+        row.status.color
     }
 
     private var headerTaxonomyInlineView: some View {
         HStack(spacing: 4) {
-            ForEach(displayedHeaderTaxonomyTags, id: \.self) { tag in
+            ForEach(row.taxonomyTags, id: \.self) { tag in
                 ColoredTagPill(
                     text: tag,
                     font: .system(size: 10, weight: .bold),
@@ -330,8 +192,8 @@ struct TorrentRowView: View, Equatable {
                 )
             }
 
-            if hiddenHeaderTaxonomyCount > 0 {
-                Text(verbatim: "+\(hiddenHeaderTaxonomyCount)")
+            if row.hiddenTaxonomyCount > 0 {
+                Text(verbatim: "+\(row.hiddenTaxonomyCount)")
                     .font(.system(size: 10, weight: .bold))
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
@@ -352,27 +214,48 @@ struct TorrentRowView: View, Equatable {
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
     }
-
-    private var compactSeedingTimeText: String {
-        TorrentRowView.compactDurationFormatter.string(from: max(0, task.seedingTime)) ?? task.displayText.seedingTime
-    }
 }
 
 private extension TorrentRowView {
     static let headerInlinePillMinHeight: CGFloat = 20
+}
 
-    static let compactDurationFormatter: DateComponentsFormatter = {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.day, .hour, .minute]
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 2
-        formatter.zeroFormattingBehavior = [.dropLeading, .dropMiddle, .dropTrailing]
-        return formatter
-    }()
+private struct TransfersPosterThumbnailView: View {
+    let posterState: TransfersPosterState
+    let resolutionBadge: ResolutionBadge?
+    let downsampleSize: CGSize
 
-    var displayedTracker: String {
-        guard isProUser else { return task.trackerHost }
-        return TrackerAliasManager.shared.getAlias(for: task.trackerHost)
+    var body: some View {
+        Group {
+            if let posterURL = posterState.url {
+                SimpleCachedImage(
+                    url: posterURL,
+                    downsampleSize: downsampleSize,
+                    cacheOriginal: false,
+                    enableFade: false
+                )
+                .aspectRatio(contentMode: .fill)
+            } else {
+                SeedPilotPlaceholder()
+                    .overlay {
+                        Image(systemName: "sparkles.tv")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary.opacity(0.5))
+                    }
+            }
+        }
+        .frame(width: 65, height: 97.5)
+        .overlay(alignment: .topLeading) {
+            if let resolutionBadge {
+                DiagonalRibbonView(text: resolutionBadge.text, color: resolutionBadge.color)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .onChange(of: posterState.url) { oldValue, newValue in
+            TransfersPosterDiagnostics.log(
+                "poster view update taskID=\(posterState.taskID) hadURL=\(oldValue != nil) hasURL=\(newValue != nil)"
+            )
+        }
     }
 }
 
@@ -398,14 +281,7 @@ struct VerticalEdgeProgressBar: View {
     }
 
     private var progressColor: Color {
-        switch status {
-        case .downloading: return .blue
-        case .queued: return .indigo
-        case .seeding: return .green
-        case .checking: return .orange
-        case .error: return .red
-        default: return Color.gray.opacity(0.8)
-        }
+        status.color
     }
 }
 

@@ -18,6 +18,7 @@ struct DashboardView: View {
         self.dashboardViewModel = viewModel
     }
 
+    @AppStorage("refreshRate") private var refreshRate: Int = 5
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
     @AppStorage(DashboardConfig.Keys.showTodayTransfer) private var showTodayTransfer: Bool = true
     @AppStorage(DashboardConfig.Keys.showRecentFinished) private var showRecentFinished: Bool = true
@@ -37,6 +38,11 @@ struct DashboardView: View {
 
     private var shouldStartGlobalStatsRefresh: Bool {
         showTodayTransfer || showGlobalAssets || (showStorageAudit && hasActivatedStorageAudit)
+    }
+
+    private var dashboardAutoRefreshInterval: TimeInterval? {
+        guard refreshRate > 0 else { return nil }
+        return TimeInterval(refreshRate)
     }
 
     private var shouldShowStatsSkeleton: Bool {
@@ -171,7 +177,7 @@ struct DashboardView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .task(id: "\(globalStatsRefreshKey)|\(shouldStartGlobalStatsRefresh)|\(isDashboardTabActive)") {
+        .task(id: "\(globalStatsRefreshKey)|\(shouldStartGlobalStatsRefresh)|\(isDashboardTabActive)|\(refreshRate)") {
             guard isDashboardTabActive else {
                 dashboardViewModel.stopAutoRefresh()
                 return
@@ -180,7 +186,8 @@ struct DashboardView: View {
             if shouldStartGlobalStatsRefresh {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
-                    tasksProvider: { appStateManager.allTasks }
+                    tasksProvider: { appStateManager.allTasks },
+                    interval: dashboardAutoRefreshInterval
                 )
             } else {
                 dashboardViewModel.stopAutoRefresh()
@@ -230,7 +237,8 @@ struct DashboardView: View {
             if shouldStartGlobalStatsRefresh {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
-                    tasksProvider: { appStateManager.allTasks }
+                    tasksProvider: { appStateManager.allTasks },
+                    interval: dashboardAutoRefreshInterval
                 )
             } else {
                 dashboardViewModel.stopAutoRefresh()

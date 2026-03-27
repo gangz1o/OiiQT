@@ -21,8 +21,10 @@ struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var storeManager = StoreManager.shared
+    @ObservedObject private var trackerAliasManager = TrackerAliasManager.shared
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
+    @AppStorage("hideDataNodeName") private var hideDataNodeName: Bool = false
     @AppStorage("recentSearches") private var recentSearchesData: Data = Data()
     
     @Environment(\.editMode) private var editMode
@@ -51,6 +53,22 @@ struct TransfersView: View {
         appStateManager.servers.map(ServerMenuSnapshot.init)
     }
 
+    private var rowServerTypeMap: [UUID: ServerType] {
+        guard appStateManager.activeServerId == nil else { return [:] }
+        return Dictionary(
+            appStateManager.servers.map { ($0.id, $0.type) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    private var rowDisplayOptions: TransfersRowDisplayOptions {
+        TransfersRowDisplayOptions(
+            isProUser: storeManager.isProUser,
+            hideTracker: hideDataNodeName,
+            serverTypeByID: rowServerTypeMap
+        )
+    }
+
     private var navigationTitle: String {
         if isEditing {
             return viewModel.selectedTaskHashes.isEmpty
@@ -65,7 +83,7 @@ struct TransfersView: View {
         }
     }
 
-    private static let posterPrefetchLimit = 24
+    private static let posterPrefetchLimit = 18
 
     private var posterPrefetchTaskID: String {
         guard showTMDBData, isTransfersTabActive else {
@@ -73,12 +91,10 @@ struct TransfersView: View {
         }
 
         let language = LanguageManager.shared.selectedLanguage.rawValue
-        let headTaskIDs = viewModel.filteredTasks
-            .prefix(Self.posterPrefetchLimit)
-            .map(\.id)
-            .joined(separator: "|")
+        let firstTaskID = viewModel.filteredTaskIDs.first ?? "empty"
+        let count = viewModel.filteredTaskCount
 
-        return "tmdb-prefetch|\(language)|\(headTaskIDs)"
+        return "tmdb-prefetch|\(language)|\(firstTaskID)|\(count)"
     }
 
     var body: some View {
@@ -97,11 +113,13 @@ struct TransfersView: View {
                     appStateManager: appStateManager,
                     onPosterChanged: {
                         TMDBService.shared.clearCache(for: selectedTask.hash, name: selectedTask.name)
-                        NotificationCenter.default.post(
-                            name: .tmdbPosterDidChange,
-                            object: nil,
-                            userInfo: ["hash": selectedTask.hash]
-                        )
+                        Task {
+                            await viewModel.refreshPoster(
+                                for: selectedTask.id,
+                                isEnabled: showTMDBData,
+                                context: modelContext
+                            )
+                        }
                     }
                 )
                 .presentationDetents([.medium, .large])
@@ -117,33 +135,33 @@ struct TransfersView: View {
     private var transfersLifecycleBoundView: some View {
         transfersLifecycleBoundViewPart1
             .onChange(of: viewModel.selectedStatuses) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.selectedCategories) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.selectedTags) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.sortOption) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.sortAscending) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.selectedTrackers) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.searchText) { _, _ in
                 viewModel.scheduleSearchDebounce()
             }
             .onChange(of: viewModel.debouncedSearchText) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: viewModel.isFilteringTasks) { _, _ in
                 viewModel.syncOverlayLoadingVisibility(isTransfersTabActive: isTransfersTabActive)
             }
-            .onChange(of: viewModel.filteredTasks.count) { _, _ in
+            .onChange(of: viewModel.filteredTaskCount) { _, _ in
                 viewModel.syncOverlayLoadingVisibility(isTransfersTabActive: isTransfersTabActive)
             }
             .onDisappear {
@@ -160,17 +178,25 @@ struct TransfersView: View {
             .onAppear {
                 handleTransfersViewAppear()
             }
+            .onChange(of: hideDataNodeName) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
             .onChange(of: enableGlobalTaskAggregation) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
             }
             .onChange(of: storeManager.isProUser) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: appStateManager.servers.count) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
+            }
+            .onChange(of: trackerAliasManager.aliasMap) { _, _ in
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: appStateManager.tasksRevision) { _, _ in
-                viewModel.scheduleFilteredTasksRecompute(isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(allowDeferralDuringScrolling: true)
             }
             .onChange(of: appStateManager.activeServerId) { _, _ in
                 if !isCategoryFilterSupported {
@@ -179,7 +205,7 @@ struct TransfersView: View {
                         viewModel.activeSheet = nil
                     }
                 }
-                viewModel.scheduleFilteredTasksRecompute(showOverlayHint: true, isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
+                scheduleFilteredTasksRecompute(showOverlayHint: true)
                 viewModel.scheduleFilterOptionsRecompute(isTransfersTabActive: isTransfersTabActive, appStateManager: appStateManager)
             }
             .onChange(of: viewModel.activeSheet) { _, newValue in
@@ -242,27 +268,45 @@ struct TransfersView: View {
     private func handleTransfersViewAppear() {
         applyGlobalAggregationSafetyFallbackIfNeeded()
         triggerInitialLoadIfNeeded()
-        viewModel.handleTransfersViewAppear(appStateManager: appStateManager, isTransfersTabActive: isTransfersTabActive)
+        viewModel.handleTransfersViewAppear(
+            appStateManager: appStateManager,
+            isTransfersTabActive: isTransfersTabActive,
+            displayOptions: rowDisplayOptions
+        )
     }
 
     private func handleSelectedTabChanged(_ newValue: AppTab) {
         if newValue == .transfers {
             triggerInitialLoadIfNeeded()
         }
-        viewModel.handleSelectedTabChanged(newValue, appStateManager: appStateManager)
+        viewModel.handleSelectedTabChanged(
+            newValue,
+            appStateManager: appStateManager,
+            displayOptions: rowDisplayOptions
+        )
     }
 
     @MainActor
     private func prefetchVisibleTransferPostersIfNeeded() async {
-        guard showTMDBData, isTransfersTabActive else { return }
+        guard isTransfersTabActive else { return }
 
-        let headTasks = Array(viewModel.filteredTasks.prefix(Self.posterPrefetchLimit))
-        guard !headTasks.isEmpty else { return }
-
-        await TMDBService.shared.prefetchPosters(
-            for: headTasks,
+        await viewModel.prefetchPosterWindowIfNeeded(
             limit: Self.posterPrefetchLimit,
+            isEnabled: showTMDBData,
             context: modelContext
+        )
+    }
+
+    private func scheduleFilteredTasksRecompute(
+        showOverlayHint: Bool = false,
+        allowDeferralDuringScrolling: Bool = false
+    ) {
+        viewModel.scheduleFilteredTasksRecompute(
+            showOverlayHint: showOverlayHint,
+            allowDeferralDuringScrolling: allowDeferralDuringScrolling,
+            isTransfersTabActive: isTransfersTabActive,
+            appStateManager: appStateManager,
+            displayOptions: rowDisplayOptions
         )
     }
 
@@ -343,14 +387,14 @@ struct TransfersView: View {
         ToolbarItem(placement: .topBarLeading) {
             if isEditing {
                 Button {
-                    if viewModel.selectedTaskHashes.count == viewModel.filteredTasks.count {
-                        viewModel.selectedTaskHashes.removeAll()
+                    if viewModel.selectedTaskHashes.count == viewModel.filteredTaskCount {
+                        viewModel.clearFilteredSelection()
                     } else {
-                        viewModel.selectedTaskHashes = Set(viewModel.filteredTasks.map { $0.id })
+                        viewModel.selectAllFilteredTasks()
                     }
                 } label: {
                     Text(
-                        viewModel.selectedTaskHashes.count == viewModel.filteredTasks.count
+                        viewModel.selectedTaskHashes.count == viewModel.filteredTaskCount
                         ? LanguageManager.shared.localized("Deselect All")
                         : LanguageManager.shared.localized("Select All")
                     )
@@ -416,14 +460,59 @@ struct TransfersView: View {
 
     @ViewBuilder
     private var tasksListSection: some View {
-        if emptyStatesView.shouldShowServerEmptyState || emptyStatesView.shouldShowTasksLoadingState || (viewModel.isFilteringTasks && viewModel.filteredTasks.isEmpty) || viewModel.filteredTasks.isEmpty {
+        if emptyStatesView.shouldShowServerEmptyState
+            || emptyStatesView.shouldShowTasksLoadingState
+            || (viewModel.isFilteringTasks && viewModel.filteredTaskCount == 0)
+            || viewModel.filteredTaskCount == 0 {
             emptyStatesView
         } else {
             TransfersListView(
-                viewModel: viewModel,
-                appStateManager: appStateManager,
+                rows: viewModel.filteredRows,
+                selectedTaskIDs: viewModel.selectedTaskHashes,
                 isEditing: isEditing,
-                openTaskDetail: openTaskDetail
+                isOverlayLoadingVisible: viewModel.isOverlayLoadingVisible,
+                showTMDBData: showTMDBData,
+                onRefresh: {
+                    await appStateManager.refreshData()
+                },
+                onScrollActivityChanged: { isScrolling in
+                    viewModel.handleScrollActivityChanged(
+                        isScrolling,
+                        isTransfersTabActive: isTransfersTabActive,
+                        appStateManager: appStateManager,
+                        displayOptions: rowDisplayOptions
+                    )
+                },
+                onToggleSelection: { taskID in
+                    viewModel.toggleSelection(for: taskID)
+                },
+                posterState: { taskID in
+                    viewModel.posterState(for: taskID)
+                },
+                onRowAppear: { taskID in
+                    viewModel.resolvePosterIfNeeded(for: taskID, isEnabled: showTMDBData, context: modelContext)
+                },
+                onShowActionSheet: { taskID, posterURL in
+                    guard let task = viewModel.task(for: taskID) else { return }
+                    viewModel.selectedTorrentPosterURL = posterURL
+                    viewModel.selectedTorrentForAction = task
+                },
+                onDelete: { taskID in
+                    guard let task = viewModel.task(for: taskID) else { return }
+                    appStateManager.deleteTask(task, withData: true)
+                },
+                onResume: { taskID in
+                    guard let task = viewModel.task(for: taskID) else { return }
+                    appStateManager.resumeTask(task)
+                },
+                onPause: { taskID in
+                    guard let task = viewModel.task(for: taskID) else { return }
+                    appStateManager.pauseTask(task)
+                },
+                onOpenDetail: { taskID in
+                    guard let task = viewModel.task(for: taskID) else { return }
+                    openTaskDetail(task)
+                }
             )
         }
     }

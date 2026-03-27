@@ -18,9 +18,9 @@ struct TransfersEmptyStatesView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(uiColor: .systemGroupedBackground))
-        } else if viewModel.isFilteringTasks && viewModel.filteredTasks.isEmpty {
+        } else if viewModel.isFilteringTasks && viewModel.filteredTaskCount == 0 {
             filteringTransitionStateView
-        } else if viewModel.filteredTasks.isEmpty {
+        } else if viewModel.filteredTaskCount == 0 {
             if !viewModel.searchText.isEmpty {
                 ContentUnavailableView.search(text: viewModel.searchText)
             } else {
@@ -50,7 +50,7 @@ struct TransfersEmptyStatesView: View {
     
     var shouldShowTasksLoadingState: Bool {
         guard isTransfersTabActive else { return false }
-        guard viewModel.filteredTasks.isEmpty else { return false }
+        guard viewModel.filteredTaskCount == 0 else { return false }
         guard !appStateManager.servers.isEmpty else { return false }
 
         // Keep full-screen loading for first load only; avoid empty-state flicker during periodic refresh/filter passes.

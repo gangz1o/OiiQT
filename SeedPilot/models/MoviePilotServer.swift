@@ -12,6 +12,13 @@ nonisolated struct MoviePilotServerConfiguration: Identifiable, Codable, Hashabl
     }
 }
 
+nonisolated struct MoviePilotServerRequestContext: Equatable, Sendable {
+    let serverID: UUID
+    let serverName: String
+    let baseURLString: String
+    let token: String
+}
+
 nonisolated struct MoviePilotCurrentUser: Decodable, Sendable {
     let id: Int?
     let name: String

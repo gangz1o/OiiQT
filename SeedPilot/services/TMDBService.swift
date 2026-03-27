@@ -28,7 +28,7 @@ class TMDBService {
         c.countLimit = 5_000   // max 5K hash→path entries (~400 KB)
         return c
     }()
-    private let searchCoordinator = TMDBSearchCoordinator(maxConcurrentRequests: 4)
+    private let searchCoordinator = TMDBSearchCoordinator(maxConcurrentRequests: 4, maxCachedEntries: 160)
 
     // Legacy UserDefaults (for migration)
     private var legacyOverrides: [String: String] {
@@ -63,22 +63,30 @@ class TMDBService {
         let scopedHash = scopedHash(for: hash)
         let cacheKey = extractCleanCacheKey(from: name)
         let scopedCacheKey = scopedPosterCacheKey(for: cacheKey)
+        let startUptime = DispatchTime.now().uptimeNanoseconds
+        TransfersPosterDiagnostics.log(
+            "tmdb fetch start hash=\(scopedHash) cacheKey=\(cacheKey) name=\(name)"
+        )
 
         // 1. Check shared clean-title memory cache first (fast path — no SwiftData)
         if let cachedPath = urlCache.object(forKey: scopedCacheKey as NSString) as String? {
             if cachedPath == "null" {
+                TransfersPosterDiagnostics.log("tmdb fetch hit source=title-memory-negative hash=\(scopedHash)")
                 return nil  // negative cache: skip SwiftData to avoid main-thread I/O during scroll
             }
             cacheURL(cachedPath, for: scopedHash)
+            TransfersPosterDiagnostics.log("tmdb fetch hit source=title-memory hash=\(scopedHash) path=\(cachedPath)")
             return URL(string: imageBaseURL + cachedPath)
         }
 
         // 2. Check per-hash memory cache (fast path — no SwiftData)
         if let cachedPath = urlCache.object(forKey: scopedHash as NSString) as String? {
             if cachedPath == "null" {
+                TransfersPosterDiagnostics.log("tmdb fetch hit source=hash-memory-negative hash=\(scopedHash)")
                 return nil  // negative cache: skip SwiftData to avoid main-thread I/O during scroll
             }
             cacheURL(cachedPath, for: scopedCacheKey)
+            TransfersPosterDiagnostics.log("tmdb fetch hit source=hash-memory hash=\(scopedHash) path=\(cachedPath)")
             return URL(string: imageBaseURL + cachedPath)
         }
 
@@ -90,8 +98,10 @@ class TMDBService {
                 cacheURL(path, for: scopedHash)
                 cacheURL(path, for: scopedCacheKey)
                 log("[TMDB] fetchPoster: SwiftData HIT for '\(name)' → \(path)")
+                TransfersPosterDiagnostics.log("tmdb fetch hit source=persisted hash=\(scopedHash) path=\(path)")
                 return URL(string: imageBaseURL + path)
             } else if persistedMatch.isManualOverride {
+                TransfersPosterDiagnostics.log("tmdb fetch hit source=persisted-manual-nil hash=\(scopedHash)")
                 return nil
             }
         }
@@ -106,6 +116,7 @@ class TMDBService {
             cacheURL(path, for: scopedHash)
             cacheURL(path, for: scopedCacheKey)
             try? context.save()
+            TransfersPosterDiagnostics.log("tmdb fetch hit source=legacy-persisted hash=\(scopedHash) path=\(path)")
             return URL(string: imageBaseURL + path)
         }
 
@@ -116,6 +127,7 @@ class TMDBService {
             rememberPersistedPosterMatch(match)
             cacheURL(legacyPath, for: scopedHash)
             cacheURL(legacyPath, for: scopedCacheKey)
+            TransfersPosterDiagnostics.log("tmdb fetch hit source=legacy-userdefaults hash=\(scopedHash) path=\(legacyPath)")
             return URL(string: imageBaseURL + legacyPath)
         }
 
@@ -124,6 +136,7 @@ class TMDBService {
         log("[TMDB] fetchPoster: parsed '\(name)' → title: '\(metadata.title)', year: \(metadata.year ?? "nil"), english: \(metadata.englishTitle ?? "nil")")
         guard !metadata.title.isEmpty else {
             log("[TMDB] fetchPoster: SKIP empty title for '\(name)'")
+            TransfersPosterDiagnostics.log("tmdb fetch skip empty-title hash=\(scopedHash) name=\(name)")
             return nil
         }
 
@@ -135,6 +148,11 @@ class TMDBService {
              urlCache.setObject("null", forKey: scopedHash as NSString)
              urlCache.setObject("null", forKey: scopedCacheKey as NSString)
             log("[TMDB] fetchPoster: NO MATCH for '\(name)'")
+            let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
+            let elapsedText = String(format: "%.1f", elapsedMs)
+            TransfersPosterDiagnostics.log(
+                "tmdb fetch miss source=network hash=\(scopedHash) elapsedMs=\(elapsedText)"
+            )
             return nil
         }
 
@@ -146,6 +164,11 @@ class TMDBService {
         cacheURL(posterPath, for: scopedCacheKey)
 
         log("[TMDB] fetchPoster: MATCHED '\(name)' → \(posterPath)")
+        let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
+        let elapsedText = String(format: "%.1f", elapsedMs)
+        TransfersPosterDiagnostics.log(
+            "tmdb fetch hit source=network hash=\(scopedHash) path=\(posterPath) elapsedMs=\(elapsedText)"
+        )
         return URL(string: imageBaseURL + posterPath)
     }
 
@@ -278,6 +301,9 @@ class TMDBService {
         switch lookup {
         case .cached(let items):
             log("[TMDB] search: metadata cache HIT for '\(normalizedQuery)' (language: \(language), page: \(page))")
+            TransfersPosterDiagnostics.log(
+                "tmdb search cache hit query=\(normalizedQuery) language=\(language) page=\(page) results=\(items.count)"
+            )
             return items
         case .task(let task):
             return await task.value
@@ -443,6 +469,9 @@ class TMDBService {
     private func searchBestMatch(metadata: SeedPilotMetadata) async -> String? {
         // Strategy 1: Primary title (Chinese if available)
         let primaryResults = await search(query: metadata.title)
+        TransfersPosterDiagnostics.log(
+            "tmdb search primary title=\(metadata.title) year=\(metadata.year ?? "nil") results=\(primaryResults.count)"
+        )
         if let best = selectBestMatch(from: primaryResults, year: metadata.year) {
             log("[TMDB] Matched '\(metadata.title)' (year: \(metadata.year ?? "nil")) → \(best.title)")
             return best.posterPath
@@ -451,6 +480,9 @@ class TMDBService {
         // Strategy 2: English title fallback (if different from primary)
         if let englishTitle = metadata.englishTitle, !englishTitle.isEmpty {
             let englishResults = await search(query: englishTitle)
+            TransfersPosterDiagnostics.log(
+                "tmdb search fallback title=\(englishTitle) year=\(metadata.year ?? "nil") results=\(englishResults.count)"
+            )
             if let best = selectBestMatch(from: englishResults, year: metadata.year) {
                 log("[TMDB] Matched English '\(englishTitle)' (year: \(metadata.year ?? "nil")) → \(best.title)")
                 return best.posterPath
@@ -551,16 +583,27 @@ class TMDBService {
         var shouldCacheResult = false
 
         for attempt in 1...2 {
+            let startUptime = DispatchTime.now().uptimeNanoseconds
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 let response = try JSONDecoder().decode(TMDBResponse.self, from: data)
                 let items = response.results.compactMap { $0.toDomainModel() }
                 log("[TMDB] search: query='\(query)', language='\(language)' → \(items.count) results, first 3: \(items.prefix(3).map { "[\($0.title), year=\($0.year), poster=\($0.posterPath != nil)]" })")
+                let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
+                let elapsedText = String(format: "%.1f", elapsedMs)
+                TransfersPosterDiagnostics.log(
+                    "tmdb search request finish query=\(query) language=\(language) attempt=\(attempt) results=\(items.count) elapsedMs=\(elapsedText)"
+                )
                 resultItems = items
                 shouldCacheResult = true
                 break
             } catch {
                 log("[TMDB] Search Error (attempt \(attempt)) for '\(query)': \(error)")
+                let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
+                let elapsedText = String(format: "%.1f", elapsedMs)
+                TransfersPosterDiagnostics.log(
+                    "tmdb search request error query=\(query) language=\(language) attempt=\(attempt) elapsedMs=\(elapsedText) error=\(error.localizedDescription)"
+                )
                 if attempt < 2 {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                 }
@@ -602,13 +645,16 @@ private actor TMDBSearchCoordinator {
     }
 
     private let maxConcurrentRequests: Int
+    private let maxCachedEntries: Int
     private var activeRequests: Int = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var metadataCache: [String: [TMDBItem]] = [:]
+    private var metadataCacheOrder: [String] = []
     private var inFlightTasks: [String: Task<[TMDBItem], Never>] = [:]
 
-    init(maxConcurrentRequests: Int) {
+    init(maxConcurrentRequests: Int, maxCachedEntries: Int) {
         self.maxConcurrentRequests = max(1, maxConcurrentRequests)
+        self.maxCachedEntries = max(16, maxCachedEntries)
     }
 
     func cachedOrTask(
@@ -616,6 +662,7 @@ private actor TMDBSearchCoordinator {
         makeTask: @escaping @Sendable () -> Task<[TMDBItem], Never>
     ) -> Lookup {
         if let cached = metadataCache[cacheKey] {
+            touchCacheKey(cacheKey)
             return .cached(cached)
         }
         if let existing = inFlightTasks[cacheKey] {
@@ -640,9 +687,23 @@ private actor TMDBSearchCoordinator {
     func completeRequest(for cacheKey: String, result: [TMDBItem], cacheable: Bool) {
         if cacheable {
             metadataCache[cacheKey] = result
+            touchCacheKey(cacheKey)
+            evictIfNeeded()
         }
         inFlightTasks[cacheKey] = nil
         releasePermit()
+    }
+
+    private func touchCacheKey(_ cacheKey: String) {
+        metadataCacheOrder.removeAll(where: { $0 == cacheKey })
+        metadataCacheOrder.append(cacheKey)
+    }
+
+    private func evictIfNeeded() {
+        while metadataCacheOrder.count > maxCachedEntries {
+            let oldestKey = metadataCacheOrder.removeFirst()
+            metadataCache.removeValue(forKey: oldestKey)
+        }
     }
 
     private func releasePermit() {

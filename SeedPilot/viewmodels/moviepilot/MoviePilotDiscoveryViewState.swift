@@ -1,9 +1,42 @@
+import Foundation
+
 nonisolated struct MediaCardViewState: Identifiable, Equatable, Sendable {
     let id: String
     let posterURLString: String
+    let posterURL: URL?
     let title: String
     let ratingText: String
     let isSeries: Bool
+    let mediaTypeText: String
+    let accessibilityLabel: String
+
+    init(
+        id: String,
+        posterURLString: String,
+        title: String,
+        ratingText: String,
+        isSeries: Bool,
+        mediaTypeText: String? = nil,
+        accessibilityLabel: String? = nil
+    ) {
+        self.id = id
+        self.posterURLString = posterURLString
+        self.posterURL = URL(string: posterURLString)
+        self.title = title
+        self.ratingText = ratingText
+        self.isSeries = isSeries
+
+        let resolvedMediaTypeText = mediaTypeText ?? (isSeries ? "剧集" : "电影")
+        self.mediaTypeText = resolvedMediaTypeText
+
+        if let accessibilityLabel {
+            self.accessibilityLabel = accessibilityLabel
+        } else if ratingText.isEmpty {
+            self.accessibilityLabel = "\(title)，\(resolvedMediaTypeText)"
+        } else {
+            self.accessibilityLabel = "\(title)，\(resolvedMediaTypeText)，评分 \(ratingText)"
+        }
+    }
 }
 
 nonisolated struct MediaSectionViewState: Identifiable, Equatable, Sendable {
