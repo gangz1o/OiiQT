@@ -25,6 +25,8 @@ struct TransfersRowDisplayModel: Identifiable, Equatable, Sendable {
     let savePathText: String
     let serverType: ServerType?
     let resolutionBadge: ResolutionBadge?
+    let taskHash: String
+    let taskRawName: String
 
     nonisolated static func make(
         from task: TorrentTask,
@@ -81,7 +83,9 @@ struct TransfersRowDisplayModel: Identifiable, Equatable, Sendable {
             seedingTimeText: task.displayText.seedingTime,
             savePathText: task.savePath.isEmpty ? "--" : task.savePath,
             serverType: serverType,
-            resolutionBadge: task.resolutionBadge
+            resolutionBadge: task.resolutionBadge,
+            taskHash: task.hash,
+            taskRawName: task.name
         )
     }
 }

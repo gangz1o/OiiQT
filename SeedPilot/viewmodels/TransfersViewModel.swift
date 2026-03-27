@@ -36,14 +36,11 @@ final class TransfersViewModel {
     var hasAttemptedInitialLoad = false
     var showingAddMagnet = false
     var selectedTorrentForAction: TorrentTask?
-    var selectedTorrentPosterURL: URL?
+
 
     // MARK: - Side Effects
     @ObservationIgnored
     private var taskLookupByID: [String: TorrentTask] = [:]
-
-    @ObservationIgnored
-    private var posterStatesByTaskID: [String: TransfersPosterState] = [:]
 
     @ObservationIgnored
     private var searchDebounceTask: Task<Void, Never>?
@@ -56,15 +53,6 @@ final class TransfersViewModel {
 
     @ObservationIgnored
     private var overlayLoadingDelayTask: Task<Void, Never>?
-
-    @ObservationIgnored
-    private var posterLoadTasksByTaskID: [String: Task<URL?, Never>] = [:]
-
-    @ObservationIgnored
-    private var posterWindowPrefetchTask: Task<Void, Never>?
-
-    @ObservationIgnored
-    private var lastPosterPrefetchWindowSignature: String?
 
     @ObservationIgnored
     private var isUserScrolling = false
@@ -122,16 +110,6 @@ final class TransfersViewModel {
         taskLookupByID[taskID]
     }
 
-    func posterState(for taskID: String) -> TransfersPosterState {
-        if let state = posterStatesByTaskID[taskID] {
-            return state
-        }
-
-        let state = TransfersPosterState(taskID: taskID)
-        posterStatesByTaskID[taskID] = state
-        return state
-    }
-
     func handleTransfersViewAppear(
         appStateManager: AppStateManager,
         isTransfersTabActive: Bool,
@@ -167,11 +145,6 @@ final class TransfersViewModel {
         filterComputationTask?.cancel()
         filterOptionsComputationTask?.cancel()
         overlayLoadingDelayTask?.cancel()
-        posterWindowPrefetchTask?.cancel()
-        posterWindowPrefetchTask = nil
-        lastPosterPrefetchWindowSignature = nil
-        posterLoadTasksByTaskID.values.forEach { $0.cancel() }
-        posterLoadTasksByTaskID.removeAll()
         isFilteringTasks = false
         shouldHintOverlayLoadingForCurrentFilterPass = false
         isOverlayLoadingVisible = false
@@ -188,6 +161,7 @@ final class TransfersViewModel {
     ) {
         guard isUserScrolling != isScrolling else { return }
         isUserScrolling = isScrolling
+        appStateManager.isScrollingTransfersList = isScrolling
         TransfersPosterDiagnostics.log(
             "scroll state changed isScrolling=\(isScrolling) deferred=\(hasDeferredRefreshWhileScrolling) rows=\(filteredRows.count)"
         )
@@ -201,12 +175,19 @@ final class TransfersViewModel {
             "scroll settled apply deferred refresh rows=\(filteredRows.count) showOverlayHint=\(showOverlayHint)"
         )
 
-        scheduleFilteredTasksRecompute(
-            showOverlayHint: showOverlayHint,
-            isTransfersTabActive: isTransfersTabActive,
-            appStateManager: appStateManager,
-            displayOptions: displayOptions
-        )
+        // Delay deferred refresh to let scroll deceleration animation finish naturally.
+        // Without this, applying 100K-row filteredRows update during deceleration causes
+        // a visible "drag" at the end of fast scrolls.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            guard let self, !Task.isCancelled, !self.isUserScrolling else { return }
+            self.scheduleFilteredTasksRecompute(
+                showOverlayHint: showOverlayHint,
+                isTransfersTabActive: isTransfersTabActive,
+                appStateManager: appStateManager,
+                displayOptions: displayOptions
+            )
+        }
     }
 
     func scheduleSearchDebounce() {
@@ -253,6 +234,8 @@ final class TransfersViewModel {
         let categoryFilterSupported = appStateManager.activeServerType != .transmission
         let aliasMapSnapshot = displayOptions.isProUser ? TrackerAliasManager.shared.aliasMap : [:]
         let startUptime = DispatchTime.now().uptimeNanoseconds
+
+
 
         shouldHintOverlayLoadingForCurrentFilterPass = showOverlayHint
         if isFilteringTasks != showOverlayHint {
@@ -380,77 +363,7 @@ final class TransfersViewModel {
         }
     }
 
-    func resolvePosterIfNeeded(for taskID: String, isEnabled: Bool, context: ModelContext) {
-        guard isEnabled else { return }
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.loadPoster(for: taskID, forceReload: false, context: context)
-            self.schedulePosterWindowPrefetch(anchoredAt: taskID, lookAhead: 18, context: context)
-        }
-    }
-
-    func prefetchPosterWindowIfNeeded(limit: Int, isEnabled: Bool, context: ModelContext) async {
-        guard isEnabled, limit > 0 else { return }
-        schedulePosterWindowPrefetch(startingAt: 0, limit: limit, context: context)
-    }
-
-    func refreshPoster(for taskID: String, isEnabled: Bool, context: ModelContext) async {
-        guard isEnabled else { return }
-        await loadPoster(for: taskID, forceReload: true, context: context)
-        schedulePosterWindowPrefetch(anchoredAt: taskID, lookAhead: 18, context: context)
-    }
-
-    private func schedulePosterWindowPrefetch(
-        anchoredAt taskID: String,
-        lookAhead: Int,
-        context: ModelContext
-    ) {
-        guard let anchorIndex = filteredTaskIDs.firstIndex(of: taskID) else { return }
-        schedulePosterWindowPrefetch(startingAt: anchorIndex, limit: lookAhead, context: context)
-    }
-
-    private func schedulePosterWindowPrefetch(
-        startingAt startIndex: Int,
-        limit: Int,
-        context: ModelContext
-    ) {
-        guard limit > 0, !filteredTaskIDs.isEmpty else { return }
-
-        let lowerBound = max(0, startIndex)
-        let upperBound = min(filteredTaskIDs.count, lowerBound + limit)
-        guard lowerBound < upperBound else { return }
-
-        let windowTaskIDs = Array(filteredTaskIDs[lowerBound..<upperBound])
-        let signature = windowTaskIDs.joined(separator: "|")
-        guard lastPosterPrefetchWindowSignature != signature else { return }
-
-        lastPosterPrefetchWindowSignature = signature
-        posterWindowPrefetchTask?.cancel()
-        TransfersPosterDiagnostics.log(
-            "poster prefetch schedule start=\(lowerBound) end=\(upperBound) count=\(windowTaskIDs.count)"
-        )
-
-        posterWindowPrefetchTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            for taskID in windowTaskIDs {
-                guard !Task.isCancelled else { return }
-                await self.loadPoster(for: taskID, forceReload: false, context: context)
-                await Task.yield()
-            }
-        }
-    }
-
-    private func preheatPosterImageIfNeeded(for url: URL?) {
-        guard let url else { return }
-        SeedPilotImagePreheater.prefetch(
-            url,
-            downsampleSize: Self.transfersPosterThumbnailSize,
-            cacheOriginal: false
-        )
-    }
-
-    private static let transfersPosterThumbnailSize = CGSize(width: 65, height: 97.5)
 
     // MARK: - Static Computations
 
@@ -572,13 +485,13 @@ final class TransfersViewModel {
 
             taskIDs.append(task.id)
             tasksByID[task.id] = task
-            rows.append(
-                TransfersRowDisplayModel.make(
-                    from: task,
-                    aliasMap: aliasMap,
-                    options: displayOptions
-                )
+            let row = TransfersRowDisplayModel.make(
+                from: task,
+                aliasMap: aliasMap,
+                options: displayOptions
             )
+
+            rows.append(row)
         }
 
         return FilteredContentResult(
@@ -714,58 +627,6 @@ final class TransfersViewModel {
             categories: [allCategoriesToken] + sortedCategories,
             tags: [allTagsToken] + sortedTags,
             trackers: [allTrackersToken] + sortedTrackers
-        )
-    }
-
-    // MARK: - Poster Pipeline
-
-    private func loadPoster(for taskID: String, forceReload: Bool, context: ModelContext) async {
-        guard let task = taskLookupByID[taskID] else {
-            TransfersPosterDiagnostics.log("poster skip missing task taskID=\(taskID)")
-            return
-        }
-        let posterState = posterState(for: taskID)
-        let startUptime = DispatchTime.now().uptimeNanoseconds
-
-        if forceReload {
-            TransfersPosterDiagnostics.log("poster force reload taskID=\(taskID) hash=\(task.hash)")
-            posterLoadTasksByTaskID[taskID]?.cancel()
-            posterLoadTasksByTaskID[taskID] = nil
-            posterState.reset()
-        } else {
-            if posterState.isResolved {
-                preheatPosterImageIfNeeded(for: posterState.url)
-                TransfersPosterDiagnostics.log("poster skip resolved taskID=\(taskID) hash=\(task.hash)")
-                return
-            }
-
-            if let existingTask = posterLoadTasksByTaskID[taskID] {
-                TransfersPosterDiagnostics.log("poster join in-flight taskID=\(taskID) hash=\(task.hash)")
-                _ = await existingTask.value
-                return
-            }
-        }
-
-        posterState.markResolving()
-        TransfersPosterDiagnostics.log("poster request start taskID=\(taskID) hash=\(task.hash) name=\(task.name)")
-        let loadTask = Task { [hash = task.hash, name = task.name] in
-            await TMDBService.shared.fetchPoster(hash: hash, name: name, context: context)
-        }
-        posterLoadTasksByTaskID[taskID] = loadTask
-
-        let posterURL = await loadTask.value
-        guard !loadTask.isCancelled else {
-            TransfersPosterDiagnostics.log("poster request cancelled taskID=\(taskID) hash=\(task.hash)")
-            return
-        }
-
-        posterLoadTasksByTaskID[taskID] = nil
-        posterState.applyResolvedURL(posterURL)
-        preheatPosterImageIfNeeded(for: posterURL)
-        let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
-        let elapsedText = String(format: "%.1f", elapsedMs)
-        TransfersPosterDiagnostics.log(
-            "poster request finish taskID=\(taskID) hash=\(task.hash) hit=\(posterURL != nil) elapsedMs=\(elapsedText)"
         )
     }
 }

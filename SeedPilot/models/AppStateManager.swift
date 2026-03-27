@@ -175,10 +175,28 @@ class AppStateManager {
         return tasks.filter { $0.serverID == activeServerID }
     }
 
+    /// Set by TransfersViewModel to prevent expensive task snapshot publication during scrolling.
+    var isScrollingTransfersList = false {
+        didSet {
+            guard !isScrollingTransfersList, oldValue, pendingTaskRefreshSnapshot != nil else { return }
+            // Scrolling just stopped and we have a pending snapshot — publish after a brief delay
+            taskRefreshPublicationTask?.cancel()
+            taskRefreshPublicationTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms post-scroll
+                guard !Task.isCancelled else { return }
+                self?.publishPendingTaskRefreshSnapshot()
+            }
+        }
+    }
+
     @MainActor
     private func enqueueTaskRefreshSnapshot(_ snapshot: TaskRefreshSnapshot) {
         pendingTaskRefreshSnapshot = snapshot
         taskRefreshPublicationTask?.cancel()
+
+        // Skip publication while user is scrolling the transfers list
+        guard !isScrollingTransfersList else { return }
+
         taskRefreshPublicationTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else { return }
@@ -377,6 +395,8 @@ class AppStateManager {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNanos)
                 guard !Task.isCancelled else { break }
+                // Completely freeze refresh while user is scrolling — zero main-thread work
+                guard !self.isScrollingTransfersList else { continue }
                 await self.refreshData(isSilent: true)
             }
         }

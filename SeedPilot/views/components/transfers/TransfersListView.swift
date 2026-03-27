@@ -9,9 +9,7 @@ struct TransfersListView: View {
     var onRefresh: () async -> Void
     var onScrollActivityChanged: (Bool) -> Void
     var onToggleSelection: (String) -> Void
-    var posterState: (String) -> TransfersPosterState
-    var onRowAppear: (String) -> Void
-    var onShowActionSheet: (String, URL?) -> Void
+    var onShowActionSheet: (String) -> Void
     var onDelete: (String) -> Void
     var onResume: (String) -> Void
     var onPause: (String) -> Void
@@ -39,11 +37,8 @@ struct TransfersListView: View {
     }
 
     private func taskRowCell(_ row: TransfersRowDisplayModel) -> some View {
-        let currentPosterState = posterState(row.id)
-
-        return TorrentRowView(
+        TorrentRowView(
             row: row,
-            posterState: currentPosterState,
             showPoster: showTMDBData,
             isSelected: selectedTaskIDs.contains(row.id),
             isEditing: isEditing,
@@ -51,7 +46,7 @@ struct TransfersListView: View {
                 onToggleSelection(row.id)
             },
             onShowActionSheet: {
-                onShowActionSheet(row.id, currentPosterState.url)
+                onShowActionSheet(row.id)
             }
         )
         .equatable()
@@ -90,9 +85,6 @@ struct TransfersListView: View {
         .onTapGesture {
             guard !isEditing else { return }
             onOpenDetail(row.id)
-        }
-        .onAppear {
-            onRowAppear(row.id)
         }
     }
 

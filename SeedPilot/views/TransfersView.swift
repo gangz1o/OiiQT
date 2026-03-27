@@ -83,19 +83,7 @@ struct TransfersView: View {
         }
     }
 
-    private static let posterPrefetchLimit = 18
 
-    private var posterPrefetchTaskID: String {
-        guard showTMDBData, isTransfersTabActive else {
-            return "tmdb-disabled|\(showTMDBData)|\(isTransfersTabActive)"
-        }
-
-        let language = LanguageManager.shared.selectedLanguage.rawValue
-        let firstTaskID = viewModel.filteredTaskIDs.first ?? "empty"
-        let count = viewModel.filteredTaskCount
-
-        return "tmdb-prefetch|\(language)|\(firstTaskID)|\(count)"
-    }
 
     var body: some View {
         transfersPresentedView
@@ -109,17 +97,10 @@ struct TransfersView: View {
             .sheet(item: $viewModel.selectedTorrentForAction) { selectedTask in
                 TorrentActionSheetView(
                     task: selectedTask,
-                    posterURL: viewModel.selectedTorrentPosterURL,
+                    posterURL: TMDBService.shared.cachedPosterURL(for: selectedTask.hash),
                     appStateManager: appStateManager,
                     onPosterChanged: {
                         TMDBService.shared.clearCache(for: selectedTask.hash, name: selectedTask.name)
-                        Task {
-                            await viewModel.refreshPoster(
-                                for: selectedTask.id,
-                                isEnabled: showTMDBData,
-                                context: modelContext
-                            )
-                        }
                     }
                 )
                 .presentationDetents([.medium, .large])
@@ -172,9 +153,6 @@ struct TransfersView: View {
     private var transfersLifecycleBoundViewPart1: some View {
         transfersNavigationBase
             .background(Color(uiColor: .systemGroupedBackground))
-            .task(id: posterPrefetchTaskID) {
-                await prefetchVisibleTransferPostersIfNeeded()
-            }
             .onAppear {
                 handleTransfersViewAppear()
             }
@@ -286,16 +264,7 @@ struct TransfersView: View {
         )
     }
 
-    @MainActor
-    private func prefetchVisibleTransferPostersIfNeeded() async {
-        guard isTransfersTabActive else { return }
 
-        await viewModel.prefetchPosterWindowIfNeeded(
-            limit: Self.posterPrefetchLimit,
-            isEnabled: showTMDBData,
-            context: modelContext
-        )
-    }
 
     private func scheduleFilteredTasksRecompute(
         showOverlayHint: Bool = false,
@@ -486,15 +455,9 @@ struct TransfersView: View {
                 onToggleSelection: { taskID in
                     viewModel.toggleSelection(for: taskID)
                 },
-                posterState: { taskID in
-                    viewModel.posterState(for: taskID)
-                },
-                onRowAppear: { taskID in
-                    viewModel.resolvePosterIfNeeded(for: taskID, isEnabled: showTMDBData, context: modelContext)
-                },
-                onShowActionSheet: { taskID, posterURL in
+
+                onShowActionSheet: { taskID in
                     guard let task = viewModel.task(for: taskID) else { return }
-                    viewModel.selectedTorrentPosterURL = posterURL
                     viewModel.selectedTorrentForAction = task
                 },
                 onDelete: { taskID in

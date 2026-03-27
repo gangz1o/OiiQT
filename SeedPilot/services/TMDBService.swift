@@ -53,6 +53,17 @@ class TMDBService {
 
     // MARK: - Public API
 
+    /// Fast, synchronous cache-only poster lookup (no I/O).
+    /// Returns the poster URL if it's already in the in-memory cache; nil otherwise.
+    func cachedPosterURL(for hash: String) -> URL? {
+        let scopedHash = scopedHash(for: hash)
+        if let cachedPath = urlCache.object(forKey: scopedHash as NSString) as String?,
+           cachedPath != "null" {
+            return URL(string: imageBaseURL + cachedPath)
+        }
+        return nil
+    }
+
     /// 根据种子获取海报 URL
     /// - Parameters:
     ///   - hash: 种子 Hash (ID)
@@ -446,19 +457,19 @@ class TMDBService {
         urlCache.setObject(path as NSString, forKey: hash as NSString)
     }
 
-    private func extractCleanCacheKey(from rawName: String) -> String {
+    private static let cleanCacheKeyRegex: NSRegularExpression? = {
         let pattern = "(?i)[\\.\\s_\\-\\[\\(]*(S\\d{2}(E\\d{2})?|(19|20)\\d{2}|2160p|1080p|720p|4k|WEB-DL|BluRay|x265|H265).*$"
-        do {
-            let regex = try NSRegularExpression(pattern: pattern, options: [])
-            let range = NSRange(rawName.startIndex..., in: rawName)
-            let cleaned = regex.stringByReplacingMatches(in: rawName, options: [], range: range, withTemplate: "")
-            let finalTitle = cleaned
-                .trimmingCharacters(in: CharacterSet(charactersIn: ". _-[]()"))
-                .trimmingCharacters(in: .whitespaces)
-            return finalTitle.isEmpty ? rawName : finalTitle
-        } catch {
-            return rawName
-        }
+        return try? NSRegularExpression(pattern: pattern, options: [])
+    }()
+
+    private func extractCleanCacheKey(from rawName: String) -> String {
+        guard let regex = Self.cleanCacheKeyRegex else { return rawName }
+        let range = NSRange(rawName.startIndex..., in: rawName)
+        let cleaned = regex.stringByReplacingMatches(in: rawName, options: [], range: range, withTemplate: "")
+        let finalTitle = cleaned
+            .trimmingCharacters(in: CharacterSet(charactersIn: ". _-[]()"))
+            .trimmingCharacters(in: .whitespaces)
+        return finalTitle.isEmpty ? rawName : finalTitle
     }
 
     /// Smart search with fallback strategy:

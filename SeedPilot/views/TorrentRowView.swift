@@ -6,10 +6,10 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct TorrentRowView: View, Equatable {
     let row: TransfersRowDisplayModel
-    let posterState: TransfersPosterState
     let showPoster: Bool
     let isSelected: Bool
     let isEditing: Bool
@@ -170,7 +170,9 @@ struct TorrentRowView: View, Equatable {
 
     private var posterArea: some View {
         TransfersPosterThumbnailView(
-            posterState: posterState,
+            taskHash: row.taskHash,
+            taskRawName: row.taskRawName,
+            isEnabled: showPoster,
             resolutionBadge: row.resolutionBadge,
             downsampleSize: posterDownsampleSize
         )
@@ -220,14 +222,23 @@ private extension TorrentRowView {
     static let headerInlinePillMinHeight: CGFloat = 20
 }
 
+/// Self-contained poster thumbnail — resolves its own poster via @State + .task.
+/// Zero coupling to ViewModel or filteredRows. SwiftUI only re-renders THIS view
+/// when the poster URL resolves, not the entire 100K-element list.
 private struct TransfersPosterThumbnailView: View {
-    let posterState: TransfersPosterState
+    let taskHash: String
+    let taskRawName: String
+    let isEnabled: Bool
     let resolutionBadge: ResolutionBadge?
     let downsampleSize: CGSize
 
+    @State private var posterURL: URL?
+    @State private var hasResolved: Bool = false
+    @Environment(\.modelContext) private var modelContext
+
     var body: some View {
         Group {
-            if let posterURL = posterState.url {
+            if let posterURL {
                 SimpleCachedImage(
                     url: posterURL,
                     downsampleSize: downsampleSize,
@@ -251,10 +262,45 @@ private struct TransfersPosterThumbnailView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .onChange(of: posterState.url) { oldValue, newValue in
-            TransfersPosterDiagnostics.log(
-                "poster view update taskID=\(posterState.taskID) hadURL=\(oldValue != nil) hasURL=\(newValue != nil)"
+        .task(id: taskHash) {
+            guard isEnabled, !hasResolved else { return }
+
+            // Fast path: thread-safe NSCache lookup (no MainActor hop)
+            if let cached = TMDBService.shared.cachedPosterURL(for: taskHash) {
+                hasResolved = true
+                posterURL = cached
+                return
+            }
+
+            // Yield to avoid flooding main thread when many thumbnails appear at once
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            // Slow path: @MainActor fetchPoster (SwiftData + network)
+            let url = await TMDBService.shared.fetchPoster(
+                hash: taskHash,
+                name: taskRawName,
+                context: modelContext
             )
+            guard !Task.isCancelled else { return }
+            hasResolved = true
+            posterURL = url
+            if let url {
+                SeedPilotImagePreheater.prefetch(
+                    url,
+                    downsampleSize: downsampleSize,
+                    cacheOriginal: false
+                )
+            }
+        }
+        .onChange(of: isEnabled) { _, newValue in
+            if !newValue {
+                posterURL = nil
+                hasResolved = false
+            } else if !hasResolved {
+                // Will re-trigger .task on next appearance cycle
+                hasResolved = false
+            }
         }
     }
 }
