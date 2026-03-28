@@ -70,6 +70,11 @@ class TMDBService {
     ///   - name: 种子名称 (用于搜索)
     ///   - context: SwiftData Context (from View)
     @MainActor
+    func preparePosterCacheIfNeeded(context: ModelContext) {
+        hydratePersistedPosterMatchesIfNeeded(context: context)
+    }
+
+    @MainActor
     func fetchPoster(hash: String, name: String, context: ModelContext) async -> URL? {
         let scopedHash = scopedHash(for: hash)
         let cacheKey = extractCleanCacheKey(from: name)

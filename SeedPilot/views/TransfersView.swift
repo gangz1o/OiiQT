@@ -30,6 +30,7 @@ struct TransfersView: View {
     @Environment(\.editMode) private var editMode
 
     @State private var viewModel = TransfersViewModel()
+    @State private var posterStore = TransfersPosterStore()
     @State private var navigationPath = NavigationPath()
 
     private var isEditing: Bool {
@@ -100,7 +101,8 @@ struct TransfersView: View {
                     posterURL: TMDBService.shared.cachedPosterURL(for: selectedTask.hash),
                     appStateManager: appStateManager,
                     onPosterChanged: {
-                        TMDBService.shared.clearCache(for: selectedTask.hash, name: selectedTask.name)
+                        guard showTMDBData else { return }
+                        posterStore.refresh(hash: selectedTask.hash, name: selectedTask.name)
                     }
                 )
                 .presentationDetents([.medium, .large])
@@ -155,6 +157,9 @@ struct TransfersView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .onAppear {
                 handleTransfersViewAppear()
+            }
+            .onChange(of: showTMDBData) { _, newValue in
+                posterStore.updateConfiguration(isEnabled: newValue, modelContext: modelContext)
             }
             .onChange(of: hideDataNodeName) { _, _ in
                 scheduleFilteredTasksRecompute(showOverlayHint: true)
@@ -246,6 +251,7 @@ struct TransfersView: View {
     private func handleTransfersViewAppear() {
         applyGlobalAggregationSafetyFallbackIfNeeded()
         triggerInitialLoadIfNeeded()
+        posterStore.updateConfiguration(isEnabled: showTMDBData, modelContext: modelContext)
         viewModel.handleTransfersViewAppear(
             appStateManager: appStateManager,
             isTransfersTabActive: isTransfersTabActive,
@@ -436,11 +442,18 @@ struct TransfersView: View {
             emptyStatesView
         } else {
             TransfersListView(
-                rows: viewModel.filteredRows,
+                taskIDs: viewModel.filteredTaskIDs,
+                posterStore: posterStore,
                 selectedTaskIDs: viewModel.selectedTaskHashes,
                 isEditing: isEditing,
                 isOverlayLoadingVisible: viewModel.isOverlayLoadingVisible,
                 showTMDBData: showTMDBData,
+                rowStateProvider: { taskID in
+                    viewModel.rowState(for: taskID)
+                },
+                onRowVisibilityChanged: { taskID, isVisible in
+                    viewModel.setRowVisibility(taskID, isVisible: isVisible)
+                },
                 onRefresh: {
                     await appStateManager.refreshData()
                 },

@@ -91,6 +91,9 @@ class AppStateManager {
     @ObservationIgnored
     private var taskRefreshPublicationTask: Task<Void, Never>?
 
+    @ObservationIgnored
+    private var transfersListRefreshCooldownDeadline: UInt64 = 0
+
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
     var tasksRevision: Int = 0
@@ -178,14 +181,18 @@ class AppStateManager {
     /// Set by TransfersViewModel to prevent expensive task snapshot publication during scrolling.
     var isScrollingTransfersList = false {
         didSet {
-            guard !isScrollingTransfersList, oldValue, pendingTaskRefreshSnapshot != nil else { return }
-            // Scrolling just stopped and we have a pending snapshot — publish after a brief delay
             taskRefreshPublicationTask?.cancel()
-            taskRefreshPublicationTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms post-scroll
-                guard !Task.isCancelled else { return }
-                self?.publishPendingTaskRefreshSnapshot()
+
+            guard oldValue != isScrollingTransfersList else { return }
+
+            if isScrollingTransfersList {
+                transfersListRefreshCooldownDeadline = 0
+                return
             }
+
+            transfersListRefreshCooldownDeadline = DispatchTime.now().uptimeNanoseconds + Self.transfersListRefreshCooldownNanos
+            guard pendingTaskRefreshSnapshot != nil else { return }
+            schedulePendingTaskRefreshPublication(minimumDelay: Self.transfersListRefreshCooldownNanos)
         }
     }
 
@@ -197,11 +204,7 @@ class AppStateManager {
         // Skip publication while user is scrolling the transfers list
         guard !isScrollingTransfersList else { return }
 
-        taskRefreshPublicationTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled else { return }
-            self?.publishPendingTaskRefreshSnapshot()
-        }
+        schedulePendingTaskRefreshPublication(minimumDelay: 120_000_000)
     }
 
     @MainActor
@@ -397,6 +400,11 @@ class AppStateManager {
                 guard !Task.isCancelled else { break }
                 // Completely freeze refresh while user is scrolling — zero main-thread work
                 guard !self.isScrollingTransfersList else { continue }
+                let remainingCooldown = self.remainingTransfersListRefreshCooldownNanoseconds()
+                if remainingCooldown > 0 {
+                    try? await Task.sleep(nanoseconds: remainingCooldown)
+                    guard !Task.isCancelled, !self.isScrollingTransfersList else { continue }
+                }
                 await self.refreshData(isSilent: true)
             }
         }
@@ -553,6 +561,23 @@ class AppStateManager {
                 )
             )
         }
+    }
+
+    @MainActor
+    private func schedulePendingTaskRefreshPublication(minimumDelay: UInt64) {
+        let delay = max(minimumDelay, remainingTransfersListRefreshCooldownNanoseconds())
+        taskRefreshPublicationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            self?.publishPendingTaskRefreshSnapshot()
+        }
+    }
+
+    @MainActor
+    private func remainingTransfersListRefreshCooldownNanoseconds() -> UInt64 {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard transfersListRefreshCooldownDeadline > now else { return 0 }
+        return transfersListRefreshCooldownDeadline - now
     }
 
     @MainActor
@@ -1623,6 +1648,7 @@ class AppStateManager {
 
     /// Chunk size for background silent queue.
     private static let batchChunkSize = 500
+    private static let transfersListRefreshCooldownNanos: UInt64 = 900_000_000
 
     /// Unified bulk action engine with O(1) select-all, optimistic UI, and background chunked queue.
     ///

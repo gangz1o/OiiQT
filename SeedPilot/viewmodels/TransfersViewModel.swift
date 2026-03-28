@@ -20,7 +20,6 @@ final class TransfersViewModel {
     var sortAscending: Bool = false
 
     // MARK: - Render Snapshot
-    var filteredRows: [TransfersRowDisplayModel] = []
     var filteredTaskIDs: [String] = []
     var selectedTaskHashes = Set<String>()
 
@@ -41,6 +40,22 @@ final class TransfersViewModel {
     // MARK: - Side Effects
     @ObservationIgnored
     private var taskLookupByID: [String: TorrentTask] = [:]
+
+    @ObservationIgnored
+    private var rowStateByID: [String: TransfersRowState] = [:]
+
+    @ObservationIgnored
+    private var visibleTaskIDs = Set<String>()
+
+    @ObservationIgnored
+    private var currentAliasMap: [String: String] = [:]
+
+    @ObservationIgnored
+    private var currentDisplayOptions = TransfersRowDisplayOptions(
+        isProUser: false,
+        hideTracker: false,
+        serverTypeByID: [:]
+    )
 
     @ObservationIgnored
     private var searchDebounceTask: Task<Void, Never>?
@@ -151,6 +166,10 @@ final class TransfersViewModel {
         isUserScrolling = false
         hasDeferredRefreshWhileScrolling = false
         deferredRefreshShowOverlayHint = false
+        filteredTaskIDs = []
+        rowStateByID.removeAll()
+        taskLookupByID.removeAll()
+        visibleTaskIDs.removeAll()
     }
 
     func handleScrollActivityChanged(
@@ -163,7 +182,7 @@ final class TransfersViewModel {
         isUserScrolling = isScrolling
         appStateManager.isScrollingTransfersList = isScrolling
         TransfersPosterDiagnostics.log(
-            "scroll state changed isScrolling=\(isScrolling) deferred=\(hasDeferredRefreshWhileScrolling) rows=\(filteredRows.count)"
+            "scroll state changed isScrolling=\(isScrolling) deferred=\(hasDeferredRefreshWhileScrolling) rows=\(filteredTaskIDs.count)"
         )
 
         guard !isScrolling, hasDeferredRefreshWhileScrolling else { return }
@@ -172,22 +191,14 @@ final class TransfersViewModel {
         hasDeferredRefreshWhileScrolling = false
         deferredRefreshShowOverlayHint = false
         TransfersPosterDiagnostics.log(
-            "scroll settled apply deferred refresh rows=\(filteredRows.count) showOverlayHint=\(showOverlayHint)"
+            "scroll settled apply deferred refresh rows=\(filteredTaskIDs.count) showOverlayHint=\(showOverlayHint)"
         )
-
-        // Delay deferred refresh to let scroll deceleration animation finish naturally.
-        // Without this, applying 100K-row filteredRows update during deceleration causes
-        // a visible "drag" at the end of fast scrolls.
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
-            guard let self, !Task.isCancelled, !self.isUserScrolling else { return }
-            self.scheduleFilteredTasksRecompute(
-                showOverlayHint: showOverlayHint,
-                isTransfersTabActive: isTransfersTabActive,
-                appStateManager: appStateManager,
-                displayOptions: displayOptions
-            )
-        }
+        scheduleFilteredTasksRecompute(
+            showOverlayHint: showOverlayHint,
+            isTransfersTabActive: isTransfersTabActive,
+            appStateManager: appStateManager,
+            displayOptions: displayOptions
+        )
     }
 
     func scheduleSearchDebounce() {
@@ -265,16 +276,14 @@ final class TransfersViewModel {
             let elapsedText = String(format: "%.1f", elapsedMs)
 #if DEBUG
             if sourceTasks.count >= 50_000 {
-                print("Transfers filter pass: source=\(sourceTasks.count) result=\(computed.rows.count) elapsedMs=\(elapsedText)")
+                print("Transfers filter pass: source=\(sourceTasks.count) result=\(computed.taskIDs.count) elapsedMs=\(elapsedText)")
             }
 #endif
 
             await MainActor.run {
-                self.taskLookupByID = computed.tasksByID
-                self.filteredRows = computed.rows
-                self.filteredTaskIDs = computed.taskIDs
-                self.selectedTaskHashes.formIntersection(Set(computed.tasksByID.keys))
-
+                self.currentAliasMap = aliasMapSnapshot
+                self.currentDisplayOptions = displayOptions
+                self.applyFilteredContent(computed)
                 if self.isFilteringTasks {
                     self.isFilteringTasks = false
                 }
@@ -289,7 +298,7 @@ final class TransfersViewModel {
         overlayLoadingDelayTask?.cancel()
 
         let shouldRequest = isTransfersTabActive
-            && !filteredRows.isEmpty
+            && !filteredTaskIDs.isEmpty
             && !shouldHintOverlayLoadingForCurrentFilterPass
             && isFilteringTasks
 
@@ -305,7 +314,7 @@ final class TransfersViewModel {
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 let currentShouldRequest = isTransfersTabActive
-                    && !self.filteredRows.isEmpty
+                    && !self.filteredTaskIDs.isEmpty
                     && !self.shouldHintOverlayLoadingForCurrentFilterPass
                     && self.isFilteringTasks
                 if currentShouldRequest {
@@ -313,6 +322,84 @@ final class TransfersViewModel {
                 }
             }
         }
+    }
+
+    func rowState(for taskID: String) -> TransfersRowState {
+        if let existing = rowStateByID[taskID] {
+            if let snapshot = makeRowSnapshot(for: taskID) {
+                existing.apply(snapshot)
+            }
+            return existing
+        }
+
+        let initialSnapshot = makeRowSnapshot(for: taskID) ?? TransfersRowDisplayModel(
+            id: taskID,
+            status: .paused,
+            progress: 0,
+            trackerText: nil,
+            taxonomyTags: [],
+            hiddenTaxonomyCount: 0,
+            titleText: "",
+            percentText: "",
+            downloadSpeedText: "",
+            uploadSpeedText: "",
+            peersText: "",
+            seedsText: "",
+            sizeText: "",
+            ratioText: "",
+            seedingTimeText: "",
+            savePathText: "",
+            serverType: nil,
+            resolutionBadge: nil,
+            taskHash: "",
+            taskRawName: ""
+        )
+        let state = TransfersRowState(snapshot: initialSnapshot)
+        rowStateByID[taskID] = state
+        return state
+    }
+
+    func setRowVisibility(_ taskID: String, isVisible: Bool) {
+        if isVisible {
+            visibleTaskIDs.insert(taskID)
+            if let snapshot = makeRowSnapshot(for: taskID) {
+                rowState(for: taskID).apply(snapshot)
+            }
+        } else {
+            visibleTaskIDs.remove(taskID)
+        }
+    }
+
+    private func applyFilteredContent(_ computed: FilteredContentResult) {
+        taskLookupByID = computed.tasksByID
+        if filteredTaskIDs != computed.taskIDs {
+            filteredTaskIDs = computed.taskIDs
+        }
+
+        rowStateByID = rowStateByID.filter { computed.tasksByID[$0.key] != nil }
+        visibleTaskIDs = visibleTaskIDs.filter { computed.tasksByID[$0] != nil }
+        refreshVisibleRowStates()
+
+        if !selectedTaskHashes.isEmpty {
+            selectedTaskHashes = Set(selectedTaskHashes.filter { computed.tasksByID[$0] != nil })
+        }
+    }
+
+    private func refreshVisibleRowStates() {
+        guard !visibleTaskIDs.isEmpty else { return }
+        for taskID in visibleTaskIDs {
+            guard let snapshot = makeRowSnapshot(for: taskID) else { continue }
+            rowState(for: taskID).apply(snapshot)
+        }
+    }
+
+    private func makeRowSnapshot(for taskID: String) -> TransfersRowDisplayModel? {
+        guard let task = taskLookupByID[taskID] else { return nil }
+        return TransfersRowDisplayModel.make(
+            from: task,
+            aliasMap: currentAliasMap,
+            options: currentDisplayOptions
+        )
     }
 
     func scheduleFilterOptionsRecompute(isTransfersTabActive: Bool, appStateManager: AppStateManager) {
@@ -381,7 +468,7 @@ final class TransfersViewModel {
         displayOptions: TransfersRowDisplayOptions
     ) -> FilteredContentResult {
         guard !sourceTasks.isEmpty else {
-            return FilteredContentResult(rows: [], taskIDs: [], tasksByID: [:])
+            return FilteredContentResult(taskIDs: [], tasksByID: [:])
         }
 
         let effectiveStatuses = selectedStatuses.filter { $0 != .all }
@@ -422,7 +509,7 @@ final class TransfersViewModel {
 
         for task in sourceTasks {
             if Task.isCancelled {
-                return FilteredContentResult(rows: [], taskIDs: [], tasksByID: [:])
+                return FilteredContentResult(taskIDs: [], tasksByID: [:])
             }
 
             if statusFilterEnabled && !effectiveStatuses.contains(where: { $0.matches(task) }) {
@@ -466,36 +553,26 @@ final class TransfersViewModel {
         }
 
         if Task.isCancelled {
-            return FilteredContentResult(rows: [], taskIDs: [], tasksByID: [:])
+            return FilteredContentResult(taskIDs: [], tasksByID: [:])
         }
 
         sortTasks(&filtered, by: sortOption, ascending: sortAscending)
 
-        var rows: [TransfersRowDisplayModel] = []
         var taskIDs: [String] = []
         var tasksByID: [String: TorrentTask] = [:]
-        rows.reserveCapacity(filtered.count)
         taskIDs.reserveCapacity(filtered.count)
         tasksByID.reserveCapacity(filtered.count)
 
         for task in filtered {
             if Task.isCancelled {
-                return FilteredContentResult(rows: [], taskIDs: [], tasksByID: [:])
+                return FilteredContentResult(taskIDs: [], tasksByID: [:])
             }
 
             taskIDs.append(task.id)
             tasksByID[task.id] = task
-            let row = TransfersRowDisplayModel.make(
-                from: task,
-                aliasMap: aliasMap,
-                options: displayOptions
-            )
-
-            rows.append(row)
         }
 
         return FilteredContentResult(
-            rows: rows,
             taskIDs: taskIDs,
             tasksByID: tasksByID
         )
@@ -553,7 +630,6 @@ final class TransfersViewModel {
     }
 
     private struct FilteredContentResult: Sendable {
-        let rows: [TransfersRowDisplayModel]
         let taskIDs: [String]
         let tasksByID: [String: TorrentTask]
     }
