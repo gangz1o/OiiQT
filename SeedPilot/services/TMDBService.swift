@@ -10,6 +10,12 @@ import SwiftUI
 
 import SwiftData
 
+enum TMDBAPIKeySource: String, Sendable {
+    case `default`
+    case custom
+    case builtIn
+}
+
 class TMDBService {
     static let shared = TMDBService()
 
@@ -36,13 +42,15 @@ class TMDBService {
         set { UserDefaults.standard.set(newValue, forKey: overridesKey) }
     }
 
-    private var apiKeyToUse: String {
-        guard UserDefaults.standard.bool(forKey: "isProUser") else {
-            return builtInAPIKey
-        }
+    private var customAPIKey: String? {
+        guard UserDefaults.standard.bool(forKey: "isProUser") else { return nil }
         let customKey = (UserDefaults.standard.string(forKey: "customTMDBApiKey") ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return customKey.isEmpty ? builtInAPIKey : customKey
+        return customKey.isEmpty ? nil : customKey
+    }
+
+    private var apiKeyToUse: String {
+        customAPIKey ?? builtInAPIKey
     }
 
     private let isVerboseLoggingEnabled = false
@@ -72,6 +80,38 @@ class TMDBService {
     @MainActor
     func preparePosterCacheIfNeeded(context: ModelContext) {
         hydratePersistedPosterMatchesIfNeeded(context: context)
+    }
+
+    @MainActor
+    func manualOverridePosterURL(for hash: String, context: ModelContext) -> URL? {
+        hydratePersistedPosterMatchesIfNeeded(context: context)
+
+        let scopedHash = scopedHash(for: hash)
+        if let persistedMatch = persistedPosterMatchesByHash[scopedHash],
+           persistedMatch.isManualOverride,
+           let path = persistedMatch.posterPath {
+            return URL(string: imageBaseURL + path)
+        }
+
+        if let legacyMatch = persistedPosterMatchesByHash[hash],
+           legacyMatch.isManualOverride,
+           let path = legacyMatch.posterPath {
+            return URL(string: imageBaseURL + path)
+        }
+
+        if let legacyPath = legacyOverrides[hash] {
+            return URL(string: imageBaseURL + legacyPath)
+        }
+
+        return nil
+    }
+
+    func resolvePosterURL(for metadata: SeedPilotMetadata, using apiKeySource: TMDBAPIKeySource) async -> URL? {
+        guard !metadata.title.isEmpty,
+              let posterPath = await searchBestMatch(metadata: metadata, apiKeySource: apiKeySource) else {
+            return nil
+        }
+        return URL(string: imageBaseURL + posterPath)
     }
 
     @MainActor
@@ -157,7 +197,7 @@ class TMDBService {
         }
 
         // Search with smart matching (title + year + fallback)
-        guard let posterPath = await searchBestMatch(metadata: metadata) else {
+        guard let posterPath = await searchBestMatch(metadata: metadata, apiKeySource: .default) else {
              let match = TMDBMatch(hashString: scopedHash, posterPath: nil, isManualOverride: false)
              context.insert(match)
              rememberPersistedPosterMatch(match)
@@ -254,9 +294,11 @@ class TMDBService {
     @MainActor
     func fetchDetails(hash: String, name: String, context: ModelContext) async -> TMDBItem? {
         let scopedHash = scopedHash(for: hash)
+        TransfersPosterDiagnostics.log("tmdb details start hash=\(scopedHash) name=\(name)")
 
         let storedMatch = fetchMatch(hash: scopedHash, context: context) ?? fetchLegacyManualMatch(hash: hash, context: context)
         if let storedMatch, storedMatch.isManualOverride, let cachedManualItem = manualCachedTMDBItem(from: storedMatch) {
+            TransfersPosterDiagnostics.log("tmdb details hit source=manual hash=\(scopedHash) title=\(cachedManualItem.title)")
             return cachedManualItem
         }
 
@@ -266,59 +308,87 @@ class TMDBService {
 
         // 2. Parse & Search
         let metadata = SeedPilotParser.parse(name)
-        guard !metadata.title.isEmpty else { return nil }
+        guard !metadata.title.isEmpty else {
+            TransfersPosterDiagnostics.log("tmdb details skip reason=empty-title hash=\(scopedHash)")
+            return nil
+        }
 
         let items = await search(query: metadata.title)
+        TransfersPosterDiagnostics.log(
+            "tmdb details primary title=\(metadata.title) year=\(metadata.year ?? "nil") results=\(items.count)"
+        )
 
         // 3. Select Best Match
         // If we have a stored poster path (from fetchPoster), we should prefer the item that has that path.
         if let storedPoster = storedMatch?.posterPath {
             if let exact = items.first(where: { $0.posterPath == storedPoster }) {
+                TransfersPosterDiagnostics.log("tmdb details hit source=poster-path hash=\(scopedHash) title=\(exact.title)")
                 return exact
             }
         }
 
         // Otherwise use smart match logic
         if let best = selectBestMatch(from: items, year: metadata.year) {
+            TransfersPosterDiagnostics.log("tmdb details hit source=primary-search hash=\(scopedHash) title=\(best.title)")
             return best
         }
 
         // Fallback: English Title
         if let englishTitle = metadata.englishTitle, !englishTitle.isEmpty {
              let enItems = await search(query: englishTitle)
+             TransfersPosterDiagnostics.log(
+                "tmdb details fallback title=\(englishTitle) year=\(metadata.year ?? "nil") results=\(enItems.count)"
+             )
              if let best = selectBestMatch(from: enItems, year: metadata.year) {
+                 TransfersPosterDiagnostics.log("tmdb details hit source=fallback-search hash=\(scopedHash) title=\(best.title)")
                  return best
              }
         }
 
+        TransfersPosterDiagnostics.log("tmdb details fail hash=\(scopedHash) name=\(name)")
         return nil
     }
 
     /// 搜索 API (支持分页，自动重试一次)
-    func search(query: String, page: Int = 1) async -> [TMDBItem] {
+    func search(
+        query: String,
+        page: Int = 1,
+        apiKeySource: TMDBAPIKeySource = .default
+    ) async -> [TMDBItem] {
         let normalizedQuery = extractCleanCacheKey(from: query)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let language = currentTMDBLanguage()
-        let apiKey = apiKeyToUse
-        guard apiKey != "YOUR_API_KEY_HERE",
+        guard let apiKey = apiKey(for: apiKeySource),
+              apiKey != "YOUR_API_KEY_HERE",
               let encodedQuery = normalizedQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(baseURL)/search/multi?api_key=\(apiKey)&query=\(encodedQuery)&language=\(language)&page=\(page)") else {
             log("[TMDB] search: SKIP (invalid API key or query encoding) for '\(query)'")
             return []
         }
 
-        let cacheKey = searchCacheKey(query: normalizedQuery, page: page, language: language)
+        let cacheKey = searchCacheKey(
+            query: normalizedQuery,
+            page: page,
+            language: language,
+            apiKeySource: apiKeySource
+        )
         let lookup = await searchCoordinator.cachedOrTask(for: cacheKey) { [self] in
             Task { [self] in
-                await self.performSearchRequest(url: url, query: normalizedQuery, language: language, cacheKey: cacheKey)
+                await self.performSearchRequest(
+                    url: url,
+                    query: normalizedQuery,
+                    language: language,
+                    cacheKey: cacheKey,
+                    apiKeySource: apiKeySource
+                )
             }
         }
 
         switch lookup {
         case .cached(let items):
-            log("[TMDB] search: metadata cache HIT for '\(normalizedQuery)' (language: \(language), page: \(page))")
+            log("[TMDB] search: metadata cache HIT for '\(normalizedQuery)' (language: \(language), page: \(page), source: \(apiKeySource.rawValue))")
             TransfersPosterDiagnostics.log(
-                "tmdb search cache hit query=\(normalizedQuery) language=\(language) page=\(page) results=\(items.count)"
+                "tmdb search cache hit query=\(normalizedQuery) language=\(language) page=\(page) source=\(apiKeySource.rawValue) results=\(items.count)"
             )
             return items
         case .task(let task):
@@ -482,11 +552,14 @@ class TMDBService {
     /// 2. Chinese title only → best result
     /// 3. English title + year (if available) → best year-matched result
     /// 4. English title only → first result
-    private func searchBestMatch(metadata: SeedPilotMetadata) async -> String? {
+    private func searchBestMatch(
+        metadata: SeedPilotMetadata,
+        apiKeySource: TMDBAPIKeySource
+    ) async -> String? {
         // Strategy 1: Primary title (Chinese if available)
-        let primaryResults = await search(query: metadata.title)
+        let primaryResults = await search(query: metadata.title, apiKeySource: apiKeySource)
         TransfersPosterDiagnostics.log(
-            "tmdb search primary title=\(metadata.title) year=\(metadata.year ?? "nil") results=\(primaryResults.count)"
+            "tmdb search primary title=\(metadata.title) year=\(metadata.year ?? "nil") source=\(apiKeySource.rawValue) results=\(primaryResults.count)"
         )
         if let best = selectBestMatch(from: primaryResults, year: metadata.year) {
             log("[TMDB] Matched '\(metadata.title)' (year: \(metadata.year ?? "nil")) → \(best.title)")
@@ -495,9 +568,9 @@ class TMDBService {
 
         // Strategy 2: English title fallback (if different from primary)
         if let englishTitle = metadata.englishTitle, !englishTitle.isEmpty {
-            let englishResults = await search(query: englishTitle)
+            let englishResults = await search(query: englishTitle, apiKeySource: apiKeySource)
             TransfersPosterDiagnostics.log(
-                "tmdb search fallback title=\(englishTitle) year=\(metadata.year ?? "nil") results=\(englishResults.count)"
+                "tmdb search fallback title=\(englishTitle) year=\(metadata.year ?? "nil") source=\(apiKeySource.rawValue) results=\(englishResults.count)"
             )
             if let best = selectBestMatch(from: englishResults, year: metadata.year) {
                 log("[TMDB] Matched English '\(englishTitle)' (year: \(metadata.year ?? "nil")) → \(best.title)")
@@ -564,8 +637,13 @@ class TMDBService {
         return "poster::\(cacheKey.lowercased())::\(code)"
     }
 
-    private func searchCacheKey(query: String, page: Int, language: String) -> String {
-        "\(language.lowercased())|\(page)|\(query.lowercased())"
+    private func searchCacheKey(
+        query: String,
+        page: Int,
+        language: String,
+        apiKeySource: TMDBAPIKeySource
+    ) -> String {
+        "\(apiKeySource.rawValue.lowercased())|\(language.lowercased())|\(page)|\(query.lowercased())"
     }
 
     @MainActor
@@ -592,7 +670,24 @@ class TMDBService {
         )
     }
 
-    private func performSearchRequest(url: URL, query: String, language: String, cacheKey: String) async -> [TMDBItem] {
+    private func apiKey(for source: TMDBAPIKeySource) -> String? {
+        switch source {
+        case .default:
+            return apiKeyToUse
+        case .custom:
+            return customAPIKey
+        case .builtIn:
+            return builtInAPIKey
+        }
+    }
+
+    private func performSearchRequest(
+        url: URL,
+        query: String,
+        language: String,
+        cacheKey: String,
+        apiKeySource: TMDBAPIKeySource
+    ) async -> [TMDBItem] {
         await searchCoordinator.acquirePermit()
 
         var resultItems: [TMDBItem] = []
@@ -608,7 +703,7 @@ class TMDBService {
                 let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
                 let elapsedText = String(format: "%.1f", elapsedMs)
                 TransfersPosterDiagnostics.log(
-                    "tmdb search request finish query=\(query) language=\(language) attempt=\(attempt) results=\(items.count) elapsedMs=\(elapsedText)"
+                    "tmdb search request finish query=\(query) language=\(language) source=\(apiKeySource.rawValue) attempt=\(attempt) results=\(items.count) elapsedMs=\(elapsedText)"
                 )
                 resultItems = items
                 shouldCacheResult = true
@@ -618,7 +713,7 @@ class TMDBService {
                 let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startUptime) / 1_000_000
                 let elapsedText = String(format: "%.1f", elapsedMs)
                 TransfersPosterDiagnostics.log(
-                    "tmdb search request error query=\(query) language=\(language) attempt=\(attempt) elapsedMs=\(elapsedText) error=\(error.localizedDescription)"
+                    "tmdb search request error query=\(query) language=\(language) source=\(apiKeySource.rawValue) attempt=\(attempt) elapsedMs=\(elapsedText) error=\(error.localizedDescription)"
                 )
                 if attempt < 2 {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)

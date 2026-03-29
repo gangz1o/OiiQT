@@ -18,6 +18,7 @@ struct TorrentDetailView: View {
 
     @State private var tmdbItem: TMDBItem?
     @State private var isLoadingTMDB = false
+    @State private var resolvedPosterURL: URL?
 
     // Derived properties
     private var serverName: String {
@@ -128,11 +129,11 @@ struct TorrentDetailView: View {
         List {
             // MARK: - 1. Header Section
             Section {
-                if tmdbPosterEnabled, let item = tmdbItem {
+                if tmdbPosterEnabled, (tmdbItem != nil || resolvedPosterURL != nil) {
                     // Pro Mode with Match
                     HStack(alignment: .top, spacing: 16) {
                         // Poster (2:3 aspect ratio)
-                        if let url = item.fullPosterURL {
+                        if let url = resolvedPosterURL ?? tmdbItem?.fullPosterURL {
                             SimpleCachedImage(
                                 url: url,
                                 downsampleSize: CGSize(width: 100, height: 150)
@@ -149,13 +150,13 @@ struct TorrentDetailView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(item.title)
+                            Text(tmdbItem?.title ?? task.name)
                                 .font(.title3.bold())
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
 
                             HStack(spacing: 8) {
-                                if let rating = item.voteAverage, rating > 0 {
+                                if let rating = tmdbItem?.voteAverage, rating > 0 {
                                     HStack(spacing: 2) {
                                         Image(systemName: "star.fill")
                                             .foregroundStyle(.yellow)
@@ -165,16 +166,18 @@ struct TorrentDetailView: View {
                                     }
                                 }
 
-                                Text(item.year)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color(.systemGray5))
-                                    .clipShape(Capsule())
+                                if let year = tmdbItem?.year, !year.isEmpty {
+                                    Text(year)
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color(.systemGray5))
+                                        .clipShape(Capsule())
+                                }
                             }
 
-                            if let overview = item.overview, !overview.isEmpty {
+                            if let overview = tmdbItem?.overview, !overview.isEmpty {
                                 Text(overview)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -426,9 +429,20 @@ struct TorrentDetailView: View {
     private func loadTMDBData() async {
         guard tmdbPosterEnabled else { return }
         isLoadingTMDB = true
-        if let details = await TMDBService.shared.fetchDetails(hash: task.hash, name: task.name, context: modelContext) {
-            self.tmdbItem = details
-        }
+        TransfersPosterDiagnostics.log("torrent detail load start taskID=\(task.id) hash=\(task.hash) name=\(task.name)")
+        resolvedPosterURL = await PosterArtworkService.shared.fetchPoster(
+            hash: task.hash,
+            name: task.name,
+            context: modelContext
+        )
+        tmdbItem = await TMDBService.shared.fetchDetails(
+            hash: task.hash,
+            name: task.name,
+            context: modelContext
+        )
+        TransfersPosterDiagnostics.log(
+            "torrent detail load finish taskID=\(task.id) hash=\(task.hash) posterLoaded=\(resolvedPosterURL != nil) detailsLoaded=\(tmdbItem != nil)"
+        )
         isLoadingTMDB = false
     }
 

@@ -37,6 +37,7 @@ struct SeedPilotApp: App {
         let schema = Schema([
             Item.self,
             ServerConfig.self,
+            PosterMatchRecord.self,
             TMDBMatch.self,
             RSSFeedSource.self,
             RSSItem.self,

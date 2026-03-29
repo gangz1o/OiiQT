@@ -98,7 +98,7 @@ struct TransfersView: View {
             .sheet(item: $viewModel.selectedTorrentForAction) { selectedTask in
                 TorrentActionSheetView(
                     task: selectedTask,
-                    posterURL: TMDBService.shared.cachedPosterURL(for: selectedTask.hash),
+                    posterURL: PosterArtworkService.shared.cachedPosterURL(for: selectedTask.hash),
                     appStateManager: appStateManager,
                     onPosterChanged: {
                         guard showTMDBData else { return }

@@ -180,20 +180,26 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
             guard let row = rowSnapshot(at: indexPath) else { return nil }
 
             if row.status == .paused {
-                let resume = UIContextualAction(style: .normal, title: LanguageManager.shared.localized("Resume")) { [weak self] _, _, completion in
+                let resume = UIContextualAction(style: .normal, title: nil) { [weak self] _, _, completion in
                     self?.parent.onResume(row.id)
                     completion(true)
                 }
                 resume.backgroundColor = .systemGreen
-                return UISwipeActionsConfiguration(actions: [resume])
+                resume.image = swipeActionImage(systemName: "play.fill")
+                let configuration = UISwipeActionsConfiguration(actions: [resume])
+                configuration.performsFirstActionWithFullSwipe = true
+                return configuration
             }
 
-            let pause = UIContextualAction(style: .normal, title: LanguageManager.shared.localized("Pause")) { [weak self] _, _, completion in
+            let pause = UIContextualAction(style: .normal, title: nil) { [weak self] _, _, completion in
                 self?.parent.onPause(row.id)
                 completion(true)
             }
             pause.backgroundColor = .systemOrange
-            return UISwipeActionsConfiguration(actions: [pause])
+            pause.image = swipeActionImage(systemName: "pause.fill")
+            let configuration = UISwipeActionsConfiguration(actions: [pause])
+            configuration.performsFirstActionWithFullSwipe = true
+            return configuration
         }
 
         func tableView(
@@ -203,11 +209,14 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
             guard !parent.isEditing else { return nil }
             guard let row = rowSnapshot(at: indexPath) else { return nil }
 
-            let delete = UIContextualAction(style: .destructive, title: LanguageManager.shared.localized("Delete")) { [weak self] _, _, completion in
+            let delete = UIContextualAction(style: .destructive, title: nil) { [weak self] _, _, completion in
                 self?.parent.onDelete(row.id)
                 completion(true)
             }
-            return UISwipeActionsConfiguration(actions: [delete])
+            delete.image = swipeActionImage(systemName: "trash.fill")
+            let configuration = UISwipeActionsConfiguration(actions: [delete])
+            configuration.performsFirstActionWithFullSwipe = true
+            return configuration
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
@@ -264,6 +273,11 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
         private func rowSnapshot(at indexPath: IndexPath) -> TransfersRowDisplayModel? {
             guard indexPath.row < parent.taskIDs.count else { return nil }
             return parent.rowStateProvider(parent.taskIDs[indexPath.row]).snapshot
+        }
+
+        private func swipeActionImage(systemName: String) -> UIImage? {
+            let configuration = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+            return UIImage(systemName: systemName, withConfiguration: configuration)
         }
     }
 }

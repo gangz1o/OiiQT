@@ -46,7 +46,7 @@ final class TransfersPosterStore {
     func updateConfiguration(isEnabled: Bool, modelContext: ModelContext) {
         self.isPosterRenderingEnabled = isEnabled
         self.modelContext = modelContext
-        TMDBService.shared.preparePosterCacheIfNeeded(context: modelContext)
+        PosterArtworkService.shared.preparePosterCacheIfNeeded(context: modelContext)
 
         guard !isEnabled else {
             pumpQueue()
@@ -70,7 +70,7 @@ final class TransfersPosterStore {
         }
 
         let state = TransfersPosterState(hash: hash)
-        if let cachedURL = TMDBService.shared.cachedPosterURL(for: hash) {
+        if let cachedURL = PosterArtworkService.shared.cachedPosterURL(for: hash) {
             state.posterURL = cachedURL
             state.hasResolved = true
         }
@@ -82,7 +82,7 @@ final class TransfersPosterStore {
         guard isPosterRenderingEnabled else { return }
 
         let state = posterState(for: hash)
-        if let cachedURL = TMDBService.shared.cachedPosterURL(for: hash) {
+        if let cachedURL = PosterArtworkService.shared.cachedPosterURL(for: hash) {
             state.posterURL = cachedURL
             state.hasResolved = true
             state.isResolving = false
@@ -102,7 +102,7 @@ final class TransfersPosterStore {
         pendingRequests.removeAll { $0.hash == hash }
         inFlightTasks[hash]?.cancel()
         inFlightTasks[hash] = nil
-        TMDBService.shared.clearCache(for: hash, name: name)
+        PosterArtworkService.shared.clearCache(for: hash, name: name)
         posterState(for: hash).reset()
         pumpQueue()
     }
@@ -127,7 +127,7 @@ final class TransfersPosterStore {
 
             inFlightTasks[request.hash] = Task { @MainActor [weak self] in
                 guard let self else { return }
-                let resolvedURL = await TMDBService.shared.fetchPoster(
+                let resolvedURL = await PosterArtworkService.shared.fetchPoster(
                     hash: request.hash,
                     name: request.name,
                     context: modelContext

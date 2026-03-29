@@ -182,8 +182,8 @@ struct TorrentActionSheetView: View {
                             isAutoMatching = true
                             Task {
                                 defer { isAutoMatching = false }
-                                TMDBService.shared.clearPosterMatch(for: task.hash, name: task.name, context: modelContext)
-                                let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                                PosterArtworkService.shared.clearPosterMatch(for: task.hash, name: task.name, context: modelContext)
+                                let newURL = await PosterArtworkService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
                                 if let newURL {
                                     displayPosterURL = newURL
                                     UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -297,7 +297,7 @@ struct TorrentActionSheetView: View {
                 .presentationDetents([.medium, .large])
                 .onDisappear {
                     Task {
-                        let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                        let newURL = await PosterArtworkService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
                         if let newURL {
                             displayPosterURL = newURL
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -397,7 +397,7 @@ struct TorrentActionSheetView: View {
             displayPosterURL = posterURL
             if displayPosterURL == nil {
                 Task {
-                    let newURL = await TMDBService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
+                    let newURL = await PosterArtworkService.shared.fetchPoster(hash: task.hash, name: task.name, context: modelContext)
                     if let newURL = newURL {
                         displayPosterURL = newURL
                     }
