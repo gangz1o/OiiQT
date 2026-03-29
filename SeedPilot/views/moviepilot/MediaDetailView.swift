@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MediaDetailView: View {
     @State private var viewModel: MediaDetailViewModel
@@ -19,7 +20,7 @@ struct MediaDetailView: View {
                 }
             }
         )
-        .navigationTitle(viewModel.pageViewState.navigationTitle)
+        .navigationTitle(moviePilotLocalized(viewModel.pageViewState.navigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .task(id: viewModel.pageViewState.id) {
@@ -43,29 +44,34 @@ struct MediaDetailView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: subscribeSheetBinding) {
-            if let form = viewModel.subscribeFormViewState {
-                SubscribeSettingsSheetView(
-                    viewState: form,
-                    onSelectOption: { fieldID, optionID in
-                        viewModel.updateSubscribeOption(fieldID: fieldID, optionID: optionID)
-                    },
-                    onUpdateText: { fieldID, text in
-                        viewModel.updateSubscribeText(fieldID: fieldID, text: text)
-                    },
-                    onToggle: { fieldID, isOn in
-                        viewModel.updateSubscribeToggle(fieldID: fieldID, isOn: isOn)
-                    },
-                    onCancel: {
-                        viewModel.dismissSubscribeSheet()
-                    },
-                    onSubmit: {
-                        await viewModel.submitSubscription(form: viewModel.subscribeFormViewState)
-                    }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
+        .sheet(item: subscribeSheetBinding) { form in
+            SubscribeSettingsSheetView(
+                viewState: viewModel.subscribeFormViewState ?? form,
+                onSelectOption: { fieldID, optionID in
+                    viewModel.updateSubscribeOption(fieldID: fieldID, optionID: optionID)
+                },
+                onToggleMultiOption: { fieldID, optionID, isSelected in
+                    viewModel.updateSubscribeMultiOption(
+                        fieldID: fieldID,
+                        optionID: optionID,
+                        isSelected: isSelected
+                    )
+                },
+                onUpdateText: { fieldID, text in
+                    viewModel.updateSubscribeText(fieldID: fieldID, text: text)
+                },
+                onToggle: { fieldID, isOn in
+                    viewModel.updateSubscribeToggle(fieldID: fieldID, isOn: isOn)
+                },
+                onCancel: {
+                    viewModel.dismissSubscribeSheet()
+                },
+                onSubmit: {
+                    await viewModel.submitSubscription(form: viewModel.subscribeFormViewState)
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(item: downloadFormBinding) { _ in
             if let form = viewModel.downloadFormViewState {
@@ -80,6 +86,31 @@ struct MediaDetailView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .overlay(alignment: .top) {
+            if let toastMessage = viewModel.viewState.toastMessage {
+                Text(toastMessage)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.viewState.toastMessage)
+        .task(id: viewModel.viewState.toastMessage) {
+            guard viewModel.viewState.toastMessage != nil else { return }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run {
+                viewModel.clearToastMessage()
+            }
+        }
     }
 
     private var searchFilterSheetBinding: Binding<SearchResultFilterSheetViewState?> {
@@ -92,11 +123,11 @@ struct MediaDetailView: View {
         )
     }
 
-    private var subscribeSheetBinding: Binding<Bool> {
+    private var subscribeSheetBinding: Binding<SubscribeFormViewState?> {
         Binding(
-            get: { viewModel.showSubscribeSheet },
-            set: { isPresented in
-                if !isPresented {
+            get: { viewModel.subscribeFormViewState },
+            set: { newValue in
+                if newValue == nil {
                     viewModel.dismissSubscribeSheet()
                 }
             }

@@ -480,7 +480,10 @@ nonisolated enum MoviePilotMediaCardMapper {
             posterURLString: completedPosterURLString(from: dto, baseURLString: baseURLString),
             title: displayTitle,
             ratingText: normalizedRatingText(from: dto),
-            isSeries: isSeries(from: dto)
+            isSeries: isSeries(from: dto),
+            year: dto.year ?? dto.titleYear ?? "",
+            overview: dto.overview?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            castNames: dto.castNames
         )
     }
 
@@ -562,7 +565,7 @@ nonisolated enum MoviePilotMediaCardMapper {
             }
         }
 
-        return "未知标题"
+        return moviePilotLocalized("未知标题")
     }
 
     private static func normalizedRatingText(from dto: MPMediaItemDTO) -> String {

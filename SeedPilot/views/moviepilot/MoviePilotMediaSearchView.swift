@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MoviePilotMediaSearchView: View {
     @State private var viewModel: MoviePilotMediaSearchViewModel
-    @Namespace private var heroTransition
 
     init(bootstrap: MoviePilotMediaSearchBootstrapState) {
         _viewModel = State(wrappedValue: MoviePilotMediaSearchViewModel(bootstrap: bootstrap))
@@ -19,7 +18,7 @@ struct MoviePilotMediaSearchView: View {
                         MoviePilotSectionListRowView(viewState: item)
                     }
                     .buttonStyle(.plain)
-                    .moviePilotListRowInsets(top: 8, bottom: 8)
+                    .moviePilotListRowInsets(top: 0, bottom: 0)
                 }
 
                 if viewModel.viewState.canLoadMore || viewModel.viewState.isLoadingMore {
@@ -38,12 +37,12 @@ struct MoviePilotMediaSearchView: View {
         .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(viewModel.viewState.title)
+        .navigationTitle(moviePilotLocalized(viewModel.viewState.title))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {
-                    Text(viewModel.viewState.title)
+                    Text(moviePilotLocalized(viewModel.viewState.title))
                         .font(.headline)
                     Text(viewModel.viewState.query)
                         .font(.caption)
@@ -56,7 +55,6 @@ struct MoviePilotMediaSearchView: View {
             MediaDetailView(
                 initialViewState: viewModel.makeMediaDetailBootstrapViewState(for: destination.mediaID)
             )
-            .navigationTransition(.zoom(sourceID: destination.mediaID, in: heroTransition))
         }
         .refreshable {
             await viewModel.reload()
@@ -73,9 +71,9 @@ struct MoviePilotMediaSearchView: View {
                 .frame(maxWidth: .infinity)
         } else if let errorMessage = viewModel.viewState.errorMessage, !errorMessage.isEmpty {
             ContentUnavailableView(
-                "搜索失败",
+                moviePilotLocalized("搜索失败"),
                 systemImage: "wifi.exclamationmark",
-                description: Text(errorMessage)
+                description: Text(moviePilotLocalized(errorMessage))
             )
             .frame(maxWidth: .infinity)
         } else {

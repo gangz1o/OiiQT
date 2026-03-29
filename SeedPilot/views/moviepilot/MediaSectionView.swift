@@ -7,7 +7,7 @@ struct MediaSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
-                Text(viewState.title)
+                Text(moviePilotLocalized(viewState.title))
                     .font(.headline.weight(.bold))
                     .foregroundStyle(.primary)
 
@@ -15,7 +15,7 @@ struct MediaSectionView: View {
 
                 Button(action: onTapMore) {
                     HStack(spacing: 4) {
-                        Text("更多")
+                        Text(moviePilotLocalized("更多"))
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                     }
@@ -34,8 +34,6 @@ struct MediaSectionView: View {
 private struct MediaSectionCardsStripView: View, Equatable {
     let viewState: MediaSectionViewState
 
-    @Namespace private var heroTransition
-
     static func == (lhs: MediaSectionCardsStripView, rhs: MediaSectionCardsStripView) -> Bool {
         lhs.viewState == rhs.viewState
     }
@@ -47,7 +45,6 @@ private struct MediaSectionCardsStripView: View, Equatable {
                     NavigationLink(value: card.id) {
                         MediaCardView(viewState: card)
                     }
-                    .matchedTransitionSource(id: card.id, in: heroTransition)
                     .buttonStyle(.plain)
                 }
             }

@@ -21,7 +21,6 @@ final class MediaDetailViewModel {
         }
     }
     private(set) var pageViewState: MediaDetailPageViewState
-    private(set) var showSubscribeSheet = false
     private(set) var subscribeFormViewState: SubscribeFormViewState?
     private(set) var searchFilterSheetViewState: SearchResultFilterSheetViewState?
     private(set) var downloadFormViewState: DownloadFormViewState?
@@ -139,7 +138,7 @@ final class MediaDetailViewModel {
     }
 
     func dismissSubscribeSheet() {
-        showSubscribeSheet = false
+        subscribeFormViewState = nil
     }
 
     // MARK: - Download Actions
@@ -207,9 +206,10 @@ final class MediaDetailViewModel {
             )
             if response.success == true {
                 downloadFormViewState = nil
+                viewState.toastMessage = moviePilotLocalized("添加下载成功")
             } else {
                 downloadFormViewState?.isSubmitting = false
-                downloadFormViewState?.errorMessage = response.message ?? "下载失败，请重试。"
+                downloadFormViewState?.errorMessage = response.message ?? moviePilotLocalized("下载失败，请重试。")
             }
         } catch {
             downloadFormViewState?.isSubmitting = false
@@ -219,6 +219,10 @@ final class MediaDetailViewModel {
 
     func cancelDownload() {
         downloadFormViewState = nil
+    }
+
+    func clearToastMessage() {
+        viewState.toastMessage = nil
     }
 
     private func rebuildPageViewState() {
@@ -317,7 +321,27 @@ final class MediaDetailViewModel {
                 continue
             }
 
-            form.sections[sectionIndex].fields[fieldIndex].selectedOptionID = optionID
+            form.sections[sectionIndex].fields[fieldIndex].selectedOptionIDs = optionID.isEmpty ? [] : [optionID]
+        }
+
+        subscribeFormViewState = form
+    }
+
+    func updateSubscribeMultiOption(fieldID: String, optionID: String, isSelected: Bool) {
+        guard var form = subscribeFormViewState else { return }
+
+        for sectionIndex in form.sections.indices {
+            guard let fieldIndex = form.sections[sectionIndex].fields.firstIndex(where: { $0.id == fieldID }) else {
+                continue
+            }
+
+            var selectedOptionIDs = form.sections[sectionIndex].fields[fieldIndex].selectedOptionIDs
+            selectedOptionIDs.removeAll { $0 == optionID }
+            if isSelected {
+                selectedOptionIDs.append(optionID)
+            }
+
+            form.sections[sectionIndex].fields[fieldIndex].selectedOptionIDs = selectedOptionIDs
         }
 
         subscribeFormViewState = form
@@ -365,12 +389,10 @@ final class MediaDetailViewModel {
         subscribeFormViewState = form
 
         let contextSnapshot = detailContext
-        let payload = await Task.detached(priority: .userInitiated) {
-            Self.makeSubscribePayload(
-                form: form,
-                context: contextSnapshot
-            )
-        }.value
+        let payload = Self.makeSubscribePayload(
+            form: form,
+            context: contextSnapshot
+        )
 
         do {
             let response: MoviePilotActionResponseDTO
@@ -406,7 +428,6 @@ final class MediaDetailViewModel {
 
             viewState.isSubscribed = refreshedSubscription.map(Self.hasSubscription) ?? true
             viewState.isSubscribeLoading = false
-            showSubscribeSheet = false
             subscribeFormViewState = nil
         } catch {
             form.isSubmitting = false
@@ -498,26 +519,29 @@ final class MediaDetailViewModel {
             baseURLString: requestContext.baseURLString,
             token: requestContext.token
         )
+        async let sitesTask = fetchSitesSafely(
+            baseURLString: requestContext.baseURLString,
+            token: requestContext.token
+        )
 
         let subscription = await subscriptionTask
         let downloaders = await downloadersTask
         let categories = await categoriesTask
+        let sites = await sitesTask
 
-        let formViewState = await Task.detached(priority: .userInitiated) {
-            Self.makeSubscribeFormViewState(
-                context: contextSnapshot,
-                existingSubscription: subscription,
-                downloaders: downloaders,
-                categories: categories
-            )
-        }.value
+        let formViewState = Self.makeSubscribeFormViewState(
+            context: contextSnapshot,
+            existingSubscription: subscription,
+            downloaders: downloaders,
+            categories: categories,
+            sites: sites
+        )
 
         guard detailContext.mediaID == contextSnapshot.mediaID else { return }
 
-        subscribeFormViewState = formViewState
-        showSubscribeSheet = true
         viewState.isSubscribeLoading = false
         viewState.isSubscribed = Self.hasSubscription(subscription)
+        subscribeFormViewState = formViewState
     }
 
     private func availableServerContext() -> MoviePilotMediaRequestContext? {
@@ -615,6 +639,21 @@ final class MediaDetailViewModel {
         }
     }
 
+    private func fetchSitesSafely(
+        baseURLString: String,
+        token: String
+    ) async -> MPSiteListDTO {
+        do {
+            return try await apiClient.requestSites(
+                baseURLString: baseURLString,
+                token: token
+            )
+        } catch {
+            print("MoviePilot sites request failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
     nonisolated private static func makeInitialContext(from viewState: MediaDetailViewState) -> MoviePilotMediaDetailContext {
         let identifiers = parseMediaIdentifier(from: viewState.id)
         return MoviePilotMediaDetailContext(
@@ -648,6 +687,11 @@ final class MediaDetailViewModel {
             baseURLString: baseURLString,
             token: token
         )
+        let actorViewStates = makeActorViewStates(
+            from: actors,
+            baseURLString: baseURLString,
+            token: token
+        )
 
         var nextViewState = currentViewState
         nextViewState.id = updatedContext.mediaID
@@ -656,14 +700,14 @@ final class MediaDetailViewModel {
         nextViewState.title = updatedContext.title
         nextViewState.ratingText = normalizedRatingText(from: detail) ?? currentViewState.ratingText
         nextViewState.isSeries = updatedContext.typeName == tvTypeName
+        nextViewState.releaseText = makeReleaseText(detail: detail, context: updatedContext)
+        nextViewState.directorText = makeDirectorText(from: detail)
+        nextViewState.castText = makeCastText(detail: detail, actorViewStates: actorViewStates)
+        nextViewState.genreText = makeGenreText(from: detail, context: updatedContext)
         nextViewState.overviewText = updatedContext.overviewText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? updatedContext.overviewText
             : "暂无简介"
-        nextViewState.actors = makeActorViewStates(
-            from: actors,
-            baseURLString: baseURLString,
-            token: token
-        )
+        nextViewState.actors = actorViewStates
         nextViewState.isOverviewLoading = false
         nextViewState.isActorsLoading = false
         nextViewState.isSubscribed = hasSubscription(subscription)
@@ -729,7 +773,7 @@ final class MediaDetailViewModel {
 
                 return ActorViewState(
                     id: identifier,
-                    name: actor.name?.nonEmpty ?? "未知演员",
+                    name: actor.name?.nonEmpty ?? moviePilotLocalized("未知演员"),
                     characterName: actor.character?.nonEmpty ?? "",
                     profileURLString: completedImageURLString(
                         rawPath: rawImagePath,
@@ -741,6 +785,85 @@ final class MediaDetailViewModel {
                 )
             }
         )
+    }
+
+    nonisolated private static func makeReleaseText(
+        detail: MPMediaDetailDTO?,
+        context: MoviePilotMediaDetailContext
+    ) -> String? {
+        let primaryDate = formattedReleaseDateText(
+            from: detail?.releaseDate?.nonEmpty ?? detail?.firstAirDate?.nonEmpty
+        ) ?? context.year?.nonEmpty
+
+        if let season = context.season, season > 0 {
+            let seasonText = "第\(season)季"
+            if let primaryDate {
+                return "\(primaryDate) · \(seasonText)"
+            }
+
+            return seasonText
+        }
+
+        return primaryDate
+    }
+
+    nonisolated private static func makeDirectorText(from detail: MPMediaDetailDTO?) -> String? {
+        normalizedMetadataText(from: detail?.directorNames ?? [])
+    }
+
+    nonisolated private static func makeCastText(
+        detail: MPMediaDetailDTO?,
+        actorViewStates: [ActorViewState]
+    ) -> String? {
+        let detailCastText = normalizedMetadataText(from: detail?.castNames ?? [])
+        if detailCastText != nil {
+            return detailCastText
+        }
+
+        return normalizedMetadataText(
+            from: actorViewStates.prefix(4).map(\.name)
+        )
+    }
+
+    nonisolated private static func makeGenreText(
+        from detail: MPMediaDetailDTO?,
+        context: MoviePilotMediaDetailContext
+    ) -> String? {
+        normalizedMetadataText(
+            from: detail?.genreNames ?? []
+        ) ?? detail?.category?.nonEmpty ?? context.typeName
+    }
+
+    nonisolated private static func normalizedMetadataText<S: Sequence>(
+        from values: S
+    ) -> String? where S.Element == String {
+        let normalizedValues = values.compactMap {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        }
+
+        guard !normalizedValues.isEmpty else { return nil }
+
+        var seen = Set<String>()
+        let deduplicated = normalizedValues.filter { value in
+            seen.insert(value.lowercased()).inserted
+        }
+
+        return deduplicated.joined(separator: " / ").nonEmpty
+    }
+
+    nonisolated private static func formattedReleaseDateText(from rawDate: String?) -> String? {
+        guard let rawDate = rawDate?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else {
+            return nil
+        }
+
+        if let datePortion = rawDate.split(separator: "T").first {
+            let normalized = String(datePortion).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !normalized.isEmpty {
+                return normalized
+            }
+        }
+
+        return rawDate
     }
 
     nonisolated private static func makeSearchResultViewStates(
@@ -799,149 +922,286 @@ final class MediaDetailViewModel {
         context: MoviePilotMediaDetailContext,
         existingSubscription: MPSubscribeDTO?,
         downloaders: MPDownloadClientListDTO,
-        categories: [String: String]
+        categories: [String: String],
+        sites: MPSiteListDTO
     ) -> SubscribeFormViewState {
-        let downloaderOptions = downloaders.sorted {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }.map { downloader in
-            SubscribeFormOptionViewState(
-                id: downloader.id,
-                title: downloader.name,
-                value: downloader.name,
-                subtitle: downloader.subtitle
-            )
-        }
+        let basePayload = normalizedSubscribePayload(
+            existingSubscription ?? makeDefaultSubscribePayload(context: context),
+            context: context
+        )
 
-        let categoryOptions = categories.keys.sorted {
-            (categories[$0] ?? "").localizedCaseInsensitiveCompare(categories[$1] ?? "") == .orderedAscending
-        }.map { key in
-            SubscribeFormOptionViewState(
-                id: key,
-                title: categories[key] ?? key,
-                value: key,
-                subtitle: key
-            )
-        }
+        let downloaderOptions = normalizedDownloaderOptions(
+            from: downloaders,
+            selectedValue: basePayload.downloader
+        )
+        let categoryOptions = normalizedCategoryOptions(
+            from: categories,
+            selectedValue: basePayload.mediaCategory
+        )
+        let siteOptions = normalizedSiteOptions(
+            from: sites,
+            selectedSiteIDs: basePayload.sites ?? []
+        )
+        let typeOptions = optionsWithFallback(
+            baseOptions: [
+                SubscribeFormOptionViewState(
+                    id: "movie",
+                    title: movieTypeName,
+                    value: movieTypeName,
+                    subtitle: "电影订阅"
+                ),
+                SubscribeFormOptionViewState(
+                    id: "tv",
+                    title: tvTypeName,
+                    value: tvTypeName,
+                    subtitle: "电视剧订阅"
+                )
+            ],
+            selectedValue: basePayload.type,
+            fallbackSubtitle: "当前订阅值"
+        )
+        let stateOptions = optionsWithFallback(
+            baseOptions: [
+                SubscribeFormOptionViewState(
+                    id: "state-N",
+                    title: "新建",
+                    value: "N",
+                    subtitle: "等待进入订阅流程"
+                ),
+                SubscribeFormOptionViewState(
+                    id: "state-R",
+                    title: "订阅中",
+                    value: "R",
+                    subtitle: "正常订阅中"
+                ),
+                SubscribeFormOptionViewState(
+                    id: "state-P",
+                    title: "待定",
+                    value: "P",
+                    subtitle: "等待人工确认"
+                ),
+                SubscribeFormOptionViewState(
+                    id: "state-S",
+                    title: "暂停",
+                    value: "S",
+                    subtitle: "暂停自动订阅"
+                )
+            ],
+            selectedValue: basePayload.state,
+            fallbackSubtitle: "当前订阅状态"
+        )
 
-        let strategySection = SubscribeFormSectionViewState(
-            id: "section-strategy",
-            title: "筛选策略",
+        let baseSection = SubscribeFormSectionViewState(
+            id: "section-base",
+            title: "媒体基础",
             fields: [
                 makeTextField(
+                    id: SubscribeFieldID.name,
+                    title: "订阅名称",
+                    value: basePayload.name,
+                    placeholder: "请输入订阅名称",
+                    footerText: "默认带入当前影视标题",
+                    isRequired: true
+                ),
+                makeTextField(
+                    id: SubscribeFieldID.year,
+                    title: "年份",
+                    value: basePayload.year,
+                    placeholder: "例如：2025"
+                ),
+                makePickerField(
+                    id: SubscribeFieldID.type,
+                    title: "类型",
+                    selectedValue: basePayload.type,
+                    options: typeOptions,
+                    footerText: "对应 Subscribe.type"
+                ),
+                makeTextField(
+                    id: SubscribeFieldID.keyword,
+                    title: "搜索关键字",
+                    value: basePayload.keyword,
+                    placeholder: "可覆盖默认搜索标题",
+                    footerText: "对应 Subscribe.keyword"
+                ),
+                makeIntegerField(
+                    id: SubscribeFieldID.season,
+                    title: "季号",
+                    value: basePayload.season,
+                    placeholder: "电视剧可填写季号"
+                ),
+                makeDecimalField(
+                    id: SubscribeFieldID.vote,
+                    title: "评分",
+                    value: basePayload.vote,
+                    placeholder: "例如：8.6"
+                ),
+                makeMultilineTextField(
+                    id: SubscribeFieldID.description,
+                    title: "简介",
+                    value: basePayload.description,
+                    placeholder: "可编辑订阅描述"
+                ),
+                makeTextField(
+                    id: SubscribeFieldID.poster,
+                    title: "海报地址",
+                    value: basePayload.poster,
+                    placeholder: "海报 URL"
+                ),
+                makeTextField(
+                    id: SubscribeFieldID.backdrop,
+                    title: "背景图地址",
+                    value: basePayload.backdrop,
+                    placeholder: "背景图 URL"
+                )
+            ]
+        )
+
+        let filterSection = SubscribeFormSectionViewState(
+            id: "section-filter",
+            title: "匹配与筛选",
+            fields: [
+                makeMultilineTextField(
+                    id: SubscribeFieldID.filter,
+                    title: "过滤规则",
+                    value: basePayload.filter,
+                    placeholder: "填写 MoviePilot 支持的过滤表达式"
+                ),
+                makeTextField(
+                    id: SubscribeFieldID.include,
+                    title: "包含关键词",
+                    value: basePayload.include,
+                    placeholder: "多个词用空格分隔"
+                ),
+                makeTextField(
+                    id: SubscribeFieldID.exclude,
+                    title: "排除关键词",
+                    value: basePayload.exclude,
+                    placeholder: "填写需要排除的版本、制作组等"
+                ),
+                makeTextField(
                     id: SubscribeFieldID.quality,
-                    title: "清晰度",
-                    value: existingSubscription?.quality,
+                    title: "质量",
+                    value: basePayload.quality,
                     placeholder: "例如：BluRay / WEB-DL"
                 ),
                 makeTextField(
                     id: SubscribeFieldID.resolution,
                     title: "分辨率",
-                    value: existingSubscription?.resolution,
+                    value: basePayload.resolution,
                     placeholder: "例如：1080p / 2160p"
                 ),
                 makeTextField(
                     id: SubscribeFieldID.effect,
-                    title: "特效规格",
-                    value: existingSubscription?.effect,
+                    title: "特效",
+                    value: basePayload.effect,
                     placeholder: "例如：HDR / Dolby Vision"
                 ),
-                makeTextField(
-                    id: SubscribeFieldID.filter,
-                    title: "过滤规则",
-                    value: existingSubscription?.filter,
-                    placeholder: "填写服务端支持的过滤表达式"
+                makeStringListField(
+                    id: SubscribeFieldID.filterGroups,
+                    title: "过滤规则组",
+                    values: basePayload.filterGroups ?? [],
+                    placeholder: "每行一个规则组，或使用逗号分隔",
+                    footerText: "对应 Subscribe.filter_groups"
                 ),
                 makeTextField(
-                    id: SubscribeFieldID.include,
-                    title: "包含关键词",
-                    value: existingSubscription?.include,
-                    placeholder: "多个关键词用空格分隔"
+                    id: SubscribeFieldID.episodeGroup,
+                    title: "剧集组",
+                    value: basePayload.episodeGroup,
+                    placeholder: "例如：WEB / 1080p"
                 ),
                 makeTextField(
-                    id: SubscribeFieldID.exclude,
-                    title: "排除关键词",
-                    value: existingSubscription?.exclude,
-                    placeholder: "排除噪音版本或小组"
+                    id: SubscribeFieldID.customWords,
+                    title: "自定义识别词",
+                    value: basePayload.customWords,
+                    placeholder: "补充别名、地区、制作组等"
                 ),
-                SubscribeFormFieldViewState(
+                makeToggleField(
                     id: SubscribeFieldID.bestVersion,
                     title: "自动洗版",
-                    control: .toggle,
-                    selectedOptionID: nil,
-                    textValue: "",
-                    toggleValue: (existingSubscription?.bestVersion ?? 0) > 0,
-                    placeholder: "",
-                    footerText: "开启后允许按更优版本持续升级",
-                    options: [],
-                    isRequired: false
+                    value: (basePayload.bestVersion ?? 0) > 0,
+                    footerText: "开启后允许自动升级到更优版本"
+                ),
+                makeToggleField(
+                    id: SubscribeFieldID.searchImdbid,
+                    title: "优先使用 IMDb 搜索",
+                    value: (basePayload.searchImdbid ?? 0) > 0,
+                    footerText: "开启后搜索阶段优先携带 IMDb 标识"
+                ),
+                makePickerField(
+                    id: SubscribeFieldID.state,
+                    title: "状态",
+                    selectedValue: basePayload.state,
+                    options: stateOptions,
+                    footerText: "状态值来自 MoviePilot 订阅状态",
+                    allowsEmptySelection: true
                 )
             ]
         )
 
-        let storageSection = SubscribeFormSectionViewState(
-            id: "section-storage",
-            title: "下载与归档",
+        let episodeSection = SubscribeFormSectionViewState(
+            id: "section-episode",
+            title: "剧集与优先级",
             fields: [
-                SubscribeFormFieldViewState(
+                makeIntegerField(
+                    id: SubscribeFieldID.totalEpisode,
+                    title: "总集数",
+                    value: basePayload.totalEpisode,
+                    placeholder: "例如：12"
+                ),
+                makeIntegerField(
+                    id: SubscribeFieldID.startEpisode,
+                    title: "开始集数",
+                    value: basePayload.startEpisode,
+                    placeholder: "例如：1"
+                ),
+                makeIntegerField(
+                    id: SubscribeFieldID.lackEpisode,
+                    title: "缺失集数",
+                    value: basePayload.lackEpisode,
+                    placeholder: "例如：12"
+                ),
+                makeIntegerField(
+                    id: SubscribeFieldID.currentPriority,
+                    title: "当前优先级",
+                    value: basePayload.currentPriority,
+                    placeholder: "填写服务端使用的优先级整数",
+                    footerText: "对应 Subscribe.current_priority"
+                )
+            ]
+        )
+
+        let deliverySection = SubscribeFormSectionViewState(
+            id: "section-delivery",
+            title: "站点与下载",
+            fields: [
+                makeMultiPickerField(
+                    id: SubscribeFieldID.sites,
+                    title: "订阅站点",
+                    selectedValues: (basePayload.sites ?? []).map(String.init),
+                    options: siteOptions,
+                    footerText: "不选择时由服务端按默认站点策略处理"
+                ),
+                makePickerField(
                     id: SubscribeFieldID.downloader,
                     title: "下载器",
-                    control: .picker,
-                    selectedOptionID: selectedOptionID(
-                        matchingValue: existingSubscription?.downloader,
-                        options: downloaderOptions
-                    ),
-                    textValue: "",
-                    toggleValue: false,
-                    placeholder: "",
-                    footerText: "使用当前 MoviePilot 可用下载器列表",
+                    selectedValue: basePayload.downloader,
                     options: downloaderOptions,
-                    isRequired: false
+                    footerText: "来自 /api/v1/download/clients",
+                    allowsEmptySelection: true
                 ),
-                SubscribeFormFieldViewState(
+                makePickerField(
                     id: SubscribeFieldID.mediaCategory,
                     title: "自动分类",
-                    control: .picker,
-                    selectedOptionID: selectedOptionID(
-                        matchingValue: existingSubscription?.mediaCategory,
-                        options: categoryOptions
-                    ),
-                    textValue: "",
-                    toggleValue: false,
-                    placeholder: "",
-                    footerText: "读取服务器自动分类配置",
+                    selectedValue: basePayload.mediaCategory,
                     options: categoryOptions,
-                    isRequired: false
+                    footerText: "来自 /api/v1/media/category",
+                    allowsEmptySelection: true
                 ),
                 makeTextField(
                     id: SubscribeFieldID.savePath,
                     title: "存储路径",
-                    value: existingSubscription?.savePath,
+                    value: basePayload.savePath,
                     placeholder: "例如：/downloads/media"
-                )
-            ]
-        )
-
-        let searchSection = SubscribeFormSectionViewState(
-            id: "section-search",
-            title: "搜索控制",
-            fields: [
-                makeTextField(
-                    id: SubscribeFieldID.customWords,
-                    title: "自定义识别词",
-                    value: existingSubscription?.customWords,
-                    placeholder: "补充别名、制作组或地区信息"
-                ),
-                SubscribeFormFieldViewState(
-                    id: SubscribeFieldID.searchImdbid,
-                    title: "优先使用 IMDb 搜索",
-                    control: .toggle,
-                    selectedOptionID: nil,
-                    textValue: "",
-                    toggleValue: (existingSubscription?.searchImdbid ?? 0) > 0,
-                    placeholder: "",
-                    footerText: "打开后会在搜索阶段带上 IMDb 识别信息",
-                    options: [],
-                    isRequired: false
                 )
             ]
         )
@@ -949,13 +1209,15 @@ final class MediaDetailViewModel {
         return SubscribeFormViewState(
             id: "subscribe-form-\(context.mediaID)",
             mediaID: context.mediaID,
-            subscriptionID: existingSubscription?.id,
+            subscriptionID: basePayload.id,
             mediaTitle: context.title,
-            sheetTitle: existingSubscription?.id == nil ? "订阅设置" : "编辑订阅",
-            sections: [strategySection, storageSection, searchSection],
-            confirmButtonTitle: existingSubscription?.id == nil ? "创建订阅" : "更新订阅",
+            sheetTitle: basePayload.id == nil ? "订阅设置" : "编辑订阅",
+            metadataRows: makeSubscribeMetadataRows(from: basePayload, context: context),
+            sections: [baseSection, filterSection, episodeSection, deliverySection],
+            confirmButtonTitle: basePayload.id == nil ? "创建订阅" : "更新订阅",
             isSubmitting: false,
-            statusText: existingSubscription?.id == nil ? nil : "当前媒体已存在订阅，可直接调整策略。"
+            statusText: basePayload.id == nil ? nil : "已载入现有订阅，可直接修改后保存。",
+            basePayload: basePayload
         )
     }
 
@@ -963,32 +1225,43 @@ final class MediaDetailViewModel {
         form: SubscribeFormViewState,
         context: MoviePilotMediaDetailContext
     ) -> MPSubscribeDTO {
-        var payload = MPSubscribeDTO()
+        var payload = normalizedSubscribePayload(form.basePayload, context: context)
+
         payload.id = form.subscriptionID
-        payload.name = context.title.nonEmpty
-        payload.year = context.year?.nonEmpty
-        payload.type = context.typeName
-        payload.tmdbid = context.tmdbID
-        payload.doubanid = context.doubanID?.nonEmpty
-        payload.bangumiid = context.bangumiID
-        payload.mediaid = context.mediaID
-        payload.season = context.season
-        payload.poster = context.posterURLString.nonEmpty
-        payload.backdrop = context.backdropURLString?.nonEmpty
-        payload.vote = context.ratingValue
-        payload.description = context.overviewText?.nonEmpty
-        payload.quality = selectedFieldText(id: SubscribeFieldID.quality, from: form)
-        payload.resolution = selectedFieldText(id: SubscribeFieldID.resolution, from: form)
-        payload.effect = selectedFieldText(id: SubscribeFieldID.effect, from: form)
+        payload.name = selectedFieldText(id: SubscribeFieldID.name, from: form) ?? context.title.nonEmpty
+        payload.year = selectedFieldText(id: SubscribeFieldID.year, from: form)
+        payload.type = selectedFieldOptionValue(id: SubscribeFieldID.type, from: form) ?? context.typeName
+        payload.keyword = selectedFieldText(id: SubscribeFieldID.keyword, from: form)
+        payload.tmdbid = payload.tmdbid ?? context.tmdbID
+        payload.doubanid = payload.doubanid?.nonEmpty ?? context.doubanID?.nonEmpty
+        payload.bangumiid = payload.bangumiid ?? context.bangumiID
+        payload.mediaid = payload.mediaid?.nonEmpty ?? context.mediaID
+        payload.season = selectedFieldInt(id: SubscribeFieldID.season, from: form)
+        payload.poster = selectedFieldText(id: SubscribeFieldID.poster, from: form)
+        payload.backdrop = selectedFieldText(id: SubscribeFieldID.backdrop, from: form)
+        payload.vote = selectedFieldDouble(id: SubscribeFieldID.vote, from: form)
+        payload.description = selectedFieldText(id: SubscribeFieldID.description, from: form)
         payload.filter = selectedFieldText(id: SubscribeFieldID.filter, from: form)
         payload.include = selectedFieldText(id: SubscribeFieldID.include, from: form)
         payload.exclude = selectedFieldText(id: SubscribeFieldID.exclude, from: form)
-        payload.bestVersion = selectedFieldToggle(id: SubscribeFieldID.bestVersion, from: form) ? 1 : 0
+        payload.quality = selectedFieldText(id: SubscribeFieldID.quality, from: form)
+        payload.resolution = selectedFieldText(id: SubscribeFieldID.resolution, from: form)
+        payload.effect = selectedFieldText(id: SubscribeFieldID.effect, from: form)
+        payload.totalEpisode = selectedFieldInt(id: SubscribeFieldID.totalEpisode, from: form)
+        payload.startEpisode = selectedFieldInt(id: SubscribeFieldID.startEpisode, from: form)
+        payload.lackEpisode = selectedFieldInt(id: SubscribeFieldID.lackEpisode, from: form)
+        payload.state = selectedFieldOptionValue(id: SubscribeFieldID.state, from: form)
+        payload.sites = selectedFieldOptionValues(id: SubscribeFieldID.sites, from: form).compactMap(Int.init)
         payload.downloader = selectedFieldOptionValue(id: SubscribeFieldID.downloader, from: form)
-        payload.mediaCategory = selectedFieldOptionValue(id: SubscribeFieldID.mediaCategory, from: form)
+        payload.bestVersion = selectedFieldToggle(id: SubscribeFieldID.bestVersion, from: form) ? 1 : 0
+        payload.currentPriority = selectedFieldInt(id: SubscribeFieldID.currentPriority, from: form)
         payload.savePath = selectedFieldText(id: SubscribeFieldID.savePath, from: form)
-        payload.customWords = selectedFieldText(id: SubscribeFieldID.customWords, from: form)
         payload.searchImdbid = selectedFieldToggle(id: SubscribeFieldID.searchImdbid, from: form) ? 1 : 0
+        payload.customWords = selectedFieldText(id: SubscribeFieldID.customWords, from: form)
+        payload.mediaCategory = selectedFieldOptionValue(id: SubscribeFieldID.mediaCategory, from: form)
+        payload.filterGroups = selectedFieldStringList(id: SubscribeFieldID.filterGroups, from: form)
+        payload.episodeGroup = selectedFieldText(id: SubscribeFieldID.episodeGroup, from: form)
+
         return payload
     }
 
@@ -1015,16 +1288,51 @@ final class MediaDetailViewModel {
         selectedField(id: id, from: form)?.toggleValue ?? false
     }
 
+    nonisolated private static func selectedFieldInt(
+        id: String,
+        from form: SubscribeFormViewState
+    ) -> Int? {
+        guard let text = selectedFieldText(id: id, from: form) else { return nil }
+        return Int(text)
+    }
+
+    nonisolated private static func selectedFieldDouble(
+        id: String,
+        from form: SubscribeFormViewState
+    ) -> Double? {
+        guard let text = selectedFieldText(id: id, from: form) else { return nil }
+        return Double(text)
+    }
+
     nonisolated private static func selectedFieldOptionValue(
         id: String,
         from form: SubscribeFormViewState
     ) -> String? {
         guard let field = selectedField(id: id, from: form),
-              let selectedOptionID = field.selectedOptionID else {
+              let selectedOptionID = field.selectedOptionIDs.first else {
             return nil
         }
 
         return field.options.first(where: { $0.id == selectedOptionID })?.value.nonEmpty
+    }
+
+    nonisolated private static func selectedFieldOptionValues(
+        id: String,
+        from form: SubscribeFormViewState
+    ) -> [String] {
+        guard let field = selectedField(id: id, from: form) else { return [] }
+
+        return field.selectedOptionIDs.compactMap { selectedID in
+            field.options.first(where: { $0.id == selectedID })?.value.nonEmpty
+        }
+    }
+
+    nonisolated private static func selectedFieldStringList(
+        id: String,
+        from form: SubscribeFormViewState
+    ) -> [String] {
+        guard let field = selectedField(id: id, from: form) else { return [] }
+        return normalizedStringList(from: field.textValue)
     }
 
     nonisolated private static func selectedField(
@@ -1044,32 +1352,451 @@ final class MediaDetailViewModel {
         id: String,
         title: String,
         value: String?,
-        placeholder: String
+        placeholder: String,
+        footerText: String = "",
+        isRequired: Bool = false
     ) -> SubscribeFormFieldViewState {
         SubscribeFormFieldViewState(
             id: id,
             title: title,
             control: .text,
-            selectedOptionID: nil,
+            selectedOptionIDs: [],
             textValue: value ?? "",
             toggleValue: false,
             placeholder: placeholder,
-            footerText: "",
+            footerText: footerText,
             options: [],
-            isRequired: false
+            isRequired: isRequired,
+            allowsEmptySelection: true
         )
     }
 
-    nonisolated private static func selectedOptionID(
-        matchingValue value: String?,
-        options: [SubscribeFormOptionViewState]
-    ) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
-            return nil
+    nonisolated private static func makeMultilineTextField(
+        id: String,
+        title: String,
+        value: String?,
+        placeholder: String,
+        footerText: String = "",
+        isRequired: Bool = false
+    ) -> SubscribeFormFieldViewState {
+        SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .multilineText,
+            selectedOptionIDs: [],
+            textValue: value ?? "",
+            toggleValue: false,
+            placeholder: placeholder,
+            footerText: footerText,
+            options: [],
+            isRequired: isRequired,
+            allowsEmptySelection: true
+        )
+    }
+
+    nonisolated private static func makeIntegerField(
+        id: String,
+        title: String,
+        value: Int?,
+        placeholder: String,
+        footerText: String = "",
+        isRequired: Bool = false
+    ) -> SubscribeFormFieldViewState {
+        SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .integer,
+            selectedOptionIDs: [],
+            textValue: value.map(String.init) ?? "",
+            toggleValue: false,
+            placeholder: placeholder,
+            footerText: footerText,
+            options: [],
+            isRequired: isRequired,
+            allowsEmptySelection: true
+        )
+    }
+
+    nonisolated private static func makeDecimalField(
+        id: String,
+        title: String,
+        value: Double?,
+        placeholder: String,
+        footerText: String = "",
+        isRequired: Bool = false
+    ) -> SubscribeFormFieldViewState {
+        SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .decimal,
+            selectedOptionIDs: [],
+            textValue: value.map(formattedDecimalString) ?? "",
+            toggleValue: false,
+            placeholder: placeholder,
+            footerText: footerText,
+            options: [],
+            isRequired: isRequired,
+            allowsEmptySelection: true
+        )
+    }
+
+    nonisolated private static func makeToggleField(
+        id: String,
+        title: String,
+        value: Bool,
+        footerText: String = ""
+    ) -> SubscribeFormFieldViewState {
+        SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .toggle,
+            selectedOptionIDs: [],
+            textValue: "",
+            toggleValue: value,
+            placeholder: "",
+            footerText: footerText,
+            options: [],
+            isRequired: false,
+            allowsEmptySelection: true
+        )
+    }
+
+    nonisolated private static func makePickerField(
+        id: String,
+        title: String,
+        selectedValue: String?,
+        options: [SubscribeFormOptionViewState],
+        footerText: String = "",
+        isRequired: Bool = false,
+        allowsEmptySelection: Bool = false
+    ) -> SubscribeFormFieldViewState {
+        let selectedOptionID = selectedOptionIDs(matchingValues: selectedValue.map { [$0] } ?? [], options: options)
+
+        return SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .picker,
+            selectedOptionIDs: selectedOptionID,
+            textValue: "",
+            toggleValue: false,
+            placeholder: "",
+            footerText: footerText,
+            options: options,
+            isRequired: isRequired,
+            allowsEmptySelection: allowsEmptySelection
+        )
+    }
+
+    nonisolated private static func makeMultiPickerField(
+        id: String,
+        title: String,
+        selectedValues: [String],
+        options: [SubscribeFormOptionViewState],
+        footerText: String = ""
+    ) -> SubscribeFormFieldViewState {
+        SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .multiPicker,
+            selectedOptionIDs: selectedOptionIDs(matchingValues: selectedValues, options: options),
+            textValue: "",
+            toggleValue: false,
+            placeholder: "",
+            footerText: footerText,
+            options: options,
+            isRequired: false,
+            allowsEmptySelection: true
+        )
+    }
+
+    nonisolated private static func makeStringListField(
+        id: String,
+        title: String,
+        values: [String],
+        placeholder: String,
+        footerText: String = ""
+    ) -> SubscribeFormFieldViewState {
+        SubscribeFormFieldViewState(
+            id: id,
+            title: title,
+            control: .stringList,
+            selectedOptionIDs: [],
+            textValue: values.joined(separator: "\n"),
+            toggleValue: false,
+            placeholder: placeholder,
+            footerText: footerText,
+            options: [],
+            isRequired: false,
+            allowsEmptySelection: true
+        )
+    }
+
+    nonisolated private static func makeDefaultSubscribePayload(
+        context: MoviePilotMediaDetailContext
+    ) -> MPSubscribeDTO {
+        var payload = MPSubscribeDTO()
+        payload.name = context.title.nonEmpty
+        payload.year = context.year?.nonEmpty
+        payload.type = context.typeName
+        payload.tmdbid = context.tmdbID
+        payload.doubanid = context.doubanID?.nonEmpty
+        payload.bangumiid = context.bangumiID
+        payload.mediaid = context.mediaID
+        payload.season = context.season
+        payload.poster = context.posterURLString.nonEmpty
+        payload.backdrop = context.backdropURLString?.nonEmpty
+        payload.vote = context.ratingValue
+        payload.description = context.overviewText?.nonEmpty
+        payload.sites = []
+        payload.filterGroups = []
+        return payload
+    }
+
+    nonisolated private static func normalizedSubscribePayload(
+        _ payload: MPSubscribeDTO,
+        context: MoviePilotMediaDetailContext
+    ) -> MPSubscribeDTO {
+        var normalizedPayload = payload
+        normalizedPayload.name = payload.name?.nonEmpty ?? context.title.nonEmpty
+        normalizedPayload.year = payload.year?.nonEmpty ?? context.year?.nonEmpty
+        normalizedPayload.type = payload.type?.nonEmpty ?? context.typeName
+        normalizedPayload.tmdbid = payload.tmdbid ?? context.tmdbID
+        normalizedPayload.doubanid = payload.doubanid?.nonEmpty ?? context.doubanID?.nonEmpty
+        normalizedPayload.bangumiid = payload.bangumiid ?? context.bangumiID
+        normalizedPayload.mediaid = payload.mediaid?.nonEmpty ?? context.mediaID
+        normalizedPayload.season = payload.season ?? context.season
+        normalizedPayload.poster = payload.poster?.nonEmpty ?? context.posterURLString.nonEmpty
+        normalizedPayload.backdrop = payload.backdrop?.nonEmpty ?? context.backdropURLString?.nonEmpty
+        normalizedPayload.vote = payload.vote ?? context.ratingValue
+        normalizedPayload.description = payload.description?.nonEmpty ?? context.overviewText?.nonEmpty
+        normalizedPayload.sites = payload.sites ?? []
+        normalizedPayload.filterGroups = payload.filterGroups ?? []
+        return normalizedPayload
+    }
+
+    nonisolated private static func normalizedDownloaderOptions(
+        from downloaders: MPDownloadClientListDTO,
+        selectedValue: String?
+    ) -> [SubscribeFormOptionViewState] {
+        var seenDownloaderIDs = Set<String>()
+        let baseOptions = downloaders.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }.compactMap { downloader -> SubscribeFormOptionViewState? in
+            guard !seenDownloaderIDs.contains(downloader.id) else { return nil }
+            seenDownloaderIDs.insert(downloader.id)
+            return SubscribeFormOptionViewState(
+                id: downloader.id,
+                title: downloader.name,
+                value: downloader.name,
+                subtitle: downloader.subtitle
+            )
         }
 
-        return options.first(where: { $0.value == value || $0.id == value })?.id
+        return optionsWithFallback(
+            baseOptions: baseOptions,
+            selectedValue: selectedValue,
+            fallbackSubtitle: "当前订阅值（服务器未返回该下载器）"
+        )
+    }
+
+    nonisolated private static func normalizedCategoryOptions(
+        from categories: [String: String],
+        selectedValue: String?
+    ) -> [SubscribeFormOptionViewState] {
+        let baseOptions = categories.keys
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted {
+                (categories[$0] ?? "").localizedCaseInsensitiveCompare(categories[$1] ?? "") == .orderedAscending
+            }.map { key in
+                SubscribeFormOptionViewState(
+                    id: key,
+                    title: categories[key] ?? key,
+                    value: key,
+                    subtitle: key
+                )
+            }
+
+        return optionsWithFallback(
+            baseOptions: baseOptions,
+            selectedValue: selectedValue,
+            fallbackSubtitle: "当前订阅值（服务器未返回该分类）"
+        )
+    }
+
+    nonisolated private static func normalizedSiteOptions(
+        from sites: MPSiteListDTO,
+        selectedSiteIDs: [Int]
+    ) -> [SubscribeFormOptionViewState] {
+        let baseOptions = sites.sorted { lhs, rhs in
+            let lhsActive = lhs.isActive == true
+            let rhsActive = rhs.isActive == true
+            if lhsActive != rhsActive {
+                return lhsActive && !rhsActive
+            }
+
+            return (lhs.name ?? "").localizedCaseInsensitiveCompare(rhs.name ?? "") == .orderedAscending
+        }.compactMap { site -> SubscribeFormOptionViewState? in
+            guard let id = site.id else { return nil }
+            let title = site.name?.nonEmpty ?? "站点 \(id)"
+            let subtitle = if site.isActive == false {
+                "未启用"
+            } else {
+                site.url?.nonEmpty ?? ""
+            }
+
+            return SubscribeFormOptionViewState(
+                id: String(id),
+                title: title,
+                value: String(id),
+                subtitle: subtitle
+            )
+        }
+
+        return optionsWithFallback(
+            baseOptions: baseOptions,
+            selectedValues: selectedSiteIDs.map(String.init),
+            fallbackSubtitle: "当前订阅站点（服务器未返回该站点）"
+        )
+    }
+
+    nonisolated private static func optionsWithFallback(
+        baseOptions: [SubscribeFormOptionViewState],
+        selectedValue: String?,
+        fallbackSubtitle: String
+    ) -> [SubscribeFormOptionViewState] {
+        optionsWithFallback(
+            baseOptions: baseOptions,
+            selectedValues: selectedValue.map { [$0] } ?? [],
+            fallbackSubtitle: fallbackSubtitle
+        )
+    }
+
+    nonisolated private static func optionsWithFallback(
+        baseOptions: [SubscribeFormOptionViewState],
+        selectedValues: [String],
+        fallbackSubtitle: String
+    ) -> [SubscribeFormOptionViewState] {
+        var options = baseOptions
+        let normalizedSelectedValues = selectedValues.compactMap(\.nonEmpty)
+        let existingValues = Set(options.map(\.value))
+
+        for value in normalizedSelectedValues where !existingValues.contains(value) {
+            options.append(
+                SubscribeFormOptionViewState(
+                    id: "fallback-\(value)",
+                    title: value,
+                    value: value,
+                    subtitle: fallbackSubtitle
+                )
+            )
+        }
+
+        return options
+    }
+
+    nonisolated private static func selectedOptionIDs(
+        matchingValues values: [String],
+        options: [SubscribeFormOptionViewState]
+    ) -> [String] {
+        values.compactMap { value in
+            let normalizedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedValue.isEmpty else { return nil }
+            return options.first(where: { $0.value == normalizedValue || $0.id == normalizedValue })?.id
+        }
+    }
+
+    nonisolated private static func makeSubscribeMetadataRows(
+        from payload: MPSubscribeDTO,
+        context: MoviePilotMediaDetailContext
+    ) -> [SubscribeFormMetadataRowViewState] {
+        var rows: [SubscribeFormMetadataRowViewState] = []
+
+        if let id = payload.id {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-id", title: "订阅 ID", value: String(id)))
+        }
+
+        rows.append(SubscribeFormMetadataRowViewState(id: "metadata-mediaid", title: "媒体 ID", value: payload.mediaid?.nonEmpty ?? context.mediaID))
+
+        if let tmdbid = payload.tmdbid {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-tmdb", title: "TMDB", value: String(tmdbid)))
+        }
+
+        if let doubanid = payload.doubanid?.nonEmpty {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-douban", title: "豆瓣", value: doubanid))
+        }
+
+        if let bangumiid = payload.bangumiid {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-bangumi", title: "Bangumi", value: String(bangumiid)))
+        }
+
+        if let state = payload.state?.nonEmpty {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-state", title: "当前状态", value: subscribeStateTitle(for: state)))
+        }
+
+        if let username = payload.username?.nonEmpty {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-username", title: "订阅用户", value: username))
+        }
+
+        if let date = payload.date?.nonEmpty {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-date", title: "创建时间", value: date))
+        }
+
+        if let lastUpdate = payload.lastUpdate?.nonEmpty {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-last-update", title: "最后更新", value: lastUpdate))
+        }
+
+        if let note = payload.note {
+            rows.append(SubscribeFormMetadataRowViewState(id: "metadata-note", title: "附加信息", value: subscribeNoteSummary(note)))
+        }
+
+        return rows
+    }
+
+    nonisolated private static func subscribeStateTitle(for state: String) -> String {
+        switch state.uppercased() {
+        case "N":
+            return "新建 (N)"
+        case "R":
+            return "订阅中 (R)"
+        case "P":
+            return "待定 (P)"
+        case "S":
+            return "暂停 (S)"
+        default:
+            return state
+        }
+    }
+
+    nonisolated private static func subscribeNoteSummary(_ note: MPJSONValue) -> String {
+        switch note {
+        case let .string(value):
+            return value.nonEmpty ?? "字符串"
+        case let .number(value):
+            return formattedDecimalString(value)
+        case let .bool(value):
+            return value ? "true" : "false"
+        case let .array(values):
+            return "数组（\(values.count) 项）"
+        case let .object(values):
+            return "对象（\(values.count) 个字段）"
+        case .null:
+            return "空"
+        }
+    }
+
+    nonisolated private static func normalizedStringList(from rawText: String) -> [String] {
+        rawText
+            .split(whereSeparator: { ",，\n".contains($0) })
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .compactMap(\.nonEmpty)
+    }
+
+    nonisolated private static func formattedDecimalString(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+
+        return String(value)
     }
 
     nonisolated private static func normalizedDisplayTitle(from dto: MPMediaItemDTO) -> String {
@@ -1087,7 +1814,7 @@ final class MediaDetailViewModel {
             }
         }
 
-        return "未知标题"
+        return moviePilotLocalized("未知标题")
     }
 
     nonisolated private static func normalizedTypeName(
@@ -1167,7 +1894,7 @@ final class MediaDetailViewModel {
 
     nonisolated private static func normalizedSizeText(from rawSize: Double?) -> String {
         guard let rawSize, rawSize > 0 else {
-            return "大小未知"
+            return moviePilotLocalized("大小未知")
         }
 
         let units = ["B", "KB", "MB", "GB", "TB"]
@@ -1203,19 +1930,19 @@ final class MediaDetailViewModel {
     nonisolated private static func normalizedSearchResultSiteName(
         from torrent: MPTorrentInfoDTO
     ) -> String {
-        torrent.siteName?.nonEmpty ?? "未知站点"
+        torrent.siteName?.nonEmpty ?? moviePilotLocalized("未知站点")
     }
 
     nonisolated private static func normalizedSearchResultTitle(
         from torrent: MPTorrentInfoDTO
     ) -> String {
-        normalizedSearchText(torrent.title) ?? "未知资源"
+        normalizedSearchText(torrent.title) ?? moviePilotLocalized("未知资源")
     }
 
     nonisolated private static func normalizedSearchResultSubtitle(
         from torrent: MPTorrentInfoDTO
     ) -> String {
-        normalizedSearchText(torrent.description) ?? "暂无副标题"
+        normalizedSearchText(torrent.description) ?? moviePilotLocalized("暂无副标题")
     }
 
     nonisolated private static func normalizedSearchText(_ rawText: String?) -> String? {
@@ -1234,7 +1961,7 @@ final class MediaDetailViewModel {
         }
 
         guard let rawPublishTime = normalizedSearchText(pubdate) else {
-            return "时间未知"
+            return moviePilotLocalized("时间未知")
         }
 
         if containsRelativeTimeKeyword(in: rawPublishTime) {
@@ -1242,7 +1969,7 @@ final class MediaDetailViewModel {
         }
 
         guard let publishDate = parsedSearchResultDate(from: rawPublishTime) else {
-            return "时间未知"
+            return moviePilotLocalized("时间未知")
         }
 
         let formatter = RelativeDateTimeFormatter()
@@ -1316,7 +2043,7 @@ final class MediaDetailViewModel {
             }
 
             if isFree {
-                return "免费"
+                return moviePilotLocalized("免费")
             }
 
             if let downloadVolumeFactor, downloadVolumeFactor > 0, downloadVolumeFactor < 1 {
@@ -1619,6 +2346,62 @@ final class MediaDetailViewModel {
         return badges.first(where: { allowedSet.contains($0.text.lowercased()) })?.text
     }
 
+    nonisolated private static func makeHeroMetadataRows(
+        detailViewState: MediaDetailViewState
+    ) -> [MediaDetailMetadataRowViewState] {
+        var rows: [MediaDetailMetadataRowViewState] = []
+
+        if let releaseText = detailViewState.releaseText?.nonEmpty {
+            rows.append(
+                MediaDetailMetadataRowViewState(
+                    id: "release",
+                    label: "上映",
+                    value: releaseText,
+                    systemImage: "calendar",
+                    lineLimit: 1
+                )
+            )
+        }
+
+        if let directorText = detailViewState.directorText?.nonEmpty {
+            rows.append(
+                MediaDetailMetadataRowViewState(
+                    id: "director",
+                    label: "导演",
+                    value: directorText,
+                    systemImage: "person.text.rectangle",
+                    lineLimit: 2
+                )
+            )
+        }
+
+        if let castText = detailViewState.castText?.nonEmpty {
+            rows.append(
+                MediaDetailMetadataRowViewState(
+                    id: "cast",
+                    label: "演员",
+                    value: castText,
+                    systemImage: "person.2",
+                    lineLimit: 2
+                )
+            )
+        }
+
+        if let genreText = detailViewState.genreText?.nonEmpty {
+            rows.append(
+                MediaDetailMetadataRowViewState(
+                    id: "genre",
+                    label: "类型",
+                    value: genreText,
+                    systemImage: "film",
+                    lineLimit: 2
+                )
+            )
+        }
+
+        return rows
+    }
+
     nonisolated private static func makePageViewState(
         detailViewState: MediaDetailViewState,
         searchFilterState: SearchResultFilterState
@@ -1633,14 +2416,17 @@ final class MediaDetailViewModel {
             id: detailViewState.id,
             navigationTitle: detailViewState.title.isEmpty ? "详情" : detailViewState.title,
             hero: MediaDetailHeroSectionViewState(
-                backgroundPosterURL: URL(string: detailViewState.posterURLString),
-                bannerURL: URL(
+                backgroundPosterURL: URL(
                     string: detailViewState.backdropURLString.nonEmpty ?? detailViewState.posterURLString
+                ),
+                posterURL: URL(
+                    string: detailViewState.posterURLString.nonEmpty ?? detailViewState.backdropURLString
                 ),
                 title: detailViewState.title.isEmpty ? "正在载入..." : detailViewState.title,
                 mediaTypeText: detailViewState.isSeries ? "剧集" : "电影",
                 ratingText: detailViewState.ratingText,
                 isSubscribed: detailViewState.isSubscribed,
+                metadataRows: makeHeroMetadataRows(detailViewState: detailViewState),
                 overviewText: detailViewState.overviewText?.nonEmpty,
                 isOverviewLoading: detailViewState.isOverviewLoading,
                 showsSyncProgress: detailViewState.isOverviewLoading || detailViewState.isActorsLoading,
@@ -2062,18 +2848,35 @@ nonisolated private struct MoviePilotMediaDetailPayload: Sendable, Equatable {
 }
 
 nonisolated private enum SubscribeFieldID {
+    static let name = "field-name"
+    static let year = "field-year"
+    static let type = "field-type"
+    static let keyword = "field-keyword"
+    static let season = "field-season"
+    static let poster = "field-poster"
+    static let backdrop = "field-backdrop"
+    static let vote = "field-vote"
+    static let description = "field-description"
     static let quality = "field-quality"
     static let resolution = "field-resolution"
     static let effect = "field-effect"
     static let filter = "field-filter"
     static let include = "field-include"
     static let exclude = "field-exclude"
+    static let totalEpisode = "field-total-episode"
+    static let startEpisode = "field-start-episode"
+    static let lackEpisode = "field-lack-episode"
+    static let state = "field-state"
+    static let sites = "field-sites"
     static let bestVersion = "field-best-version"
+    static let currentPriority = "field-current-priority"
     static let downloader = "field-downloader"
     static let mediaCategory = "field-media-category"
     static let savePath = "field-save-path"
     static let customWords = "field-custom-words"
     static let searchImdbid = "field-search-imdbid"
+    static let filterGroups = "field-filter-groups"
+    static let episodeGroup = "field-episode-group"
 }
 
 private extension String {

@@ -16,7 +16,7 @@ struct DownloadConfigurationSheetView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                 } header: {
-                    Text("资源")
+                    Text(moviePilotLocalized("资源"))
                 }
 
                 Section {
@@ -24,31 +24,31 @@ struct DownloadConfigurationSheetView: View {
                         HStack(spacing: 8) {
                             ProgressView()
                                 .controlSize(.small)
-                            Text("正在加载下载器…")
+                            Text(moviePilotLocalized("正在加载下载器…"))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        Picker("下载器", selection: downloaderBinding) {
+                        Picker(moviePilotLocalized("下载器"), selection: downloaderBinding) {
                             ForEach(viewState.downloaders) { downloader in
                                 Text(downloader.name).tag(downloader.id)
                             }
                         }
                     }
                 } header: {
-                    Text("下载器")
+                    Text(moviePilotLocalized("下载器"))
                 }
 
                 Section {
                     HStack(spacing: 8) {
-                        TextField("留空使用默认路径", text: savePathBinding)
+                        TextField(moviePilotLocalized("留空使用默认路径"), text: savePathBinding)
                             .font(.subheadline)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
 
                         if !viewState.presetSavePaths.isEmpty {
                             Menu {
-                                Button("使用默认路径") {
+                                Button(moviePilotLocalized("使用默认路径")) {
                                     onUpdateSavePath("")
                                 }
 
@@ -63,17 +63,17 @@ struct DownloadConfigurationSheetView: View {
                                 Image(systemName: "folder.badge.plus")
                                     .foregroundStyle(.blue)
                             }
-                            .accessibilityLabel("选择预置目录")
+                            .accessibilityLabel(moviePilotLocalized("选择预置目录"))
                         }
                     }
                 } header: {
-                    Text("保存路径")
+                    Text(moviePilotLocalized("保存路径"))
                 } footer: {
-                    Text(
+                    Text(moviePilotLocalized(
                         viewState.presetSavePaths.isEmpty
                             ? "可选。留空将使用 MoviePilot 默认配置的保存路径。"
                             : "可选。可直接选择预置目录，或留空使用 MoviePilot 默认配置的保存路径。"
-                    )
+                    ))
                 }
 
                 if let errorMessage = viewState.errorMessage {
@@ -84,11 +84,11 @@ struct DownloadConfigurationSheetView: View {
                     }
                 }
             }
-            .navigationTitle("下载配置")
+            .navigationTitle(moviePilotLocalized("下载配置"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消", action: onCancel)
+                    Button(moviePilotLocalized("取消"), action: onCancel)
                         .disabled(viewState.isSubmitting)
                 }
 
@@ -102,7 +102,7 @@ struct DownloadConfigurationSheetView: View {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Text("下载")
+                            Text(moviePilotLocalized("下载"))
                                 .fontWeight(.semibold)
                         }
                     }
@@ -144,73 +144,73 @@ struct SearchResultFilterSheetView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("站点") {
+                Section(moviePilotLocalized("站点")) {
                     filterOptionPicker(
-                        title: "站点",
+                        title: moviePilotLocalized("站点"),
                         selection: siteSelection,
                         options: viewState.siteOptions,
-                        allTitle: "全部站点"
+                        allTitle: moviePilotLocalized("全部站点")
                     )
                 }
 
-                Section("资源规格") {
+                Section(moviePilotLocalized("资源规格")) {
                     filterOptionPicker(
-                        title: "分辨率",
+                        title: moviePilotLocalized("分辨率"),
                         selection: resolutionSelection,
                         options: viewState.resolutionOptions,
-                        allTitle: "全部分辨率"
+                        allTitle: moviePilotLocalized("全部分辨率")
                     )
 
                     filterOptionPicker(
-                        title: "片源",
+                        title: moviePilotLocalized("片源"),
                         selection: qualitySelection,
                         options: viewState.qualityOptions,
-                        allTitle: "全部片源"
+                        allTitle: moviePilotLocalized("全部片源")
                     )
 
                     filterOptionPicker(
-                        title: "编码",
+                        title: moviePilotLocalized("编码"),
                         selection: codecSelection,
                         options: viewState.codecOptions,
-                        allTitle: "全部编码"
+                        allTitle: moviePilotLocalized("全部编码")
                     )
                 }
 
-                Section("高级筛选") {
-                    Toggle("仅显示促销资源", isOn: promotionOnlySelection)
-                    Toggle("隐藏 H&R 资源", isOn: hideHitAndRunSelection)
+                Section(moviePilotLocalized("高级筛选")) {
+                    Toggle(moviePilotLocalized("仅显示促销资源"), isOn: promotionOnlySelection)
+                    Toggle(moviePilotLocalized("隐藏 H&R 资源"), isOn: hideHitAndRunSelection)
                 }
 
-                Section("排序") {
-                    Picker("排序依据", selection: sortFieldSelection) {
+                Section(moviePilotLocalized("排序")) {
+                    Picker(moviePilotLocalized("排序依据"), selection: sortFieldSelection) {
                         ForEach(SearchResultSortField.allCases) { field in
-                            Text(field.title).tag(field)
+                            Text(moviePilotLocalized(field.title)).tag(field)
                         }
                     }
 
-                    Picker("排序方向", selection: sortOrderSelection) {
+                    Picker(moviePilotLocalized("排序方向"), selection: sortOrderSelection) {
                         ForEach(SearchResultSortOrder.allCases) { order in
-                            Text(order.title).tag(order)
+                            Text(moviePilotLocalized(order.title)).tag(order)
                         }
                     }
                     .pickerStyle(.segmented)
                 }
             }
-            .navigationTitle("筛选与排序")
+            .navigationTitle(moviePilotLocalized("筛选与排序"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消", action: onCancel)
+                    Button(moviePilotLocalized("取消"), action: onCancel)
                 }
 
                 ToolbarItem(placement: .topBarLeading) {
                     if pendingFilterCount > 0 {
-                        Button("重置", action: onReset)
+                        Button(moviePilotLocalized("重置"), action: onReset)
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("应用", action: onApply)
+                    Button(moviePilotLocalized("应用"), action: onApply)
                         .fontWeight(.semibold)
                 }
             }

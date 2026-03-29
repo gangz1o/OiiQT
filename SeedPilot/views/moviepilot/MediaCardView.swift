@@ -67,7 +67,7 @@ private struct MediaCardContentView: View, Equatable {
                 .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
         }
         .overlay(alignment: .topLeading) {
-            MediaCardBadge(text: "剧集", tint: .blue)
+            MediaCardBadge(text: moviePilotLocalized("剧集"), tint: .blue)
                 .padding(8)
                 .opacity(viewState.isSeries ? 1 : 0)
                 .accessibilityHidden(!viewState.isSeries)

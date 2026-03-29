@@ -20,12 +20,12 @@ struct DashboardView: View {
 
     @AppStorage("refreshRate") private var refreshRate: Int = 5
     @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
-    @AppStorage(DashboardConfig.Keys.showTodayTransfer) private var showTodayTransfer: Bool = true
-    @AppStorage(DashboardConfig.Keys.showRecentFinished) private var showRecentFinished: Bool = true
+    @AppStorage(DashboardConfig.Keys.showTodayTransfer) private var showTodayTransfer: Bool = false
+    @AppStorage(DashboardConfig.Keys.showRecentFinished) private var showRecentFinished: Bool = false
     @AppStorage(DashboardConfig.Keys.showLiveTraffic) private var showLiveTraffic: Bool = true
     @AppStorage(DashboardConfig.Keys.showGlobalAssets) private var showGlobalAssets: Bool = true
     @AppStorage(DashboardConfig.Keys.showServerStatus) private var showServerStatus: Bool = true
-    @AppStorage(DashboardConfig.Keys.showStorageAudit) private var showStorageAudit: Bool = true
+    @AppStorage(DashboardConfig.Keys.showStorageAudit) private var showStorageAudit: Bool = false
 
     @State private var draggedModule: DashboardModuleType?
     @State private var highlightedDropTarget: DashboardModuleType?

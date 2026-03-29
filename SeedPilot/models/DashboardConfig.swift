@@ -20,12 +20,12 @@ final class DashboardConfig {
         static let moduleOrder = "dashboard.moduleOrder"
     }
 
-    @AppStorage(Keys.showTodayTransfer) var showTodayTransfer: Bool = true
-    @AppStorage(Keys.showRecentFinished) var showRecentFinished: Bool = true
+    @AppStorage(Keys.showTodayTransfer) var showTodayTransfer: Bool = false
+    @AppStorage(Keys.showRecentFinished) var showRecentFinished: Bool = false
     @AppStorage(Keys.showLiveTraffic) var showLiveTraffic: Bool = true
     @AppStorage(Keys.showGlobalAssets) var showGlobalAssets: Bool = true
     @AppStorage(Keys.showServerStatus) var showServerStatus: Bool = true
-    @AppStorage(Keys.showStorageAudit) var showStorageAudit: Bool = true
+    @AppStorage(Keys.showStorageAudit) var showStorageAudit: Bool = false
 
     var showTodayTransferBinding: Binding<Bool> {
         Binding(

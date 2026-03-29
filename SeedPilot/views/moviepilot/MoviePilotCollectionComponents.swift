@@ -15,7 +15,6 @@ struct MoviePilotSectionPosterGridView: View, Equatable {
     private static let gridSpacing: CGFloat = 12
 
     @State private var availableWidth: CGFloat = 0
-    @Namespace private var heroTransition
     let items: [MediaCardViewState]
 
     static func == (lhs: MoviePilotSectionPosterGridView, rhs: MoviePilotSectionPosterGridView) -> Bool {
@@ -30,7 +29,6 @@ struct MoviePilotSectionPosterGridView: View, Equatable {
                 NavigationLink(value: MoviePilotSectionListMediaDestination(mediaID: item.id)) {
                     MediaCardView(viewState: item, layout: metrics.layout)
                 }
-                .matchedTransitionSource(id: item.id, in: heroTransition)
                 .buttonStyle(.plain)
             }
         }
@@ -78,8 +76,8 @@ struct MoviePilotSectionListRowView: View {
 }
 
 struct MoviePilotSectionListRowContentView: View, Equatable {
-    static let posterWidth: CGFloat = 72
-    static let posterHeight: CGFloat = 108
+    static let posterWidth: CGFloat = 80
+    static let posterHeight: CGFloat = 120
     static let posterSize = CGSize(width: posterWidth, height: posterHeight)
 
     let viewState: MediaCardViewState
@@ -89,69 +87,83 @@ struct MoviePilotSectionListRowContentView: View, Equatable {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            SimpleCachedImage(
-                url: viewState.posterURL,
-                downsampleSize: Self.posterSize,
-                cacheOriginal: false
-            )
-            .aspectRatio(contentMode: .fill)
-            .frame(width: Self.posterWidth, height: Self.posterHeight)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(.rect(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.black.opacity(0.06), lineWidth: 0.8)
-            }
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 14) {
+                SimpleCachedImage(
+                    url: viewState.posterURL,
+                    downsampleSize: Self.posterSize,
+                    cacheOriginal: false
+                )
+                .aspectRatio(contentMode: .fill)
+                .frame(width: Self.posterWidth, height: Self.posterHeight)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(.rect(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(viewState.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(viewState.title)
+                            .font(.system(.body, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
 
-                HStack(spacing: 8) {
-                    if !viewState.ratingText.isEmpty {
-                        Label(viewState.ratingText, systemImage: "star.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.orange)
+                        if !viewState.year.isEmpty {
+                            Text(viewState.year)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
-                    Text(viewState.mediaTypeText)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color(.secondarySystemBackground))
-                        )
-                }
+                    HStack(spacing: 6) {
+                        if !viewState.ratingText.isEmpty {
+                            Label(viewState.ratingText, systemImage: "star.fill")
+                                .font(.system(.caption, weight: .medium))
+                                .foregroundStyle(Color.orange)
+                        }
 
-                Spacer(minLength: 0)
+                        Text(moviePilotLocalized(viewState.mediaTypeText))
+                            .font(.system(.caption, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(Color(.tertiarySystemFill))
+                            )
+                    }
 
-                HStack(spacing: 6) {
-                    Text("查看详情")
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
+                    if !viewState.castNames.isEmpty {
+                        Text(viewState.castNames.joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+
+                    if !viewState.overview.isEmpty {
+                        Text(viewState.overview)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                            .truncationMode(.tail)
+                            .lineSpacing(2)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.vertical, 8)
 
-            Spacer(minLength: 0)
+            Divider()
+                .padding(.leading, Self.posterWidth + 14)
+                .padding(.trailing, -16)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.black.opacity(0.05), lineWidth: 1)
-        }
-        .contentShape(.rect(cornerRadius: 18))
+        .contentShape(Rectangle())
     }
 }
 
@@ -165,7 +177,7 @@ struct MoviePilotSectionListLoadMoreView: View {
                     .controlSize(.small)
             }
 
-            Text(isLoading ? "正在加载更多" : "加载更多")
+            Text(moviePilotLocalized(isLoading ? "正在加载更多" : "加载更多"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

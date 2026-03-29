@@ -9,6 +9,9 @@ nonisolated struct MediaCardViewState: Identifiable, Equatable, Sendable {
     let isSeries: Bool
     let mediaTypeText: String
     let accessibilityLabel: String
+    let year: String
+    let overview: String
+    let castNames: [String]
 
     init(
         id: String,
@@ -17,7 +20,10 @@ nonisolated struct MediaCardViewState: Identifiable, Equatable, Sendable {
         ratingText: String,
         isSeries: Bool,
         mediaTypeText: String? = nil,
-        accessibilityLabel: String? = nil
+        accessibilityLabel: String? = nil,
+        year: String = "",
+        overview: String = "",
+        castNames: [String] = []
     ) {
         self.id = id
         self.posterURLString = posterURLString
@@ -25,6 +31,9 @@ nonisolated struct MediaCardViewState: Identifiable, Equatable, Sendable {
         self.title = title
         self.ratingText = ratingText
         self.isSeries = isSeries
+        self.year = year
+        self.overview = overview
+        self.castNames = castNames
 
         let resolvedMediaTypeText = mediaTypeText ?? (isSeries ? "剧集" : "电影")
         self.mediaTypeText = resolvedMediaTypeText

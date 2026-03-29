@@ -52,6 +52,9 @@ nonisolated struct MPMediaItemDTO: Decodable, Sendable, Equatable {
     let category: String?
     let detailLink: String?
     let popularity: Double?
+    let directorNames: [String]
+    let castNames: [String]
+    let genreNames: [String]
 
     enum CodingKeys: String, CodingKey {
         case source
@@ -88,6 +91,7 @@ nonisolated struct MPMediaItemDTO: Decodable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let anyContainer = try decoder.container(keyedBy: AnyCodingKey.self)
 
         source = container.decodeLossyString(forKey: .source)
         type = container.decodeLossyString(forKey: .type)
@@ -119,6 +123,95 @@ nonisolated struct MPMediaItemDTO: Decodable, Sendable, Equatable {
         category = container.decodeLossyString(forKey: .category)
         detailLink = container.decodeLossyString(forKey: .detailLink)
         popularity = container.decodeLossyDouble(forKey: .popularity)
+        directorNames = Self.decodeStringList(
+            from: anyContainer,
+            candidateKeys: ["director", "directors", "director_names", "directors_name"]
+        )
+        castNames = Self.decodeStringList(
+            from: anyContainer,
+            candidateKeys: ["actors", "actor", "casts", "cast", "actor_names", "casts_name"]
+        )
+        genreNames = Self.decodeStringList(
+            from: anyContainer,
+            candidateKeys: ["genres", "genre", "genre_names", "categories", "category_names"]
+        )
+    }
+
+    private static func decodeStringList(
+        from container: KeyedDecodingContainer<AnyCodingKey>,
+        candidateKeys: [String]
+    ) -> [String] {
+        for rawKey in candidateKeys {
+            guard let key = AnyCodingKey(stringValue: rawKey) else { continue }
+
+            if let values = try? container.decodeIfPresent([String].self, forKey: key) {
+                let normalized = normalizedStringList(from: values)
+                if !normalized.isEmpty {
+                    return normalized
+                }
+            }
+
+            if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                let normalized = normalizedStringList(from: value)
+                if !normalized.isEmpty {
+                    return normalized
+                }
+            }
+
+            if let values = try? container.decodeIfPresent([MediaNamedValueDTO].self, forKey: key) {
+                let normalized = normalizedStringList(from: values.compactMap { $0.displayValue })
+                if !normalized.isEmpty {
+                    return normalized
+                }
+            }
+        }
+
+        return []
+    }
+
+    private static func normalizedStringList(from values: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+
+        for value in values {
+            for token in normalizedStringList(from: value) {
+                let dedupeKey = token.lowercased()
+                if seen.insert(dedupeKey).inserted {
+                    normalized.append(token)
+                }
+            }
+        }
+
+        return normalized
+    }
+
+    private static func normalizedStringList(from rawValue: String) -> [String] {
+        rawValue
+            .split(whereSeparator: { [",", "/", "|", "、", "，"].contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+}
+
+private nonisolated struct MediaNamedValueDTO: Decodable, Sendable {
+    let name: String?
+    let title: String?
+    let label: String?
+    let value: String?
+
+    nonisolated var displayValue: String? {
+        Self.trimmedNonEmpty(name)
+            ?? Self.trimmedNonEmpty(title)
+            ?? Self.trimmedNonEmpty(label)
+            ?? Self.trimmedNonEmpty(value)
+    }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }
 

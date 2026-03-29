@@ -39,6 +39,10 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
     var title: String
     var ratingText: String
     var isSeries: Bool
+    var releaseText: String?
+    var directorText: String?
+    var castText: String?
+    var genreText: String?
     var overviewText: String?
     var actors: [ActorViewState]
     var isOverviewLoading: Bool
@@ -48,6 +52,7 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
     var isSearchLoading: Bool
     var isSubscribeLoading: Bool
     var searchFeedbackText: String?
+    var toastMessage: String?
 
     static func bootstrap(from card: MediaCardViewState) -> MediaDetailViewState {
         MediaDetailViewState(
@@ -57,6 +62,10 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
             title: card.title,
             ratingText: card.ratingText,
             isSeries: card.isSeries,
+            releaseText: nil,
+            directorText: nil,
+            castText: nil,
+            genreText: nil,
             overviewText: nil,
             actors: [],
             isOverviewLoading: true,
@@ -65,7 +74,8 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
             searchResults: [],
             isSearchLoading: false,
             isSubscribeLoading: false,
-            searchFeedbackText: nil
+            searchFeedbackText: nil,
+            toastMessage: nil
         )
     }
 
@@ -77,6 +87,10 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
             title: "",
             ratingText: "",
             isSeries: false,
+            releaseText: nil,
+            directorText: nil,
+            castText: nil,
+            genreText: nil,
             overviewText: nil,
             actors: [],
             isOverviewLoading: true,
@@ -85,7 +99,8 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
             searchResults: [],
             isSearchLoading: false,
             isSubscribeLoading: false,
-            searchFeedbackText: nil
+            searchFeedbackText: nil,
+            toastMessage: nil
         )
     }
 }
@@ -211,13 +226,22 @@ nonisolated struct SearchResultViewState: Identifiable, Equatable, Sendable {
     }
 }
 
+nonisolated struct MediaDetailMetadataRowViewState: Identifiable, Equatable, Sendable {
+    let id: String
+    let label: String
+    let value: String
+    let systemImage: String
+    let lineLimit: Int
+}
+
 nonisolated struct MediaDetailHeroSectionViewState: Equatable, Sendable {
     let backgroundPosterURL: URL?
-    let bannerURL: URL?
+    let posterURL: URL?
     let title: String
     let mediaTypeText: String
     let ratingText: String
     let isSubscribed: Bool
+    let metadataRows: [MediaDetailMetadataRowViewState]
     let overviewText: String?
     let isOverviewLoading: Bool
     let showsSyncProgress: Bool
@@ -332,8 +356,13 @@ nonisolated struct SearchResultFilterSheetViewState: Identifiable, Equatable, Se
 
 nonisolated enum SubscribeFormFieldControl: String, Equatable, Sendable {
     case picker
+    case multiPicker
     case toggle
     case text
+    case multilineText
+    case integer
+    case decimal
+    case stringList
 }
 
 nonisolated struct SubscribeFormOptionViewState: Identifiable, Equatable, Sendable {
@@ -347,13 +376,14 @@ nonisolated struct SubscribeFormFieldViewState: Identifiable, Equatable, Sendabl
     var id: String
     var title: String
     var control: SubscribeFormFieldControl
-    var selectedOptionID: String?
+    var selectedOptionIDs: [String]
     var textValue: String
     var toggleValue: Bool
     var placeholder: String
     var footerText: String
     var options: [SubscribeFormOptionViewState]
     var isRequired: Bool
+    var allowsEmptySelection: Bool
 }
 
 nonisolated struct SubscribeFormSectionViewState: Identifiable, Equatable, Sendable {
@@ -362,14 +392,22 @@ nonisolated struct SubscribeFormSectionViewState: Identifiable, Equatable, Senda
     var fields: [SubscribeFormFieldViewState]
 }
 
+nonisolated struct SubscribeFormMetadataRowViewState: Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var value: String
+}
+
 nonisolated struct SubscribeFormViewState: Identifiable, Equatable, Sendable {
     var id: String
     var mediaID: String
     var subscriptionID: Int?
     var mediaTitle: String
     var sheetTitle: String
+    var metadataRows: [SubscribeFormMetadataRowViewState]
     var sections: [SubscribeFormSectionViewState]
     var confirmButtonTitle: String
     var isSubmitting: Bool
     var statusText: String?
+    var basePayload: MPSubscribeDTO
 }

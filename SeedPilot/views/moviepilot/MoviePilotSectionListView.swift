@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MoviePilotSectionListView: View {
     @State private var viewModel: MoviePilotSectionListViewModel
-    @Namespace private var heroTransition
 
     init(bootstrap: MoviePilotSectionListBootstrapState) {
         _viewModel = State(wrappedValue: MoviePilotSectionListViewModel(bootstrap: bootstrap))
@@ -18,9 +17,9 @@ struct MoviePilotSectionListView: View {
                             .padding(.vertical, 28)
                     } else {
                         ContentUnavailableView(
-                            "暂无内容",
+                            moviePilotLocalized("暂无内容"),
                             systemImage: "film",
-                            description: Text("稍后重试或下拉刷新。")
+                            description: Text(moviePilotLocalized("稍后重试或下拉刷新。"))
                         )
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -45,13 +44,12 @@ struct MoviePilotSectionListView: View {
             .padding(.bottom, 24)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(viewModel.viewState.title)
+        .navigationTitle(moviePilotLocalized(viewModel.viewState.title))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: MoviePilotSectionListMediaDestination.self) { destination in
             MediaDetailView(
                 initialViewState: viewModel.makeMediaDetailBootstrapViewState(for: destination.mediaID)
             )
-            .navigationTransition(.zoom(sourceID: destination.mediaID, in: heroTransition))
         }
         .refreshable {
             await viewModel.reload()

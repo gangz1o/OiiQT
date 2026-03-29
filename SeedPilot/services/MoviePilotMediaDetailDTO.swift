@@ -183,6 +183,59 @@ nonisolated struct MPSiteDTO: Decodable, Sendable, Equatable {
     }
 }
 
+nonisolated enum MPJSONValue: Codable, Sendable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: MPJSONValue])
+    case array([MPJSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Int.self) {
+            self = .number(Double(value))
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: MPJSONValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([MPJSONValue].self) {
+            self = .array(value)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unsupported JSON value"
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        switch self {
+        case let .string(value):
+            try container.encode(value)
+        case let .number(value):
+            try container.encode(value)
+        case let .bool(value):
+            try container.encode(value)
+        case let .object(value):
+            try container.encode(value)
+        case let .array(value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
+        }
+    }
+}
+
 nonisolated struct MPSubscribeDTO: Codable, Sendable, Equatable {
     var id: Int? = nil
     var name: String? = nil
@@ -207,7 +260,9 @@ nonisolated struct MPSubscribeDTO: Codable, Sendable, Equatable {
     var totalEpisode: Int? = nil
     var startEpisode: Int? = nil
     var lackEpisode: Int? = nil
+    var note: MPJSONValue? = nil
     var state: String? = nil
+    var lastUpdate: String? = nil
     var username: String? = nil
     var sites: [Int]? = nil
     var downloader: String? = nil
@@ -245,7 +300,9 @@ nonisolated struct MPSubscribeDTO: Codable, Sendable, Equatable {
         case totalEpisode = "total_episode"
         case startEpisode = "start_episode"
         case lackEpisode = "lack_episode"
+        case note
         case state
+        case lastUpdate = "last_update"
         case username
         case sites
         case downloader

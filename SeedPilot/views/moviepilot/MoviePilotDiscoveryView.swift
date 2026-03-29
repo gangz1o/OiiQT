@@ -4,7 +4,6 @@ struct MoviePilotDiscoveryView: View {
     @State private var viewModel = MoviePilotDiscoveryViewModel()
     @State private var serverStore = MoviePilotServerStore.shared
     @State private var navigationPath = NavigationPath()
-    @Namespace private var heroTransition
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -33,8 +32,8 @@ struct MoviePilotDiscoveryView: View {
             .environment(\.defaultMinListRowHeight, 1)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("发现")
-            .searchable(text: $viewModel.searchText, prompt: "搜索 电影/剧集")
+            .navigationTitle(moviePilotLocalized("发现"))
+            .searchable(text: $viewModel.searchText, prompt: moviePilotLocalized("搜索 电影/剧集"))
             .onSubmit(of: .search) {
                 guard let destination = viewModel.makeMediaSearchDestination() else { return }
                 navigationPath.append(destination)
@@ -43,7 +42,6 @@ struct MoviePilotDiscoveryView: View {
                 MediaDetailView(
                     initialViewState: viewModel.makeMediaDetailBootstrapViewState(for: mediaID)
                 )
-                .navigationTransition(.zoom(sourceID: mediaID, in: heroTransition))
             }
             .navigationDestination(for: MoviePilotDiscoverySectionDestination.self) { destination in
                 sectionListDestination(for: destination)
@@ -60,9 +58,9 @@ struct MoviePilotDiscoveryView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            "没有匹配的内容",
+            moviePilotLocalized("没有匹配的内容"),
             systemImage: "magnifyingglass",
-            description: Text("试试其他关键词或分类。")
+            description: Text(moviePilotLocalized("试试其他关键词或分类。"))
         )
         .frame(maxWidth: .infinity)
     }
@@ -89,9 +87,9 @@ struct MoviePilotDiscoveryView: View {
             MoviePilotSectionListView(bootstrap: bootstrap)
         } else {
             ContentUnavailableView(
-                "无法打开列表",
+                moviePilotLocalized("无法打开列表"),
                 systemImage: "film.stack",
-                description: Text("当前分区暂时不可用。")
+                description: Text(moviePilotLocalized("当前分区暂时不可用。"))
             )
         }
     }
@@ -102,9 +100,9 @@ struct MoviePilotDiscoveryView: View {
             MoviePilotMediaSearchView(bootstrap: bootstrap)
         } else {
             ContentUnavailableView(
-                "无法执行搜索",
+                moviePilotLocalized("无法执行搜索"),
                 systemImage: "magnifyingglass.circle",
-                description: Text("请先配置可用的 MoviePilot 服务器。")
+                description: Text(moviePilotLocalized("请先配置可用的 MoviePilot 服务器。"))
             )
         }
     }
@@ -117,7 +115,7 @@ private struct MoviePilotCategoryTabButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            Text(moviePilotLocalized(title))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(isSelected ? Color.white : .secondary)
                 .padding(.horizontal, 14)
