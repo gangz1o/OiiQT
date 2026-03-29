@@ -44,6 +44,7 @@ struct MoviePilotSectionListView: View {
             .padding(.bottom, 24)
         }
         .background(Color(.systemGroupedBackground))
+        .defersAppRefreshWhileScrolling("moviePilot.sectionList")
         .navigationTitle(moviePilotLocalized(viewModel.viewState.title))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: MoviePilotSectionListMediaDestination.self) { destination in

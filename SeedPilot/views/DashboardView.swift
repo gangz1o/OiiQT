@@ -174,6 +174,7 @@ struct DashboardView: View {
                     .padding(.vertical, 16)
                     .animation(.spring(response: 0.34, dampingFraction: 0.88), value: layoutAnimationKey)
                 }
+                .defersAppRefreshWhileScrolling("dashboard.modules")
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
@@ -187,7 +188,11 @@ struct DashboardView: View {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
                     tasksProvider: { appStateManager.allTasks },
-                    interval: dashboardAutoRefreshInterval
+                    interval: dashboardAutoRefreshInterval,
+                    shouldPauseRefresh: { appStateManager.isRefreshSuspendedForScrolling },
+                    remainingPauseCooldownNanoseconds: {
+                        appStateManager.remainingRefreshSuspensionCooldownNanoseconds()
+                    }
                 )
             } else {
                 dashboardViewModel.stopAutoRefresh()
@@ -238,7 +243,11 @@ struct DashboardView: View {
                 dashboardViewModel.startAutoRefresh(
                     serversProvider: { appStateManager.servers },
                     tasksProvider: { appStateManager.allTasks },
-                    interval: dashboardAutoRefreshInterval
+                    interval: dashboardAutoRefreshInterval,
+                    shouldPauseRefresh: { appStateManager.isRefreshSuspendedForScrolling },
+                    remainingPauseCooldownNanoseconds: {
+                        appStateManager.remainingRefreshSuspensionCooldownNanoseconds()
+                    }
                 )
             } else {
                 dashboardViewModel.stopAutoRefresh()

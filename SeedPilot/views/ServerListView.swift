@@ -87,6 +87,7 @@ struct ServerListView: View {
             }
             .padding(16)
         }
+        .defersAppRefreshWhileScrolling("settings.serverList")
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle(LanguageManager.shared.localized("Server Management"))
         .navigationBarTitleDisplayMode(.large)

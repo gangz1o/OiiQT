@@ -32,6 +32,7 @@ struct MoviePilotDiscoveryView: View {
             .environment(\.defaultMinListRowHeight, 1)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
+            .defersAppRefreshWhileScrolling("moviePilot.discovery")
             .navigationTitle(moviePilotLocalized("发现"))
             .searchable(text: $viewModel.searchText, prompt: moviePilotLocalized("搜索 电影/剧集"))
             .onSubmit(of: .search) {

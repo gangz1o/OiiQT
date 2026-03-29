@@ -173,7 +173,9 @@ final class DashboardViewModel: ObservableObject {
     func startAutoRefresh(
         serversProvider: @escaping @MainActor () -> [ServerConfig],
         tasksProvider: @escaping @MainActor () -> [TorrentTask],
-        interval: TimeInterval? = 8
+        interval: TimeInterval? = 8,
+        shouldPauseRefresh: @escaping @MainActor () -> Bool = { false },
+        remainingPauseCooldownNanoseconds: @escaping @MainActor () -> UInt64 = { 0 }
     ) {
         stopAutoRefresh()
 
@@ -188,6 +190,19 @@ final class DashboardViewModel: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNanos)
                 guard !Task.isCancelled else { break }
+
+                let isRefreshPaused = shouldPauseRefresh()
+                guard !isRefreshPaused else { continue }
+
+                let remainingCooldown = remainingPauseCooldownNanoseconds()
+                if remainingCooldown > 0 {
+                    try? await Task.sleep(nanoseconds: remainingCooldown)
+                    guard !Task.isCancelled else { break }
+
+                    let isStillRefreshPaused = shouldPauseRefresh()
+                    guard !isStillRefreshPaused else { continue }
+                }
+
                 let currentServers = serversProvider()
                 let currentTasks = tasksProvider()
                 await self.refreshGlobalStats(

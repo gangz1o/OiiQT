@@ -236,6 +236,7 @@ struct SettingsView: View {
                     legalFooterView
                 }
             }
+            .defersAppRefreshWhileScrolling("settings.rootForm")
             .navigationTitle(LanguageManager.shared.localized("Settings"))
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: SettingsRoute.self) { route in

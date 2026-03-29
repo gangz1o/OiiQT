@@ -121,6 +121,7 @@ struct RSSView: View {
                                     .padding(.vertical, 12)
                                 }
                             }
+                            .defersAppRefreshWhileScrolling("rss.sources")
                         }
                     } else {
                         AllActivityView()

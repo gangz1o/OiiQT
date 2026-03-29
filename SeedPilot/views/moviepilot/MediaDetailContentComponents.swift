@@ -29,6 +29,7 @@ struct MediaDetailPageContentView: View {
                 .padding(.bottom, 40)
             }
             .safeAreaPadding(.bottom, 12)
+            .defersAppRefreshWhileScrolling("moviePilot.mediaDetail")
         }
     }
 }

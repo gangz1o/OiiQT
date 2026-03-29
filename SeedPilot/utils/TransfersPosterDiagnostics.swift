@@ -8,11 +8,6 @@ enum TransfersPosterDiagnostics {
     )
 
     static var isEnabled: Bool {
-#if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-SeedPilotDisableTransfersPosterDiagnostics") {
-            return false
-        }
-
         if ProcessInfo.processInfo.arguments.contains("-SeedPilotTransfersPosterDiagnostics") {
             return true
         }
@@ -21,10 +16,7 @@ enum TransfersPosterDiagnostics {
             return UserDefaults.standard.bool(forKey: "debug.transfers.posterDiagnostics")
         }
 
-        return true
-#else
         return false
-#endif
     }
 
     static var isBodyTraceEnabled: Bool {

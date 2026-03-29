@@ -65,6 +65,7 @@ struct RSSFeedDetailView: View {
             }
         }
         .listStyle(.plain)
+        .defersAppRefreshWhileScrolling("rss.feedDetail")
         .navigationTitle(source.name)
         .toolbar {
              ToolbarItem(placement: .topBarTrailing) {

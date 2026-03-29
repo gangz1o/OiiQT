@@ -31,12 +31,12 @@ struct SpeedPoint: Identifiable {
     let upload: Int64
 }
 
-private struct ServerSpeedTotals {
+private struct ServerSpeedTotals: Sendable {
     let download: Int64
     let upload: Int64
 }
 
-private struct ServerTaskStats {
+private struct ServerTaskStats: Sendable {
     let seedingCount: Int
     let downloadingCount: Int
     let seedingSize: Int64
@@ -49,9 +49,20 @@ private struct ServerTaskStats {
     let derivedTags: [String]
 }
 
-private struct ServerSeedingTotals {
+private struct ServerSeedingTotals: Sendable {
     let count: Int
     let size: Int64
+}
+
+private struct ServerRefreshMutation: Sendable {
+    enum Connectivity: Sendable {
+        case success
+        case failure
+    }
+
+    let serverID: UUID
+    let connectivity: Connectivity
+    let stats: ServerTaskStats?
 }
 
 private struct ProcessedServerTasks: Sendable {
@@ -75,6 +86,17 @@ private struct TaskRefreshSnapshot: Sendable {
     let activeServerID: UUID?
     let hasRecentFinishedAll: Bool
     let hasRecentFinishedByServerID: [UUID: Bool]
+    let serverRefreshMutations: [ServerRefreshMutation]
+    let aggregatedDownloadingCount: Int
+    let aggregatedDownloadSpeed: Int64
+    let aggregatedUploadSpeed: Int64
+    let aggregatedSeedingCount: Int
+    let aggregatedSeedingSize: Int64
+    let aggregatedSpeedByServerID: [UUID: ServerSpeedTotals]
+    let aggregatedSeedingByServerID: [UUID: ServerSeedingTotals]
+    let publicationDate: Date
+    /// O(1) fingerprint computed on background thread — avoids O(n) equality check on main thread.
+    let allTasksHash: Int
 }
 
 @Observable
@@ -89,10 +111,16 @@ class AppStateManager {
     private var pendingTaskRefreshSnapshot: TaskRefreshSnapshot?
 
     @ObservationIgnored
+    private var lastPublishedTasksHash: Int = 0
+
+    @ObservationIgnored
     private var taskRefreshPublicationTask: Task<Void, Never>?
 
     @ObservationIgnored
-    private var transfersListRefreshCooldownDeadline: UInt64 = 0
+    private var activeRefreshSuspensionSources: Set<String> = []
+
+    @ObservationIgnored
+    private var refreshSuspensionCooldownDeadline: UInt64 = 0
 
     var servers: [ServerConfig] = []
     var allTasks: [TorrentTask] = []
@@ -178,22 +206,35 @@ class AppStateManager {
         return tasks.filter { $0.serverID == activeServerID }
     }
 
-    /// Set by TransfersViewModel to prevent expensive task snapshot publication during scrolling.
-    var isScrollingTransfersList = false {
-        didSet {
-            taskRefreshPublicationTask?.cancel()
+    /// Used by scrollable surfaces to temporarily suspend refresh-driven UI churn.
+    @MainActor
+    func setRefreshSuspension(_ isSuspended: Bool, source: String) {
+        taskRefreshPublicationTask?.cancel()
 
-            guard oldValue != isScrollingTransfersList else { return }
-
-            if isScrollingTransfersList {
-                transfersListRefreshCooldownDeadline = 0
-                return
-            }
-
-            transfersListRefreshCooldownDeadline = DispatchTime.now().uptimeNanoseconds + Self.transfersListRefreshCooldownNanos
-            guard pendingTaskRefreshSnapshot != nil else { return }
-            schedulePendingTaskRefreshPublication(minimumDelay: Self.transfersListRefreshCooldownNanos)
+        let didChange: Bool
+        if isSuspended {
+            didChange = activeRefreshSuspensionSources.insert(source).inserted
+        } else {
+            didChange = activeRefreshSuspensionSources.remove(source) != nil
         }
+
+        guard didChange else { return }
+
+        if isSuspended {
+            refreshSuspensionCooldownDeadline = 0
+            return
+        }
+
+        guard activeRefreshSuspensionSources.isEmpty else { return }
+
+        refreshSuspensionCooldownDeadline = DispatchTime.now().uptimeNanoseconds + Self.refreshSuspensionCooldownNanos
+        guard pendingTaskRefreshSnapshot != nil else { return }
+        schedulePendingTaskRefreshPublication(minimumDelay: Self.refreshSuspensionCooldownNanos)
+    }
+
+    @MainActor
+    var isRefreshSuspendedForScrolling: Bool {
+        !activeRefreshSuspensionSources.isEmpty
     }
 
     @MainActor
@@ -201,8 +242,8 @@ class AppStateManager {
         pendingTaskRefreshSnapshot = snapshot
         taskRefreshPublicationTask?.cancel()
 
-        // Skip publication while user is scrolling the transfers list
-        guard !isScrollingTransfersList else { return }
+        // Skip publication while a visible scrollable surface is moving.
+        guard !isRefreshSuspendedForScrolling else { return }
 
         schedulePendingTaskRefreshPublication(minimumDelay: 120_000_000)
     }
@@ -214,7 +255,29 @@ class AppStateManager {
         guard let snapshot = pendingTaskRefreshSnapshot else { return }
         pendingTaskRefreshSnapshot = nil
 
-        if allTasks != snapshot.allTasks {
+        for mutation in snapshot.serverRefreshMutations {
+            guard let server = servers.first(where: { $0.id == mutation.serverID }) else { continue }
+
+            switch mutation.connectivity {
+            case .success:
+                markServerOnline(server)
+                if let stats = mutation.stats {
+                    applyServerTaskStats(stats, to: server)
+                    ingestTaskDerivedTaxonomy(
+                        categories: stats.derivedCategories,
+                        tags: stats.derivedTags,
+                        for: server
+                    )
+                    prewarmTaxonomyIfNeeded(for: server.id)
+                }
+            case .failure:
+                markServerFailure(server)
+            }
+        }
+
+        // Use O(1) hash comparison instead of O(n) deep equality on 100k TorrentTask structs.
+        if snapshot.allTasksHash != lastPublishedTasksHash {
+            lastPublishedTasksHash = snapshot.allTasksHash
             allTasks = snapshot.allTasks
             displayedTasks = activeServerId == snapshot.activeServerID
                 ? snapshot.displayedTasks
@@ -228,6 +291,28 @@ class AppStateManager {
         if hasRecentFinishedByServerID != snapshot.hasRecentFinishedByServerID {
             hasRecentFinishedByServerID = snapshot.hasRecentFinishedByServerID
         }
+
+        if downloadingTaskBadgeCount != snapshot.aggregatedDownloadingCount {
+            downloadingTaskBadgeCount = snapshot.aggregatedDownloadingCount
+        }
+        totalDownloadSpeedCache = snapshot.aggregatedDownloadSpeed
+        totalUploadSpeedCache = snapshot.aggregatedUploadSpeed
+        speedTotalsByServerID = snapshot.aggregatedSpeedByServerID
+        totalSeedingCountCache = snapshot.aggregatedSeedingCount
+        totalSeedingSizeCache = snapshot.aggregatedSeedingSize
+        seedingTotalsByServerID = snapshot.aggregatedSeedingByServerID
+        hasInitialDataLoaded = true
+
+        if speedHistory.count > 60 {
+            speedHistory.removeFirst()
+        }
+        speedHistory.append(
+            SpeedPoint(
+                date: snapshot.publicationDate,
+                download: snapshot.aggregatedDownloadSpeed,
+                upload: snapshot.aggregatedUploadSpeed
+            )
+        )
     }
 
     var activeServerName: String? {
@@ -398,12 +483,24 @@ class AppStateManager {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: intervalNanos)
                 guard !Task.isCancelled else { break }
-                // Completely freeze refresh while user is scrolling — zero main-thread work
-                guard !self.isScrollingTransfersList else { continue }
-                let remainingCooldown = self.remainingTransfersListRefreshCooldownNanoseconds()
+
+                // Completely freeze refresh while user is scrolling a major surface.
+                let isRefreshSuspended = await MainActor.run {
+                    self.isRefreshSuspendedForScrolling
+                }
+                guard !isRefreshSuspended else { continue }
+
+                let remainingCooldown = await MainActor.run {
+                    self.remainingRefreshSuspensionCooldownNanoseconds()
+                }
                 if remainingCooldown > 0 {
                     try? await Task.sleep(nanoseconds: remainingCooldown)
-                    guard !Task.isCancelled, !self.isScrollingTransfersList else { continue }
+                    guard !Task.isCancelled else { break }
+
+                    let isStillRefreshSuspended = await MainActor.run {
+                        self.isRefreshSuspendedForScrolling
+                    }
+                    guard !isStillRefreshSuspended else { continue }
                 }
                 await self.refreshData(isSilent: true)
             }
@@ -417,14 +514,20 @@ class AppStateManager {
 
     /// 刷新所有服务器的任务 (对应 User Request: refreshData)
     func refreshData(isSilent: Bool = false) async {
-        await MainActor.run {
-            refreshDataInFlightCount += 1
-            isRefreshingTasks = true
+        let shouldPublishLoadingState = !isSilent
+
+        if shouldPublishLoadingState {
+            await MainActor.run {
+                refreshDataInFlightCount += 1
+                isRefreshingTasks = true
+            }
         }
         defer {
-            Task { @MainActor in
-                self.refreshDataInFlightCount = max(0, self.refreshDataInFlightCount - 1)
-                self.isRefreshingTasks = self.refreshDataInFlightCount > 0
+            if shouldPublishLoadingState {
+                Task { @MainActor in
+                    self.refreshDataInFlightCount = max(0, self.refreshDataInFlightCount - 1)
+                    self.isRefreshingTasks = self.refreshDataInFlightCount > 0
+                }
             }
         }
 
@@ -438,11 +541,13 @@ class AppStateManager {
         var aggregatedHasRecentFinishedByServerID: [UUID: Bool] = [:]
         var aggregatedSpeedByServerID: [UUID: ServerSpeedTotals] = [:]
         var aggregatedSeedingByServerID: [UUID: ServerSeedingTotals] = [:]
+        var serverRefreshMutations: [ServerRefreshMutation] = []
         aggregatedSpeedByServerID.reserveCapacity(max(servers.count, 1))
         aggregatedSeedingByServerID.reserveCapacity(max(servers.count, 1))
         aggregatedHasRecentFinishedByServerID.reserveCapacity(max(servers.count, 1))
+        serverRefreshMutations.reserveCapacity(max(servers.count, 1))
 
-        func ingestServerTasks(_ processed: ProcessedServerTasks, for server: ServerConfig) async {
+        func ingestServerTasks(_ processed: ProcessedServerTasks, for server: ServerConfig) {
             processedServerPayloads.append(processed)
 
             let serverStats = processed.stats
@@ -463,17 +568,13 @@ class AppStateManager {
                 count: serverStats.seedingCount,
                 size: serverStats.seedingSize
             )
-
-            await MainActor.run {
-                markServerOnline(server)
-                applyServerTaskStats(serverStats, to: server)
-                ingestTaskDerivedTaxonomy(
-                    categories: serverStats.derivedCategories,
-                    tags: serverStats.derivedTags,
-                    for: server
+            serverRefreshMutations.append(
+                ServerRefreshMutation(
+                    serverID: server.id,
+                    connectivity: .success,
+                    stats: serverStats
                 )
-                prewarmTaxonomyIfNeeded(for: server.id)
-            }
+            )
         }
 
         // Parallel fetching could be done with TaskGroup, but for now serial is safer for debug
@@ -486,7 +587,7 @@ class AppStateManager {
                 // Try fetch
                 let tasks = try await client.fetchTorrents()
                 let processed = await Self.processFetchedTasks(tasks)
-                await ingestServerTasks(processed, for: server)
+                ingestServerTasks(processed, for: server)
             } catch let error as TorrentClientError {
                 // If auth failed, try login and retry
                 if case .authenticationFailed = error {
@@ -494,31 +595,43 @@ class AppStateManager {
                         try await client.login()
                         let tasks = try await client.fetchTorrents()
                         let processed = await Self.processFetchedTasks(tasks)
-                        await ingestServerTasks(processed, for: server)
+                        ingestServerTasks(processed, for: server)
                     } catch {
                         if isBenignCancellationError(error) {
                             continue
                         } else {
                             print("Auth retry failed for \(server.name): \(error)")
-                            await MainActor.run {
-                                markServerFailure(server)
-                            }
+                            serverRefreshMutations.append(
+                                ServerRefreshMutation(
+                                    serverID: server.id,
+                                    connectivity: .failure,
+                                    stats: nil
+                                )
+                            )
                         }
                     }
                 } else {
                     print("Fetch failed for \(server.name): \(error)")
-                    await MainActor.run {
-                        markServerFailure(server)
-                    }
+                    serverRefreshMutations.append(
+                        ServerRefreshMutation(
+                            serverID: server.id,
+                            connectivity: .failure,
+                            stats: nil
+                        )
+                    )
                 }
             } catch {
                 if isBenignCancellationError(error) {
                     continue
                 }
                 print("Unknown error for \(server.name): \(error)")
-                await MainActor.run {
-                    markServerFailure(server)
-                }
+                serverRefreshMutations.append(
+                    ServerRefreshMutation(
+                        serverID: server.id,
+                        connectivity: .failure,
+                        stats: nil
+                    )
+                )
             }
         }
 
@@ -529,43 +642,25 @@ class AppStateManager {
             from: processedServerPayloads,
             activeServerID: activeServerIDSnapshot,
             hasRecentFinishedAll: finalHasRecentFinished,
-            hasRecentFinishedByServerID: finalHasRecentByServer
+            hasRecentFinishedByServerID: finalHasRecentByServer,
+            serverRefreshMutations: serverRefreshMutations,
+            aggregatedDownloadingCount: aggregatedDownloadingCount,
+            aggregatedDownloadSpeed: aggregatedDownloadSpeed,
+            aggregatedUploadSpeed: aggregatedUploadSpeed,
+            aggregatedSeedingCount: aggregatedSeedingCount,
+            aggregatedSeedingSize: aggregatedSeedingSize,
+            aggregatedSpeedByServerID: aggregatedSpeedByServerID,
+            aggregatedSeedingByServerID: aggregatedSeedingByServerID,
+            publicationDate: Date()
         )
         await MainActor.run {
             self.enqueueTaskRefreshSnapshot(taskRefreshSnapshot)
-        }
-        // Essential state flags must update immediately (not deferred)
-        await MainActor.run {
-            if self.downloadingTaskBadgeCount != aggregatedDownloadingCount {
-                self.downloadingTaskBadgeCount = aggregatedDownloadingCount
-            }
-            self.totalDownloadSpeedCache = aggregatedDownloadSpeed
-            self.totalUploadSpeedCache = aggregatedUploadSpeed
-            self.speedTotalsByServerID = aggregatedSpeedByServerID
-            self.totalSeedingCountCache = aggregatedSeedingCount
-            self.totalSeedingSizeCache = aggregatedSeedingSize
-            self.seedingTotalsByServerID = aggregatedSeedingByServerID
-
-            self.hasInitialDataLoaded = true
-
-            // Record History
-            let now = Date()
-            if self.speedHistory.count > 60 {
-                self.speedHistory.removeFirst()
-            }
-            self.speedHistory.append(
-                SpeedPoint(
-                    date: now,
-                    download: aggregatedDownloadSpeed,
-                    upload: aggregatedUploadSpeed
-                )
-            )
         }
     }
 
     @MainActor
     private func schedulePendingTaskRefreshPublication(minimumDelay: UInt64) {
-        let delay = max(minimumDelay, remainingTransfersListRefreshCooldownNanoseconds())
+        let delay = max(minimumDelay, remainingRefreshSuspensionCooldownNanoseconds())
         taskRefreshPublicationTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: delay)
             guard !Task.isCancelled else { return }
@@ -574,10 +669,10 @@ class AppStateManager {
     }
 
     @MainActor
-    private func remainingTransfersListRefreshCooldownNanoseconds() -> UInt64 {
+    func remainingRefreshSuspensionCooldownNanoseconds() -> UInt64 {
         let now = DispatchTime.now().uptimeNanoseconds
-        guard transfersListRefreshCooldownDeadline > now else { return 0 }
-        return transfersListRefreshCooldownDeadline - now
+        guard refreshSuspensionCooldownDeadline > now else { return 0 }
+        return refreshSuspensionCooldownDeadline - now
     }
 
     @MainActor
@@ -811,16 +906,41 @@ class AppStateManager {
         from payloads: [ProcessedServerTasks],
         activeServerID: UUID?,
         hasRecentFinishedAll: Bool,
-        hasRecentFinishedByServerID: [UUID: Bool]
+        hasRecentFinishedByServerID: [UUID: Bool],
+        serverRefreshMutations: [ServerRefreshMutation],
+        aggregatedDownloadingCount: Int,
+        aggregatedDownloadSpeed: Int64,
+        aggregatedUploadSpeed: Int64,
+        aggregatedSeedingCount: Int,
+        aggregatedSeedingSize: Int64,
+        aggregatedSpeedByServerID: [UUID: ServerSpeedTotals],
+        aggregatedSeedingByServerID: [UUID: ServerSeedingTotals],
+        publicationDate: Date
     ) async -> TaskRefreshSnapshot {
         await Task.detached(priority: .userInitiated) {
             let allTasks = payloads.flatMap(\.tasks)
+            // Compute a cheap O(n) fingerprint here on a background thread,
+            // so the main thread publish step can skip the O(n) equality check entirely.
+            var hash = allTasks.count
+            if let first = allTasks.first { hash ^= first.id.hashValue }
+            if let last = allTasks.last { hash ^= last.id.hashValue &* 0x9e3779b9 }
+            hash ^= allTasks.count &* 2654435761
             return TaskRefreshSnapshot(
                 allTasks: allTasks,
                 displayedTasks: Self.makeDisplayedTasks(from: allTasks, activeServerID: activeServerID),
                 activeServerID: activeServerID,
                 hasRecentFinishedAll: hasRecentFinishedAll,
-                hasRecentFinishedByServerID: hasRecentFinishedByServerID
+                hasRecentFinishedByServerID: hasRecentFinishedByServerID,
+                serverRefreshMutations: serverRefreshMutations,
+                aggregatedDownloadingCount: aggregatedDownloadingCount,
+                aggregatedDownloadSpeed: aggregatedDownloadSpeed,
+                aggregatedUploadSpeed: aggregatedUploadSpeed,
+                aggregatedSeedingCount: aggregatedSeedingCount,
+                aggregatedSeedingSize: aggregatedSeedingSize,
+                aggregatedSpeedByServerID: aggregatedSpeedByServerID,
+                aggregatedSeedingByServerID: aggregatedSeedingByServerID,
+                publicationDate: publicationDate,
+                allTasksHash: hash
             )
         }.value
     }
@@ -1648,7 +1768,7 @@ class AppStateManager {
 
     /// Chunk size for background silent queue.
     private static let batchChunkSize = 500
-    private static let transfersListRefreshCooldownNanos: UInt64 = 900_000_000
+    private static let refreshSuspensionCooldownNanos: UInt64 = 900_000_000
 
     /// Unified bulk action engine with O(1) select-all, optimistic UI, and background chunked queue.
     ///

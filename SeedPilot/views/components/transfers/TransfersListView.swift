@@ -138,7 +138,16 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
             self.tableView = tableView
 
             if previousTaskIDs != parent.taskIDs {
-                tableView.reloadData()
+                // Diff-based update: reorder is cheap, structural change uses reloadData
+                let oldSet = Set(previousTaskIDs)
+                let newSet = Set(parent.taskIDs)
+
+                if oldSet == newSet {
+                    // Same items, just reordered → lightweight visible row reconfigure
+                    reloadVisibleRows(on: tableView)
+                } else {
+                    tableView.reloadData()
+                }
                 return
             }
 

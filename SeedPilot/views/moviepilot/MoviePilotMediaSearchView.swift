@@ -37,6 +37,7 @@ struct MoviePilotMediaSearchView: View {
         .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+        .defersAppRefreshWhileScrolling("moviePilot.search")
         .navigationTitle(moviePilotLocalized(viewModel.viewState.title))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

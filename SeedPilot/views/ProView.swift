@@ -124,6 +124,7 @@ struct ProView: View {
                     }
                     .padding(.bottom, 20)
                 }
+                .defersAppRefreshWhileScrolling("pro.marketing")
 
                 if showSuccessFeedback {
                     Color.black.opacity(0.3).ignoresSafeArea()

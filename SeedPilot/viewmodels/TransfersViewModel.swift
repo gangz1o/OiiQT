@@ -6,6 +6,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class TransfersViewModel {
+    private static let scrollRefreshSource = "transfers.list"
+
     // MARK: - Search & Filter State
     var searchText = ""
     var debouncedSearchText = ""
@@ -70,6 +72,9 @@ final class TransfersViewModel {
     private var overlayLoadingDelayTask: Task<Void, Never>?
 
     @ObservationIgnored
+    private var deferredRefreshTask: Task<Void, Never>?
+
+    @ObservationIgnored
     private var isUserScrolling = false
 
     @ObservationIgnored
@@ -77,6 +82,11 @@ final class TransfersViewModel {
 
     @ObservationIgnored
     private var deferredRefreshShowOverlayHint = false
+
+    /// Stashed filter result computed while the user was scrolling.
+    /// Applied immediately after scroll ends to avoid racing with deceleration animation.
+    @ObservationIgnored
+    private var pendingFilteredContent: FilteredContentResult?
 
     // MARK: - Constants
     static let allCategoriesToken = "__ALL_CATEGORIES__"
@@ -160,12 +170,14 @@ final class TransfersViewModel {
         filterComputationTask?.cancel()
         filterOptionsComputationTask?.cancel()
         overlayLoadingDelayTask?.cancel()
+        deferredRefreshTask?.cancel()
         isFilteringTasks = false
         shouldHintOverlayLoadingForCurrentFilterPass = false
         isOverlayLoadingVisible = false
         isUserScrolling = false
         hasDeferredRefreshWhileScrolling = false
         deferredRefreshShowOverlayHint = false
+        pendingFilteredContent = nil
         filteredTaskIDs = []
         rowStateByID.removeAll()
         taskLookupByID.removeAll()
@@ -180,25 +192,51 @@ final class TransfersViewModel {
     ) {
         guard isUserScrolling != isScrolling else { return }
         isUserScrolling = isScrolling
-        appStateManager.isScrollingTransfersList = isScrolling
+        appStateManager.setRefreshSuspension(isScrolling, source: Self.scrollRefreshSource)
         TransfersPosterDiagnostics.log(
             "scroll state changed isScrolling=\(isScrolling) deferred=\(hasDeferredRefreshWhileScrolling) rows=\(filteredTaskIDs.count)"
         )
 
-        guard !isScrolling, hasDeferredRefreshWhileScrolling else { return }
+        guard !isScrolling else { return }
+
+        // Prefer applying a pre-computed result over launching a fresh recompute cycle.
+        if let pending = pendingFilteredContent {
+            pendingFilteredContent = nil
+            hasDeferredRefreshWhileScrolling = false
+            deferredRefreshShowOverlayHint = false
+            TransfersPosterDiagnostics.log(
+                "scroll settled apply pending result rows=\(pending.taskIDs.count)"
+            )
+            deferredRefreshTask?.cancel()
+            deferredRefreshTask = Task { @MainActor [weak self] in
+                // 150ms gap: let the final deceleration frame commit before we mutate state.
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled, let self else { return }
+                self.applyFilteredContent(pending)
+                self.isFilteringTasks = false
+            }
+            return
+        }
+
+        guard hasDeferredRefreshWhileScrolling else { return }
 
         let showOverlayHint = deferredRefreshShowOverlayHint
         hasDeferredRefreshWhileScrolling = false
         deferredRefreshShowOverlayHint = false
         TransfersPosterDiagnostics.log(
-            "scroll settled apply deferred refresh rows=\(filteredTaskIDs.count) showOverlayHint=\(showOverlayHint)"
+            "scroll settled trigger deferred recompute rows=\(filteredTaskIDs.count) showOverlayHint=\(showOverlayHint)"
         )
-        scheduleFilteredTasksRecompute(
-            showOverlayHint: showOverlayHint,
-            isTransfersTabActive: isTransfersTabActive,
-            appStateManager: appStateManager,
-            displayOptions: displayOptions
-        )
+        deferredRefreshTask?.cancel()
+        deferredRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            self?.scheduleFilteredTasksRecompute(
+                showOverlayHint: showOverlayHint,
+                isTransfersTabActive: isTransfersTabActive,
+                appStateManager: appStateManager,
+                displayOptions: displayOptions
+            )
+        }
     }
 
     func scheduleSearchDebounce() {
@@ -283,7 +321,12 @@ final class TransfersViewModel {
             await MainActor.run {
                 self.currentAliasMap = aliasMapSnapshot
                 self.currentDisplayOptions = displayOptions
-                self.applyFilteredContent(computed)
+                if self.isUserScrolling {
+                    // Defer apply until scroll ends to avoid contending with deceleration animation.
+                    self.pendingFilteredContent = computed
+                } else {
+                    self.applyFilteredContent(computed)
+                }
                 if self.isFilteringTasks {
                     self.isFilteringTasks = false
                 }
@@ -326,9 +369,6 @@ final class TransfersViewModel {
 
     func rowState(for taskID: String) -> TransfersRowState {
         if let existing = rowStateByID[taskID] {
-            if let snapshot = makeRowSnapshot(for: taskID) {
-                existing.apply(snapshot)
-            }
             return existing
         }
 
@@ -378,18 +418,37 @@ final class TransfersViewModel {
 
         rowStateByID = rowStateByID.filter { computed.tasksByID[$0.key] != nil }
         visibleTaskIDs = visibleTaskIDs.filter { computed.tasksByID[$0] != nil }
-        refreshVisibleRowStates()
+        refreshVisibleRowStates(using: computed.rowSnapshotsByID)
 
         if !selectedTaskHashes.isEmpty {
             selectedTaskHashes = Set(selectedTaskHashes.filter { computed.tasksByID[$0] != nil })
         }
     }
 
-    private func refreshVisibleRowStates() {
+    private func refreshVisibleRowStates(using precomputedSnapshots: [String: TransfersRowDisplayModel]? = nil) {
         guard !visibleTaskIDs.isEmpty else { return }
-        for taskID in visibleTaskIDs {
-            guard let snapshot = makeRowSnapshot(for: taskID) else { continue }
-            rowState(for: taskID).apply(snapshot)
+        let ids = Array(visibleTaskIDs)
+        let batchSize = 3
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            for startIndex in stride(from: 0, to: ids.count, by: batchSize) {
+                let end = min(startIndex + batchSize, ids.count)
+                for i in startIndex..<end {
+                    let taskID = ids[i]
+                    let snapshot: TransfersRowDisplayModel?
+                    if let precomputed = precomputedSnapshots {
+                        snapshot = precomputed[taskID]
+                    } else {
+                        snapshot = self.makeRowSnapshot(for: taskID)
+                    }
+                    guard let snapshot else { continue }
+                    self.rowStateByID[taskID]?.apply(snapshot)
+                }
+                if end < ids.count {
+                    await Task.yield()
+                }
+            }
         }
     }
 
@@ -468,7 +527,7 @@ final class TransfersViewModel {
         displayOptions: TransfersRowDisplayOptions
     ) -> FilteredContentResult {
         guard !sourceTasks.isEmpty else {
-            return FilteredContentResult(taskIDs: [], tasksByID: [:])
+            return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
         }
 
         let effectiveStatuses = selectedStatuses.filter { $0 != .all }
@@ -509,7 +568,7 @@ final class TransfersViewModel {
 
         for task in sourceTasks {
             if Task.isCancelled {
-                return FilteredContentResult(taskIDs: [], tasksByID: [:])
+                return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
             }
 
             if statusFilterEnabled && !effectiveStatuses.contains(where: { $0.matches(task) }) {
@@ -553,28 +612,36 @@ final class TransfersViewModel {
         }
 
         if Task.isCancelled {
-            return FilteredContentResult(taskIDs: [], tasksByID: [:])
+            return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
         }
 
         sortTasks(&filtered, by: sortOption, ascending: sortAscending)
 
         var taskIDs: [String] = []
         var tasksByID: [String: TorrentTask] = [:]
+        var rowSnapshotsByID: [String: TransfersRowDisplayModel] = [:]
         taskIDs.reserveCapacity(filtered.count)
         tasksByID.reserveCapacity(filtered.count)
+        rowSnapshotsByID.reserveCapacity(filtered.count)
 
         for task in filtered {
             if Task.isCancelled {
-                return FilteredContentResult(taskIDs: [], tasksByID: [:])
+                return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
             }
 
             taskIDs.append(task.id)
             tasksByID[task.id] = task
+            rowSnapshotsByID[task.id] = TransfersRowDisplayModel.make(
+                from: task,
+                aliasMap: aliasMap,
+                options: displayOptions
+            )
         }
 
         return FilteredContentResult(
             taskIDs: taskIDs,
-            tasksByID: tasksByID
+            tasksByID: tasksByID,
+            rowSnapshotsByID: rowSnapshotsByID
         )
     }
 
@@ -632,6 +699,7 @@ final class TransfersViewModel {
     private struct FilteredContentResult: Sendable {
         let taskIDs: [String]
         let tasksByID: [String: TorrentTask]
+        let rowSnapshotsByID: [String: TransfersRowDisplayModel]
     }
 
     private struct TaskFilterOptions: Sendable {

@@ -153,6 +153,7 @@ struct AllActivityView: View {
                     }
                     .padding()
                 }
+                .defersAppRefreshWhileScrolling("rss.activity")
             }
         }
         .task {
