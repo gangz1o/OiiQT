@@ -47,10 +47,8 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
     var actors: [ActorViewState]
     var isOverviewLoading: Bool
     var isActorsLoading: Bool
-    var isSubscribed: Bool
     var searchResults: [SearchResultViewState]
     var isSearchLoading: Bool
-    var isSubscribeLoading: Bool
     var searchFeedbackText: String?
     var toastMessage: String?
 
@@ -70,10 +68,8 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
             actors: [],
             isOverviewLoading: true,
             isActorsLoading: true,
-            isSubscribed: false,
             searchResults: [],
             isSearchLoading: false,
-            isSubscribeLoading: false,
             searchFeedbackText: nil,
             toastMessage: nil
         )
@@ -95,10 +91,8 @@ nonisolated struct MediaDetailViewState: Identifiable, Equatable, Sendable {
             actors: [],
             isOverviewLoading: true,
             isActorsLoading: true,
-            isSubscribed: false,
             searchResults: [],
             isSearchLoading: false,
-            isSubscribeLoading: false,
             searchFeedbackText: nil,
             toastMessage: nil
         )
@@ -240,13 +234,11 @@ nonisolated struct MediaDetailHeroSectionViewState: Equatable, Sendable {
     let title: String
     let mediaTypeText: String
     let ratingText: String
-    let isSubscribed: Bool
     let metadataRows: [MediaDetailMetadataRowViewState]
     let overviewText: String?
     let isOverviewLoading: Bool
     let showsSyncProgress: Bool
     let isSearchLoading: Bool
-    let isSubscribeLoading: Bool
 }
 
 nonisolated struct MediaDetailActorsSectionViewState: Equatable, Sendable {
@@ -352,62 +344,4 @@ nonisolated struct SearchResultFilterSheetViewState: Identifiable, Equatable, Se
     let resolutionOptions: [SearchResultFilterOptionViewState]
     let qualityOptions: [SearchResultFilterOptionViewState]
     let codecOptions: [SearchResultFilterOptionViewState]
-}
-
-nonisolated enum SubscribeFormFieldControl: String, Equatable, Sendable {
-    case picker
-    case multiPicker
-    case toggle
-    case text
-    case multilineText
-    case integer
-    case decimal
-    case stringList
-}
-
-nonisolated struct SubscribeFormOptionViewState: Identifiable, Equatable, Sendable {
-    var id: String
-    var title: String
-    var value: String
-    var subtitle: String
-}
-
-nonisolated struct SubscribeFormFieldViewState: Identifiable, Equatable, Sendable {
-    var id: String
-    var title: String
-    var control: SubscribeFormFieldControl
-    var selectedOptionIDs: [String]
-    var textValue: String
-    var toggleValue: Bool
-    var placeholder: String
-    var footerText: String
-    var options: [SubscribeFormOptionViewState]
-    var isRequired: Bool
-    var allowsEmptySelection: Bool
-}
-
-nonisolated struct SubscribeFormSectionViewState: Identifiable, Equatable, Sendable {
-    var id: String
-    var title: String
-    var fields: [SubscribeFormFieldViewState]
-}
-
-nonisolated struct SubscribeFormMetadataRowViewState: Identifiable, Equatable, Sendable {
-    var id: String
-    var title: String
-    var value: String
-}
-
-nonisolated struct SubscribeFormViewState: Identifiable, Equatable, Sendable {
-    var id: String
-    var mediaID: String
-    var subscriptionID: Int?
-    var mediaTitle: String
-    var sheetTitle: String
-    var metadataRows: [SubscribeFormMetadataRowViewState]
-    var sections: [SubscribeFormSectionViewState]
-    var confirmButtonTitle: String
-    var isSubmitting: Bool
-    var statusText: String?
-    var basePayload: MPSubscribeDTO
 }

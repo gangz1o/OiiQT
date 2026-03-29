@@ -7,9 +7,6 @@
     "·" : {
 
     },
-    "*" : {
-
-    },
     "/downloads/..." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10094,7 +10091,11 @@
         }
       }
     },
+    "连接 MoviePilot 服务实例，支持媒体检索与详情联动。" : {
+
+    },
     "连接 MoviePilot 服务实例，预留媒体检索、订阅与自动化联动能力。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

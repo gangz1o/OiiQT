@@ -183,27 +183,6 @@ actor MoviePilotMediaDetailAPIClient {
         return results
     }
 
-    func requestSubscription(
-        baseURLString: String,
-        token: String,
-        mediaID: String,
-        season: Int?,
-        title: String?
-    ) async throws -> MPSubscribeDTO {
-        try await requestDecodable(
-            MPSubscribeDTO.self,
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(
-                path: "api/v1/subscribe/media/\(mediaID)",
-                queryItems: Self.compactQueryItems([
-                    season.map { URLQueryItem(name: "season", value: String($0)) },
-                    URLQueryItem(name: "title", value: title)
-                ])
-            )
-        )
-    }
-
     func requestDownloadClients(
         baseURLString: String,
         token: String
@@ -249,63 +228,6 @@ actor MoviePilotMediaDetailAPIClient {
                 path: "api/v1/download/add",
                 method: .post,
                 bodyData: bodyData
-            )
-        )
-    }
-
-    func requestMediaCategories(
-        baseURLString: String,
-        token: String
-    ) async throws -> [String: String] {
-        let data = try await requestData(
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(path: "api/v1/media/category")
-        )
-
-        return try Self.decodeMediaCategories(from: data)
-    }
-
-    func requestSites(
-        baseURLString: String,
-        token: String
-    ) async throws -> MPSiteListDTO {
-        try await requestDecodable(
-            MPSiteListDTO.self,
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(path: "api/v1/site/")
-        )
-    }
-
-    func createSubscription(
-        baseURLString: String,
-        token: String,
-        payload: MPSubscribeDTO
-    ) async throws -> MoviePilotActionResponseDTO {
-        try await requestActionResponse(
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(
-                path: "api/v1/subscribe/",
-                method: .post,
-                bodyData: try JSONEncoder().encode(payload)
-            )
-        )
-    }
-
-    func updateSubscription(
-        baseURLString: String,
-        token: String,
-        payload: MPSubscribeDTO
-    ) async throws -> MoviePilotActionResponseDTO {
-        try await requestActionResponse(
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(
-                path: "api/v1/subscribe/",
-                method: .put,
-                bodyData: try JSONEncoder().encode(payload)
             )
         )
     }
@@ -486,11 +408,6 @@ actor MoviePilotMediaDetailAPIClient {
             return direct
         }
 
-        if let envelope = try? decoder.decode(MoviePilotResponseEnvelope<MPSubscriptionMutationDataDTO>.self, from: data),
-           let success = envelope.success {
-            return MoviePilotActionResponseDTO(success: success, message: envelope.message)
-        }
-
         if let envelope = try? decoder.decode(MoviePilotResponseEnvelope<[String: String]>.self, from: data),
            let success = envelope.success {
             return MoviePilotActionResponseDTO(success: success, message: envelope.message)
@@ -516,51 +433,6 @@ actor MoviePilotMediaDetailAPIClient {
         let components = mediaID.split(separator: ":", maxSplits: 1).map(String.init)
         guard components.count == 2 else { return nil }
         return (components[0].lowercased(), components[1])
-    }
-
-    private nonisolated static func decodeMediaCategories(from data: Data) throws -> [String: String] {
-        if let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
-            return decoded
-        }
-
-        if let envelope = try? JSONDecoder().decode(MoviePilotResponseEnvelope<[String: String]>.self, from: data),
-           let payload = envelope.data {
-            return payload
-        }
-
-        let jsonObject = try JSONSerialization.jsonObject(with: data)
-        if let object = jsonObject as? [String: Any] {
-            var result: [String: String] = [:]
-            flattenCategories(prefix: nil, object: object, into: &result)
-            return result
-        }
-
-        return [:]
-    }
-
-    private nonisolated static func flattenCategories(
-        prefix: String?,
-        object: [String: Any],
-        into result: inout [String: String]
-    ) {
-        for (key, value) in object {
-            let composedKey = if let prefix, !prefix.isEmpty {
-                "\(prefix)/\(key)"
-            } else {
-                key
-            }
-
-            switch value {
-            case let stringValue as String:
-                result[composedKey] = stringValue
-            case let numberValue as NSNumber:
-                result[composedKey] = numberValue.stringValue
-            case let nestedObject as [String: Any]:
-                flattenCategories(prefix: composedKey, object: nestedObject, into: &result)
-            default:
-                continue
-            }
-        }
     }
 
     private nonisolated static func extractFailureMessage(from data: Data) -> String? {

@@ -12,7 +12,6 @@ struct MediaDetailView: View {
         MediaDetailPageContentView(
             viewState: viewModel.pageViewState,
             onSearch: { viewModel.intentSearch() },
-            onSubscribe: { viewModel.intentSubscribe() },
             onPresentSearchFilters: { viewModel.presentSearchFilterSheet() },
             onTapSearchResult: { resultID in
                 Task {
@@ -42,35 +41,6 @@ struct MediaDetailView: View {
                 onApply: { viewModel.applySearchFilterSheet() }
             )
             .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(item: subscribeSheetBinding) { form in
-            SubscribeSettingsSheetView(
-                viewState: viewModel.subscribeFormViewState ?? form,
-                onSelectOption: { fieldID, optionID in
-                    viewModel.updateSubscribeOption(fieldID: fieldID, optionID: optionID)
-                },
-                onToggleMultiOption: { fieldID, optionID, isSelected in
-                    viewModel.updateSubscribeMultiOption(
-                        fieldID: fieldID,
-                        optionID: optionID,
-                        isSelected: isSelected
-                    )
-                },
-                onUpdateText: { fieldID, text in
-                    viewModel.updateSubscribeText(fieldID: fieldID, text: text)
-                },
-                onToggle: { fieldID, isOn in
-                    viewModel.updateSubscribeToggle(fieldID: fieldID, isOn: isOn)
-                },
-                onCancel: {
-                    viewModel.dismissSubscribeSheet()
-                },
-                onSubmit: {
-                    await viewModel.submitSubscription(form: viewModel.subscribeFormViewState)
-                }
-            )
-            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: downloadFormBinding) { _ in
@@ -119,17 +89,6 @@ struct MediaDetailView: View {
             set: { newValue in
                 guard newValue == nil else { return }
                 viewModel.applySearchFilterSheet()
-            }
-        )
-    }
-
-    private var subscribeSheetBinding: Binding<SubscribeFormViewState?> {
-        Binding(
-            get: { viewModel.subscribeFormViewState },
-            set: { newValue in
-                if newValue == nil {
-                    viewModel.dismissSubscribeSheet()
-                }
             }
         )
     }

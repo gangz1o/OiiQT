@@ -4,7 +4,6 @@ import SwiftUI
 struct MediaDetailPageContentView: View {
     let viewState: MediaDetailPageViewState
     let onSearch: () -> Void
-    let onSubscribe: () -> Void
     let onPresentSearchFilters: () -> Void
     let onTapSearchResult: (String) -> Void
 
@@ -16,8 +15,7 @@ struct MediaDetailPageContentView: View {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     MediaDetailHeroSectionView(
                         viewState: viewState.hero,
-                        onSearch: onSearch,
-                        onSubscribe: onSubscribe
+                        onSearch: onSearch
                     )
 
                     MediaDetailSearchResultsSectionView(
@@ -60,7 +58,6 @@ private struct MediaDetailBackgroundView: View {
 private struct MediaDetailHeroSectionView: View {
     let viewState: MediaDetailHeroSectionViewState
     let onSearch: () -> Void
-    let onSubscribe: () -> Void
 
     private let posterSize = CGSize(width: 118, height: 176)
 
@@ -89,46 +86,25 @@ private struct MediaDetailHeroSectionView: View {
     }
 
     private var actionButtons: some View {
-        HStack(spacing: 12) {
-            Button(action: onSearch) {
-                Group {
-                    if viewState.isSearchLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label(moviePilotLocalized("搜索"), systemImage: "magnifyingglass")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        Button(action: onSearch) {
+            Group {
+                if viewState.isSearchLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label(moviePilotLocalized("搜索"), systemImage: "magnifyingglass")
                 }
             }
-            .buttonStyle(.plain)
-            .disabled(viewState.isSearchLoading)
-
-            Button(action: onSubscribe) {
-                Group {
-                    if viewState.isSubscribeLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label(
-                            moviePilotLocalized(viewState.isSubscribed ? "已订阅" : "订阅"),
-                            systemImage: "bell.fill"
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
             }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
-            .disabled(viewState.isSubscribeLoading)
         }
+        .buttonStyle(.plain)
+        .disabled(viewState.isSearchLoading)
     }
 }
 
@@ -190,12 +166,6 @@ private struct MediaDetailHeroInfoColumnView: View {
                 MediaDetailMetadataPlaceholderView()
             } else {
                 MediaDetailMetadataRowGroupView(rows: viewState.metadataRows)
-            }
-
-            if viewState.isSubscribed {
-                Label(moviePilotLocalized("已订阅"), systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.green)
             }
         }
     }

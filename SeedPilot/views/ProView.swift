@@ -71,7 +71,7 @@ struct ProView: View {
             icon: "film.stack.fill",
             color: .pink,
             title: "MoviePilot 联动",
-            subtitle: "连接 MoviePilot 服务实例，预留媒体检索、订阅与自动化联动能力。"
+            subtitle: "连接 MoviePilot 服务实例，支持媒体检索与详情联动。"
         ),
         ProFeature(
             icon: "infinity.circle.fill",
