@@ -260,13 +260,15 @@ struct ProView: View {
     }
 
     private var headerSection: some View {
-        VStack(spacing: 12) {
-            Image("OiiQTProHeader")
+        VStack(spacing: 8) {
+            Image("ProCenterArtwork")
                 .resizable()
                 .interpolation(.high)
-                .scaledToFill()
-                .frame(width: 340, height: 120)
-                .clipped()
+                .scaledToFit()
+                .frame(width: 240, height: 240)
+                .shadow(color: .white.opacity(colorScheme == .dark ? 0.08 : 0.18), radius: 18, x: 0, y: 10)
+                .offset(y: -24)
+                .padding(.bottom, -36)
                 .accessibilityHidden(true)
 
             Text(
@@ -280,7 +282,7 @@ struct ProView: View {
                 .padding(.horizontal, 20)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 26)
+        .padding(.top, 8)
         .padding(.horizontal, 16)
     }
 
