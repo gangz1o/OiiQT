@@ -919,12 +919,9 @@ class AppStateManager {
     ) async -> TaskRefreshSnapshot {
         await Task.detached(priority: .userInitiated) {
             let allTasks = payloads.flatMap(\.tasks)
-            // Compute a cheap O(n) fingerprint here on a background thread,
-            // so the main thread publish step can skip the O(n) equality check entirely.
-            var hash = allTasks.count
-            if let first = allTasks.first { hash ^= first.id.hashValue }
-            if let last = allTasks.last { hash ^= last.id.hashValue &* 0x9e3779b9 }
-            hash ^= allTasks.count &* 2654435761
+            // Build the fingerprint off the main thread so metadata-only edits
+            // still publish into the list snapshot.
+            let hash = Self.taskRefreshFingerprint(for: allTasks)
             return TaskRefreshSnapshot(
                 allTasks: allTasks,
                 displayedTasks: Self.makeDisplayedTasks(from: allTasks, activeServerID: activeServerID),
@@ -943,6 +940,42 @@ class AppStateManager {
                 allTasksHash: hash
             )
         }.value
+    }
+
+    nonisolated private static func taskRefreshFingerprint(for tasks: [TorrentTask]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(tasks.count)
+        for task in tasks {
+            hasher.combine(task.hash)
+            hasher.combine(task.serverID)
+            hasher.combine(task.name)
+            hasher.combine(task.progress.bitPattern)
+            hasher.combine(task.size)
+            hasher.combine(task.downloadSpeed)
+            hasher.combine(task.uploadSpeed)
+            hasher.combine(task.remainingTime.bitPattern)
+            hasher.combine(task.status.rawValue)
+            hasher.combine(task.errorCode)
+            hasher.combine(task.errorMessage)
+            hasher.combine(task.tracker)
+            hasher.combine(task.savePath)
+            hasher.combine(task.category)
+            hasher.combine(task.tags)
+            hasher.combine(task.downloaded)
+            hasher.combine(task.uploaded)
+            hasher.combine(task.isSequential)
+            hasher.combine(task.isFirstLastPiecePriority)
+            hasher.combine(task.completionDate?.timeIntervalSince1970.bitPattern)
+            hasher.combine(task.seedingTime.bitPattern)
+            hasher.combine(task.addedTime.timeIntervalSince1970.bitPattern)
+            hasher.combine(task.resolutionBadge?.rawValue)
+            hasher.combine(task.numSeeds)
+            hasher.combine(task.totalSeeds)
+            hasher.combine(task.numPeers)
+            hasher.combine(task.totalPeers)
+            hasher.combine(task.ratio.bitPattern)
+        }
+        return hasher.finalize()
     }
 
     nonisolated private static func buildServerTaskStats(from tasks: [TorrentTask]) -> ServerTaskStats {
@@ -1420,7 +1453,10 @@ class AppStateManager {
     }
 
     func setLocation(_ task: TorrentTask, newLocation: String) {
-        performTaskAction(task) { client, id in try await client.setLocation(hash: id, newLocation: newLocation) }
+        performTaskAction(task) { client, id in
+            try await client.setLocation(hash: id, newLocation: newLocation)
+            await self.refreshData()
+        }
     }
 
     func editTrackers(_ task: TorrentTask, newTrackers: String) {

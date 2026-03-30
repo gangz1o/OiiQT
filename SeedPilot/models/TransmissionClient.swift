@@ -369,7 +369,39 @@ class TransmissionClient: NSObject, TorrentClient {
     func toggleFirstLastPiecePriority(hash: String) async throws {}
 
     func renameTask(hash: String, newName: String) async throws {
-         // Transmission rename is 'torrent-rename-path', needs path + name. Complex.
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw TorrentClientError.apiError("Torrent name cannot be empty")
+        }
+
+        struct TorrentNameArgs: Decodable {
+            struct Item: Decodable {
+                let name: String?
+            }
+
+            let torrents: [Item]
+        }
+
+        let args = try await performRequest(
+            "torrent-get",
+            arguments: ["ids": [hash], "fields": ["name"]],
+            responseType: TorrentNameArgs.self
+        )
+
+        guard let currentName = args.torrents.first?.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !currentName.isEmpty else {
+            throw TorrentClientError.apiError("Failed to resolve current torrent name")
+        }
+
+        _ = try await performRequest(
+            "torrent-rename-path",
+            arguments: [
+                "ids": [hash],
+                "path": currentName,
+                "name": trimmedName
+            ],
+            responseType: EmptyArgs.self
+        )
     }
 
     func forceStartTask(hash: String) async throws {
