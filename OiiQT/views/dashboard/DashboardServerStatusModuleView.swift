@@ -122,9 +122,9 @@ private struct DashboardCachedServerIconView: View {
     private var cacheKey: String {
         switch type {
         case .qBittorrent:
-            return "dashboard.server.icon.qb"
+            return "dashboard.server.symbol.v2.qb"
         case .transmission:
-            return "dashboard.server.icon.tr"
+            return "dashboard.server.symbol.v2.tr"
         }
     }
 
@@ -147,12 +147,12 @@ private struct DashboardCachedServerIconView: View {
         Group {
             switch type {
             case .qBittorrent:
-                Image(systemName: "network")
+                Image(systemName: "bolt.horizontal.circle.fill")
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(.blue)
             case .transmission:
-                Image(systemName: "tray.and.arrow.down.fill")
+                Image(systemName: "arrow.down.circle.fill")
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(.orange)
@@ -162,7 +162,6 @@ private struct DashboardCachedServerIconView: View {
 
     private func loadCachedIcon() {
         let key = cacheKey
-        let iconType = type
         if let memoryImage = ImageCache.default.retrieveImageInMemoryCache(forKey: key) {
             cachedIcon = memoryImage
             return
@@ -176,8 +175,13 @@ private struct DashboardCachedServerIconView: View {
                 return
             }
 
-            let assetName: String = iconType == .qBittorrent ? "qb_logo" : "tr_logo"
-            guard let image = UIImage(named: assetName) else { return }
+            let symbolName: String = type == .qBittorrent ? "bolt.horizontal.circle.fill" : "arrow.down.circle.fill"
+            let tint: UIColor = type == .qBittorrent ? .systemBlue : .systemOrange
+            let symbolConfig = UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)
+            guard
+                let baseImage = UIImage(systemName: symbolName, withConfiguration: symbolConfig)
+            else { return }
+            let image = baseImage.withTintColor(tint, renderingMode: .alwaysOriginal)
 
             ImageCache.default.store(image, forKey: key)
             Task { @MainActor in

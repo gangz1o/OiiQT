@@ -245,29 +245,10 @@ struct ServerBrandIcon: View {
     var body: some View {
         Group {
             if let type = type {
-                if type == .transmission {
-                    if UIImage(named: "tr_logo") != nil {
-                        Image("tr_logo")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } else {
-                        Image(systemName: "tray.and.arrow.down.fill")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .foregroundStyle(.orange)
-                    }
-                } else {
-                    if UIImage(named: "qb_logo") != nil {
-                        Image("qb_logo")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                    } else {
-                        Image(systemName: "network")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .foregroundStyle(.blue)
-                    }
-                }
+                Image(systemName: type == .transmission ? "arrow.down.circle.fill" : "bolt.horizontal.circle.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(type == .transmission ? .orange : .blue)
             } else {
                 // All Servers (Grid Icon)
                 Image(systemName: "square.grid.2x2.fill")

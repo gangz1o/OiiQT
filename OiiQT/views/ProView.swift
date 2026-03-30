@@ -15,6 +15,7 @@ struct ProView: View {
         let color: Color
         let title: LocalizedStringKey
         let subtitle: LocalizedStringKey
+        let isHiddenDuringReview: Bool
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -42,50 +43,65 @@ struct ProView: View {
         "com.oiiqt.monthly.pro"
     ]
 
+    // Keep review-only restrictions in the UI layer so the underlying feature set stays intact.
+    private let hidesReviewSensitiveFeatures = true
+
     private let proFeatures: [ProFeature] = [
         ProFeature(
             icon: "film.fill",
             color: .pink,
             title: "影视海报与元数据",
-            subtitle: "自动匹配高清海报与剧情简介，无缝适配您的系统语言。"
+            subtitle: "自动匹配高清海报与剧情简介，无缝适配您的系统语言。",
+            isHiddenDuringReview: true
         ),
         ProFeature(
             icon: "photo.stack.fill",
             color: .blue,
             title: "动态海报墙",
-            subtitle: "在仪表盘以精美轮播图展示您最近添加的影视收藏。"
+            subtitle: "在仪表盘以精美轮播图展示您最近添加的影视收藏。",
+            isHiddenDuringReview: true
         ),
         ProFeature(
             icon: "server.rack",
             color: .teal,
             title: "全局任务聚合",
-            subtitle: "在同一列表中集中展示并管理所有服务器的种子任务。"
+            subtitle: "在同一列表中集中展示并管理所有服务器的种子任务。",
+            isHiddenDuringReview: false
         ),
         ProFeature(
             icon: "tag.fill",
             color: .purple,
             title: "Tracker 别名",
-            subtitle: "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。"
+            subtitle: "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。",
+            isHiddenDuringReview: false
         ),
         ProFeature(
             icon: "film.stack.fill",
             color: .pink,
             title: "MoviePilot 联动",
-            subtitle: "连接 MoviePilot 服务实例，支持媒体检索与详情联动。"
+            subtitle: "连接 MoviePilot 服务实例，支持媒体检索与详情联动。",
+            isHiddenDuringReview: true
         ),
         ProFeature(
             icon: "infinity.circle.fill",
             color: .green,
             title: "无限添加服务器",
-            subtitle: "突破免费版上限，自由添加并管理任意数量的服务器节点。"
+            subtitle: "突破免费版上限，自由添加并管理任意数量的服务器节点。",
+            isHiddenDuringReview: false
         ),
         ProFeature(
             icon: "heart.fill",
             color: .red,
             title: "支持独立开发",
-            subtitle: "助力 OiiQT 持续迭代更新，解锁未来所有专属功能。"
+            subtitle: "助力 OiiQT 持续迭代更新，解锁未来所有专属功能。",
+            isHiddenDuringReview: false
         )
     ]
+
+    private var visibleProFeatures: [ProFeature] {
+        guard hidesReviewSensitiveFeatures else { return proFeatures }
+        return proFeatures.filter { !$0.isHiddenDuringReview }
+    }
 
     var body: some View {
         GeometryReader { _ in
@@ -289,11 +305,11 @@ struct ProView: View {
     private var featuresSection: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                ForEach(Array(proFeatures.enumerated()), id: \.element.id) { index, feature in
+                ForEach(Array(visibleProFeatures.enumerated()), id: \.element.id) { index, feature in
                     featureRow(feature)
                         .padding(.vertical, 8)
 
-                    if index < proFeatures.count - 1 {
+                    if index < visibleProFeatures.count - 1 {
                         Divider()
                             .overlay(Color.secondary.opacity(0.18))
                             .padding(.leading, 40)
@@ -353,7 +369,7 @@ struct ProView: View {
                 ForEach(Array(orderedProducts.enumerated()), id: \.element.id) { index, product in
                     optionCard(
                         index: index,
-                        title: product.displayName,
+                        title: titleText(for: product),
                         subtitle: subtitleText(for: product),
                         price: product.displayPrice,
                         badge: badgeText(for: product)
@@ -567,8 +583,25 @@ struct ProView: View {
         switch product.id {
         case "com.oiiqt.lifetime.pro":
             return LanguageManager.shared.localized("Early bird special, pay once and unlock forever")
+        case "com.oiiqt.yearly.pro":
+            return LanguageManager.shared.localized("Annual subscription, billed once per year")
+        case "com.oiiqt.monthly.pro":
+            return LanguageManager.shared.localized("Flexible monthly plan, cancel anytime")
         default:
             return nil
+        }
+    }
+
+    private func titleText(for product: Product) -> String {
+        switch product.id {
+        case "com.oiiqt.lifetime.pro":
+            return LanguageManager.shared.localized("Lifetime Purchase")
+        case "com.oiiqt.yearly.pro":
+            return LanguageManager.shared.localized("Yearly Subscription")
+        case "com.oiiqt.monthly.pro":
+            return LanguageManager.shared.localized("Monthly Subscription")
+        default:
+            return product.displayName
         }
     }
 

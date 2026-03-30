@@ -598,13 +598,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add your first RSS source to start your automation workflow."
+            "value" : "Add your first RSS source to start your RSS download journey."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "添加您的第一个 RSS 订阅源，开启自动化下载之旅。"
+            "value" : "添加您的第一个 RSS 订阅源，开启 RSS 下载之旅。"
           }
         }
       }
@@ -898,6 +898,23 @@
         }
       }
     },
+    "Annual subscription, billed once per year" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annual subscription, auto-renew, family sharing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按年订阅,自动续费,家庭共享"
+          }
+        }
+      }
+    },
     "App Settings" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -966,19 +983,19 @@
         }
       }
     },
-    "Are you sure you want to clear poster cache?" : {
+    "Are you sure you want to clear cache?" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Are you sure you want to clear poster cache?"
+            "value" : "Are you sure you want to clear cache?"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "确定要清理海报缓存吗？"
+            "value" : "确定要清理缓存吗？"
           }
         }
       }
@@ -1159,13 +1176,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automation"
+            "value" : "RSS"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自动化"
+            "value" : "RSS"
           }
         }
       }
@@ -1233,6 +1250,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "权益将于 %@ 到期"
+          }
+        }
+      }
+    },
+    "Best value annual plan, billed once per year" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best value annual plan, billed once per year"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "年付更划算，每年自动续费"
           }
         }
       }
@@ -1487,7 +1521,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "清理海报缓存"
+            "value" : "清理缓存"
           }
         }
       }
@@ -2461,99 +2495,6 @@
         }
       }
     },
-    "OiiQT" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT"
-          }
-        }
-      }
-    },
-    "OiiQT %@" : {
-
-    },
-    "OiiQT Privacy Policy" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Privacy Policy"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT 隐私政策"
-          }
-        }
-      }
-    },
-    "OiiQT Pro" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro"
-          }
-        }
-      }
-    },
-    "OiiQT Pro Active" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro Active"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro 已激活"
-          }
-        }
-      }
-    },
-    "OiiQT Pro has been activated." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro has been activated."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro 已激活。"
-          }
-        }
-      }
-    },
-    "OiiQT Terms of Service" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Terms of Service"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT 服务条款"
-          }
-        }
-      }
-    },
     "Download" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3468,6 +3409,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "标志"
+          }
+        }
+      }
+    },
+    "Flexible monthly plan, cancel anytime" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monthly plan,cancel anytime,family sharing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "灵活月付,随时取消,家庭共享"
           }
         }
       }
@@ -5138,6 +5096,99 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未同步"
+          }
+        }
+      }
+    },
+    "OiiQT" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT"
+          }
+        }
+      }
+    },
+    "OiiQT %@" : {
+
+    },
+    "OiiQT Privacy Policy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Privacy Policy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT 隐私政策"
+          }
+        }
+      }
+    },
+    "OiiQT Pro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Pro"
+          }
+        }
+      }
+    },
+    "OiiQT Pro Active" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Pro Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Pro 已激活"
+          }
+        }
+      }
+    },
+    "OiiQT Pro has been activated." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Pro has been activated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Pro 已激活。"
+          }
+        }
+      }
+    },
+    "OiiQT Terms of Service" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT Terms of Service"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OiiQT 服务条款"
           }
         }
       }

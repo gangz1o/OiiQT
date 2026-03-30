@@ -43,6 +43,9 @@ struct SettingsView: View {
     @State private var settingsPath: [SettingsRoute] = []
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
 
+    // Review-only: hide selected Pro setting entries from UI without removing underlying capabilities.
+    private let hidesReviewSensitiveProSettings = true
+
     private static let iCloudStatusDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -221,7 +224,7 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .confirmationDialog(LanguageManager.shared.localized("Are you sure you want to clear poster cache?"), isPresented: $showingClearCacheAlert, titleVisibility: .visible) {
+                    .confirmationDialog(LanguageManager.shared.localized("Are you sure you want to clear cache?"), isPresented: $showingClearCacheAlert, titleVisibility: .visible) {
                         Button(LanguageManager.shared.localized("Clear All Images"), role: .destructive) {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             clearCache()
@@ -318,57 +321,61 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var proFeaturesSettingsRows: some View {
-        Toggle(isOn: tmdbProBinding) {
-            SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
-        }
-
-        Button {
-            guardProAccess {
-                settingsPath.append(.tmdbAPIKey)
+        if !hidesReviewSensitiveProSettings {
+            Toggle(isOn: tmdbProBinding) {
+                SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
             }
-        } label: {
-            HStack {
-                SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
-                Spacer()
-                if isProUser {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Image(systemName: "hand.thumbsup.fill")
-                        }
-                        Text(tmdbAPIKeyStatusText)
-                    }
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(tmdbAPIKeyStatusColor)
-                    .lineLimit(1)
+
+            Button {
+                guardProAccess {
+                    settingsPath.append(.tmdbAPIKey)
                 }
-                Image(systemName: isProUser ? "chevron.right" : "lock.fill")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+            } label: {
+                HStack {
+                    SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
+                    Spacer()
+                    if isProUser {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Image(systemName: "hand.thumbsup.fill")
+                            }
+                            Text(tmdbAPIKeyStatusText)
+                        }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(tmdbAPIKeyStatusColor)
+                        .lineLimit(1)
+                    }
+                    Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
 
-        Button {
-            appStateManager.handleMoviePilotSettingsEntryTap()
-        } label: {
-            HStack {
-                SettingsRowLabel(title: LanguageManager.shared.localized("MoviePilot Settings"), systemName: "film.stack.fill", tint: .pink)
-                Spacer()
-                Image(systemName: appStateManager.moviePilotSettingsEntryTrailingSymbolName)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+            Button {
+                appStateManager.handleMoviePilotSettingsEntryTap()
+            } label: {
+                HStack {
+                    SettingsRowLabel(title: LanguageManager.shared.localized("MoviePilot Settings"), systemName: "film.stack.fill", tint: .pink)
+                    Spacer()
+                    Image(systemName: appStateManager.moviePilotSettingsEntryTrailingSymbolName)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
 
         Toggle(isOn: globalTaskAggregationProBinding) {
             SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
         }
 
-        Toggle(isOn: proDashboardProBinding) {
-            SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
+        if !hidesReviewSensitiveProSettings {
+            Toggle(isOn: proDashboardProBinding) {
+                SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
+            }
         }
 
         Toggle(isOn: hideDataNodeNameProBinding) {
@@ -581,6 +588,10 @@ struct SettingsView: View {
     private func openPendingSettingsRouteIfNeeded() {
         guard appStateManager.selectedTab == .settings else { return }
         guard let route = appStateManager.settingsRoute else { return }
+        if hidesReviewSensitiveProSettings && (route == .tmdbAPIKey || route == .moviePilotSettings) {
+            appStateManager.settingsRoute = nil
+            return
+        }
         settingsPath = [route]
         appStateManager.settingsRoute = nil
     }

@@ -179,32 +179,11 @@ struct ServerCardView: View {
             HStack(alignment: .top) {
                 // Logo & Title
                 HStack(spacing: 8) {
-                    Group {
-                        if server.type == .transmission {
-                            if UIImage(named: "tr_logo") != nil {
-                                Image("tr_logo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                            } else {
-                                Image(systemName: "tray.and.arrow.down.fill")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .foregroundStyle(.orange)
-                            }
-                        } else {
-                            if UIImage(named: "qb_logo") != nil {
-                                Image("qb_logo")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                            } else {
-                                Image(systemName: "network")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .foregroundStyle(.blue)
-                            }
-                        }
-                    }
-                    .frame(width: 32, height: 32)
+                    Image(systemName: server.type == .transmission ? "arrow.down.circle.fill" : "bolt.horizontal.circle.fill")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .foregroundStyle(server.type == .transmission ? .orange : .blue)
+                        .frame(width: 32, height: 32)
 
                     Text(server.name)
                         .font(.headline)

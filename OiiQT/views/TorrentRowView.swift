@@ -91,19 +91,19 @@ struct TorrentRowView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                Group {
-                                    if serverType == .transmission {
-                                        Image("tr_logo")
-                                            .resizable()
-                                            .scaledToFit()
-                                    } else {
-                                        Image("qb_logo")
-                                            .resizable()
-                                            .scaledToFit()
-                                    }
-                                }
-                                .frame(width: 14, height: 14)
-                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                Text(verbatim: serverType == .transmission ? "tr" : "qb")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(serverType == .transmission ? .orange : .blue)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                            .fill((serverType == .transmission ? Color.orange : Color.blue).opacity(0.12))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                            .stroke((serverType == .transmission ? Color.orange : Color.blue).opacity(0.28), lineWidth: 0.6)
+                                    )
                             }
                         } else {
                             titleText
