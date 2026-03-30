@@ -1,8 +1,8 @@
 require 'xcodeproj'
 
-project_path = '/Users/gangz1o/ios-app/SeedPilot/SeedPilot.xcodeproj'
-file_path = 'SeedPilot/models/QBittorrentClient.swift'
-group_path = 'SeedPilot/models'
+project_path = '/Users/gangz1o/ios-app/OiiQT/OiiQT.xcodeproj'
+file_path = 'OiiQT/models/QBittorrentClient.swift'
+group_path = 'OiiQT/models'
 
 project = Xcodeproj::Project.open(project_path)
 
@@ -10,7 +10,7 @@ project = Xcodeproj::Project.open(project_path)
 group = project.main_group.find_subpath(group_path, false)
 unless group
   puts "Creating group #{group_path}"
-  group = project.main_group.new_group('models', 'SeedPilot/models')
+  group = project.main_group.new_group('models', 'OiiQT/models')
 end
 
 # Check if file already exists in group

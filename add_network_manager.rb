@@ -1,15 +1,15 @@
 require 'xcodeproj'
 
-project_path = '/Users/gangz1o/ios-app/SeedPilot/SeedPilot.xcodeproj'
-file_path = 'SeedPilot/utils/NetworkManager.swift'
-group_path = 'SeedPilot/utils'
+project_path = '/Users/gangz1o/ios-app/OiiQT/OiiQT.xcodeproj'
+file_path = 'OiiQT/utils/NetworkManager.swift'
+group_path = 'OiiQT/utils'
 
 project = Xcodeproj::Project.open(project_path)
 
 # Find or create strict group structure
-# "SeedPilot" group -> "utils" group
+# "OiiQT" group -> "utils" group
 main_group = project.main_group
-seed_pilot_group = main_group.find_subpath('SeedPilot', false)
+seed_pilot_group = main_group.find_subpath('OiiQT', false)
 
 if seed_pilot_group
   utils_group = seed_pilot_group.find_subpath('utils', true) # Create if not exists
@@ -29,5 +29,5 @@ if seed_pilot_group
   project.save
   puts "Added NetworkManager.swift to project."
 else
-  puts "Error: Could not find SeedPilot group."
+  puts "Error: Could not find OiiQT group."
 end
