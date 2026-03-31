@@ -37,14 +37,8 @@ struct ProView: View {
         self.isPresentedAsSheet = isPresentedAsSheet
     }
 
-    private let optionProductIDs = [
-        "com.oiiqt.lifetime.pro",
-        "com.oiiqt.yearly.pro",
-        "com.oiiqt.monthly.pro"
-    ]
-
     // Keep review-only restrictions in the UI layer so the underlying feature set stays intact.
-    private let hidesReviewSensitiveFeatures = true
+    private let hidesReviewSensitiveFeatures = StoreManager.hidesReviewSensitiveFeatures
 
     private let proFeatures: [ProFeature] = [
         ProFeature(
@@ -303,13 +297,14 @@ struct ProView: View {
     }
 
     private var featuresSection: some View {
-        VStack(spacing: 0) {
+        let features = visibleProFeatures
+        return VStack(spacing: 0) {
             VStack(spacing: 0) {
-                ForEach(Array(visibleProFeatures.enumerated()), id: \.element.id) { index, feature in
+                ForEach(Array(features.enumerated()), id: \.element.id) { index, feature in
                     featureRow(feature)
                         .padding(.vertical, 8)
 
-                    if index < visibleProFeatures.count - 1 {
+                    if index < features.count - 1 {
                         Divider()
                             .overlay(Color.secondary.opacity(0.18))
                             .padding(.leading, 40)
@@ -532,7 +527,7 @@ struct ProView: View {
     }
 
     private var orderedProducts: [Product] {
-        let order = Dictionary(uniqueKeysWithValues: optionProductIDs.enumerated().map { ($1, $0) })
+        let order = Dictionary(uniqueKeysWithValues: storeManager.productIDs.enumerated().map { ($1, $0) })
         return storeManager.products.sorted { lhs, rhs in
             (order[lhs.id] ?? Int.max) < (order[rhs.id] ?? Int.max)
         }

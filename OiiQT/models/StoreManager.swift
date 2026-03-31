@@ -5,6 +5,7 @@ import Combine
 @MainActor
 final class StoreManager: ObservableObject {
     static let shared = StoreManager()
+    static let hidesReviewSensitiveFeatures = true
 
     private let lifetimeProductID = "com.oiiqt.lifetime.pro"
 
