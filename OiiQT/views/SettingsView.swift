@@ -44,7 +44,7 @@ struct SettingsView: View {
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
 
     // Review-only: hide selected Pro setting entries from UI without removing underlying capabilities.
-    private let hidesReviewSensitiveProSettings = true
+    private let hidesReviewSensitiveProSettings = StoreManager.hidesReviewSensitiveFeatures
 
     private static let iCloudStatusDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
