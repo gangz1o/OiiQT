@@ -168,8 +168,7 @@ final class TransfersPosterStore {
         if let posterURL {
             OiiQTImagePreheater.prefetch(
                 posterURL,
-                downsampleSize: CGSize(width: 65, height: 97.5),
-                cacheOriginal: false
+                targetSize: CGSize(width: 65, height: 97.5)
             )
         }
 
