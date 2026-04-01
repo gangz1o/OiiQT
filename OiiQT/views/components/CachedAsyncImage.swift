@@ -6,135 +6,18 @@
 //
 
 import SwiftUI
-import Kingfisher
+import Nuke
+import NukeUI
 #if os(macOS)
 import AppKit
 #else
 import UIKit
 #endif
 
-@MainActor
-enum OiiQTImagePreheater {
-    private static let prefetchQueue = DispatchQueue(label: "oiiqt.image.prefetch", qos: .utility)
-    private static var activeResources = Set<String>()
-
-    static func prefetch(
-        _ url: URL?,
-        downsampleSize: CGSize? = nil,
-        cacheOriginal: Bool = false
-    ) {
-        guard let url else { return }
-
-        let resourceKey = cacheKey(for: url, downsampleSize: downsampleSize, cacheOriginal: cacheOriginal)
-        guard activeResources.insert(resourceKey).inserted else { return }
-
-        let options = buildOptions(for: url, downsampleSize: downsampleSize, cacheOriginal: cacheOriginal)
-        let resource = KF.ImageResource(downloadURL: url, cacheKey: resourceKey)
-        KingfisherManager.shared.retrieveImage(with: resource, options: options) { _ in
-            Task { @MainActor in
-                activeResources.remove(resourceKey)
-            }
-        }
-    }
-
-    private static func buildOptions(
-        for url: URL,
-        downsampleSize: CGSize?,
-        cacheOriginal: Bool
-    ) -> KingfisherOptionsInfo {
-        var options: KingfisherOptionsInfo = [
-            .backgroundDecode,
-            .processingQueue(.dispatch(OiiQTImageLoading.processingQueue)),
-            .callbackQueue(.dispatch(prefetchQueue))
-        ]
-
-        if let downsampleSize {
-            options.append(.scaleFactor(OiiQTImageLoading.displayScale))
-            options.append(.processor(DownsamplingImageProcessor(size: downsampleSize)))
-        }
-
-        if cacheOriginal {
-            options.append(.cacheOriginalImage)
-        }
-
-        if OiiQTImageLoading.needsDoubanHeaders(for: url) {
-            #if targetEnvironment(simulator)
-            options.append(.downloader(OiiQTImageLoading.doubanDownloader))
-            #endif
-            options.append(
-                .requestModifier(AnyModifier { request in
-                    var request = request
-                    request.setValue("https://movie.douban.com/", forHTTPHeaderField: "Referer")
-                    request.setValue(
-                        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-                        forHTTPHeaderField: "User-Agent"
-                    )
-                    request.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
-                    return request
-                })
-            )
-        }
-
-        return options
-    }
-
-    private static func cacheKey(
-        for url: URL,
-        downsampleSize: CGSize?,
-        cacheOriginal: Bool
-    ) -> String {
-        let sizeKey: String
-        if let downsampleSize {
-            sizeKey = "|w=\(Int(downsampleSize.width.rounded()))|h=\(Int(downsampleSize.height.rounded()))|s=\(Int(OiiQTImageLoading.displayScale.rounded()))"
-        } else {
-            sizeKey = "|full"
-        }
-        return url.absoluteString + sizeKey + "|original=\(cacheOriginal)"
-    }
-}
-
-private final class OiiQTDoubanAuthenticationChallengeResponder: AuthenticationChallengeResponsible {
-    func downloader(
-        _ downloader: ImageDownloader,
-        didReceive challenge: URLAuthenticationChallenge
-    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        challengeResponse(for: challenge)
-    }
-
-    func downloader(
-        _ downloader: ImageDownloader,
-        task: URLSessionTask,
-        didReceive challenge: URLAuthenticationChallenge
-    ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        challengeResponse(for: challenge)
-    }
-
-    private func challengeResponse(
-        for challenge: URLAuthenticationChallenge
-    ) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              !challenge.protectionSpace.host.isEmpty,
-              let serverTrust = challenge.protectionSpace.serverTrust else {
-            return (.performDefaultHandling, nil)
-        }
-
-        let host = challenge.protectionSpace.host.lowercased()
-        guard host.hasSuffix("doubanio.com") else {
-            return (.performDefaultHandling, nil)
-        }
-
-        return (.useCredential, URLCredential(trust: serverTrust))
-    }
-}
+// MARK: - Image Loading Infrastructure
 
 enum OiiQTImageLoading {
     static let processingQueue = DispatchQueue.global(qos: .userInitiated)
-    private static let doubanAuthenticationResponder = OiiQTDoubanAuthenticationChallengeResponder()
-    fileprivate static let doubanDownloader: ImageDownloader = {
-        let downloader = ImageDownloader(name: "oiiqt.douban")
-        downloader.authenticationChallengeResponder = doubanAuthenticationResponder
-        return downloader
-    }()
 
     static var displayScale: CGFloat {
         #if os(macOS)
@@ -148,109 +31,107 @@ enum OiiQTImageLoading {
         guard let host = url?.host?.lowercased() else { return false }
         return host.contains("doubanio.com")
     }
-}
 
-extension KFOptionSetter {
-    /// `size` uses point-based layout size. `scaleFactor` handles pixel density.
-    func targetSize(_ size: CGSize, scale: CGFloat? = nil) -> Self {
-        _ = scaleFactor(scale ?? OiiQTImageLoading.displayScale)
-        return downsampling(size: size)
-    }
+    /// Build a Nuke `ImageRequest` for the given URL.
+    /// - If the URL is a Douban image, injects the required HTTP headers.
+    /// - If `targetSize` is supplied, appends a `Resize` processor (in points, automatically scaled to pixels by Nuke).
+    static func request(for url: URL, targetSize: CGSize? = nil) -> ImageRequest {
+        var urlRequest = URLRequest(url: url)
 
-    func cacheOriginalImage(if enabled: Bool) -> Self {
-        guard enabled else {
-            return self
-        }
-
-        return cacheOriginalImage()
-    }
-
-    func seedPilotDownloader(for url: URL?) -> Self {
-        guard OiiQTImageLoading.needsDoubanHeaders(for: url) else {
-            return self
-        }
-
-        #if targetEnvironment(simulator)
-        return downloader(OiiQTImageLoading.doubanDownloader)
-        #else
-        return self
-        #endif
-    }
-
-    func seedPilotRequestHeaders(for url: URL?) -> Self {
-        guard OiiQTImageLoading.needsDoubanHeaders(for: url) else {
-            return self
-        }
-
-        return requestModifier { request in
-            request.setValue("https://movie.douban.com/", forHTTPHeaderField: "Referer")
-            request.setValue(
+        if needsDoubanHeaders(for: url) {
+            urlRequest.setValue("https://movie.douban.com/", forHTTPHeaderField: "Referer")
+            urlRequest.setValue(
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
                 forHTTPHeaderField: "User-Agent"
             )
-            request.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
+            urlRequest.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
         }
+
+        var processors: [ImageProcessing] = []
+        if let size = targetSize {
+            // `.points` unit → Nuke multiplies by screen scale automatically, equivalent to
+            // Kingfisher's scaleFactor(displayScale) + downsampling(size:).
+            processors.append(ImageProcessors.Resize(size: size, unit: .points))
+        }
+
+        return ImageRequest(urlRequest: urlRequest, processors: processors)
+    }
+}
+
+// MARK: - SSL Authentication (Simulator only)
+// On real devices the system handles Douban SSL correctly without custom delegation.
+// In the simulator, some certificate chains are not trusted by default, so we
+// explicitly trust doubanio.com server certificates.
+#if targetEnvironment(simulator)
+final class OiiQTDoubanSessionDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              !challenge.protectionSpace.host.isEmpty,
+              let serverTrust = challenge.protectionSpace.serverTrust,
+              challenge.protectionSpace.host.lowercased().hasSuffix("doubanio.com") else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    }
+}
+#endif
+
+// MARK: - Image Preheater
+
+/// Prefetches images into Nuke's cache, deduplicating concurrent requests for the same URL.
+@MainActor
+enum OiiQTImagePreheater {
+    private static var activeTasks: [String: Task<Void, Never>] = [:]
+
+    static func prefetch(_ url: URL?, targetSize: CGSize? = nil) {
+        guard let url else { return }
+        let key = cacheKey(for: url, targetSize: targetSize)
+        guard activeTasks[key] == nil else { return }
+
+        let request = OiiQTImageLoading.request(for: url, targetSize: targetSize)
+        activeTasks[key] = Task {
+            _ = try? await ImagePipeline.shared.image(for: request)
+            activeTasks.removeValue(forKey: key)
+        }
+    }
+
+    private static func cacheKey(for url: URL, targetSize: CGSize?) -> String {
+        guard let size = targetSize else { return url.absoluteString }
+        return "\(url.absoluteString)|w=\(Int(size.width.rounded()))|h=\(Int(size.height.rounded()))"
     }
 }
 
 // MARK: - Unified Image Component
 
-/// Drop-in replacement for AsyncImage, powered by Kingfisher.
+/// Drop-in replacement for AsyncImage, powered by Nuke.
 /// Handles memory + disk caching, fade-in animation, and smooth gradient placeholders.
 struct SimpleCachedImage: View {
     let url: URL?
     var downsampleSize: CGSize? = nil
+    /// Kept for API compatibility. Nuke always caches the raw compressed data on disk by default.
     var cacheOriginal: Bool = true
     var enableFade: Bool = true
 
+    private var request: ImageRequest? {
+        url.map { OiiQTImageLoading.request(for: $0, targetSize: downsampleSize) }
+    }
+
     var body: some View {
-        if let downsampleSize {
-            if enableFade {
-                KFImage(url)
-                    .placeholder { OiiQTPlaceholder() }
-                    .seedPilotDownloader(for: url)
-                    .seedPilotRequestHeaders(for: url)
-                    .targetSize(downsampleSize)
-                    .backgroundDecode(true)
-                    .processingQueue(.dispatch(OiiQTImageLoading.processingQueue))
-                    .cacheOriginalImage(if: cacheOriginal)
-                    .fade(duration: 0.2)
-                    .cancelOnDisappear(true)
-                    .resizable()
+        LazyImage(
+            request: request,
+            transaction: enableFade
+                ? Transaction(animation: .easeInOut(duration: 0.2))
+                : Transaction()
+        ) { state in
+            if let image = state.image {
+                image.resizable()
             } else {
-                KFImage(url)
-                    .placeholder { OiiQTPlaceholder() }
-                    .seedPilotDownloader(for: url)
-                    .seedPilotRequestHeaders(for: url)
-                    .targetSize(downsampleSize)
-                    .backgroundDecode(true)
-                    .processingQueue(.dispatch(OiiQTImageLoading.processingQueue))
-                    .cacheOriginalImage(if: cacheOriginal)
-                    .cancelOnDisappear(true)
-                    .resizable()
-            }
-        } else {
-            if enableFade {
-                KFImage(url)
-                    .placeholder { OiiQTPlaceholder() }
-                    .seedPilotDownloader(for: url)
-                    .seedPilotRequestHeaders(for: url)
-                    .cacheOriginalImage(if: cacheOriginal)
-                    .backgroundDecode(true)
-                    .processingQueue(.dispatch(OiiQTImageLoading.processingQueue))
-                    .fade(duration: 0.2)
-                    .cancelOnDisappear(true)
-                    .resizable()
-            } else {
-                KFImage(url)
-                    .placeholder { OiiQTPlaceholder() }
-                    .seedPilotDownloader(for: url)
-                    .seedPilotRequestHeaders(for: url)
-                    .cacheOriginalImage(if: cacheOriginal)
-                    .backgroundDecode(true)
-                    .processingQueue(.dispatch(OiiQTImageLoading.processingQueue))
-                    .cancelOnDisappear(true)
-                    .resizable()
+                OiiQTPlaceholder()
             }
         }
     }
@@ -267,19 +148,21 @@ struct RSSFaviconImage: View {
             if loadFailed || url == nil {
                 RSSFallbackIcon()
             } else {
-                KFImage(url)
-                    .placeholder { OiiQTPlaceholder() }
-                    .seedPilotDownloader(for: url)
-                    .seedPilotRequestHeaders(for: url)
-                    .cacheOriginalImage(if: false)
-                    .backgroundDecode(true)
-                    .processingQueue(.dispatch(OiiQTImageLoading.processingQueue))
-                    .fade(duration: 0.2)
-                    .cancelOnDisappear(true)
-                    .onFailure { _ in
+                LazyImage(
+                    request: url.map { OiiQTImageLoading.request(for: $0) },
+                    transaction: Transaction(animation: .easeInOut(duration: 0.2))
+                ) { state in
+                    if let image = state.image {
+                        image.resizable()
+                    } else {
+                        OiiQTPlaceholder()
+                    }
+                }
+                .onComplete { result in
+                    if case .failure = result {
                         loadFailed = true
                     }
-                    .resizable()
+                }
             }
         }
         .id(url?.absoluteString ?? "rss-fallback")

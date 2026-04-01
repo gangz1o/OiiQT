@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Kingfisher
+import Nuke
 import SwiftData
 import UIKit
 import Combine
@@ -505,18 +505,7 @@ struct SettingsView: View {
         Task.detached(priority: .utility) {
             let size = Self.calculateCachesDirectorySize()
             await MainActor.run {
-                if size == 0 {
-                    // Fallback: try Kingfisher's own counter in case the Caches dir is empty
-                    ImageCache.default.calculateDiskStorageSize { result in
-                        Task { @MainActor in
-                            if case .success(let kfSize) = result {
-                                cacheSizeString = formatBytes(Int64(kfSize))
-                            }
-                        }
-                    }
-                } else {
-                    cacheSizeString = formatBytes(Int64(size))
-                }
+                cacheSizeString = formatBytes(Int64(size))
             }
         }
     }
@@ -545,13 +534,13 @@ struct SettingsView: View {
 
 
     private func clearCache() {
-        // 1. Clear Kingfisher image cache (memory only — disk handled below)
-        ImageCache.default.clearMemoryCache()
+        // 1. Clear Nuke memory cache
+        ImagePipeline.shared.cache.removeAll(where: .memory)
 
         // 2. Clear URLCache (in-flight network responses)
         URLCache.shared.removeAllCachedResponses()
 
-        // 3. Wipe entire Library/Caches directory (covers Kingfisher disk cache,
+        // 3. Wipe entire Library/Caches directory (covers Nuke disk cache,
         //    URLSession disk cache, and any other cached data).
         Task.detached(priority: .utility) {
             let fm = FileManager.default

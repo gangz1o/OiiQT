@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Kingfisher
 import UIKit
 
 struct DashboardGlobalAssetsModuleView: View {
@@ -131,29 +130,8 @@ private struct DashboardCachedSymbolIconView: View {
     }
 
     private func loadCachedIcon() {
-        let key = cacheKey
-        let symbolName = systemName
-
-        if let memoryImage = ImageCache.default.retrieveImageInMemoryCache(forKey: key) {
-            cachedIcon = memoryImage
-            return
-        }
-
-        ImageCache.default.retrieveImage(forKey: key) { result in
-            if case .success(let value) = result, let image = value.image {
-                Task { @MainActor in
-                    cachedIcon = image
-                }
-                return
-            }
-
-            let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
-            guard let generated = UIImage(systemName: symbolName, withConfiguration: config) else { return }
-
-            ImageCache.default.store(generated, forKey: key)
-            Task { @MainActor in
-                cachedIcon = generated
-            }
-        }
+        // SF symbol rendering is synchronous and lightweight; system UIImage caches it internally.
+        let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        cachedIcon = UIImage(systemName: systemName, withConfiguration: config)
     }
 }

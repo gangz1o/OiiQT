@@ -7,7 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		319DE1DE2F437A6D00F45C11 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 5FAA00022F42000000000002 /* Kingfisher */; };
+		A0BE00042F42000000000004 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = A0BE00022F42000000000002 /* Nuke */; };
+		A0BE00052F42000000000005 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = A0BE00032F42000000000003 /* NukeUI */; };
 		319DE3E12F49F3E100F45C11 /* OiiQTPro.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 319DE3E02F49F3E100F45C11 /* OiiQTPro.storekit */; };
 		5FC9981A2F4F3C8F00D1813D /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC998192F4F3C8F00D1813D /* StoreKit.framework */; };
 /* End PBXBuildFile section */
@@ -31,7 +32,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				319DE1DE2F437A6D00F45C11 /* Kingfisher in Frameworks */,
+				A0BE00042F42000000000004 /* Nuke in Frameworks */,
+				A0BE00052F42000000000005 /* NukeUI in Frameworks */,
 				5FC9981A2F4F3C8F00D1813D /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -85,7 +87,8 @@
 			);
 			name = OiiQT;
 			packageProductDependencies = (
-				5FAA00022F42000000000002 /* Kingfisher */,
+				A0BE00022F42000000000002 /* Nuke */,
+				A0BE00032F42000000000003 /* NukeUI */,
 			);
 			productName = OiiQT;
 			productReference = 5F3638F42F3F5F1B00896C60 /* OiiQT.app */;
@@ -117,8 +120,7 @@
 			mainGroup = 5F3638EB2F3F5F1B00896C60;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				5FAA00012F42000000000001 /* XCRemoteSwiftPackageReference "Kingfisher" */,
-				5F97DB442F7D638B009A810C /* XCRemoteSwiftPackageReference "Nuke" */,
+				A0BE00012F42000000000001 /* XCRemoteSwiftPackageReference "Nuke" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5F3638F52F3F5F1B00896C60 /* Products */;
@@ -402,29 +404,26 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		5F97DB442F7D638B009A810C /* XCRemoteSwiftPackageReference "Nuke" */ = {
+		A0BE00012F42000000000001 /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kean/Nuke";
+			repositoryURL = "https://github.com/kean/Nuke.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 13.0.1;
-			};
-		};
-		5FAA00012F42000000000001 /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/onevcat/Kingfisher.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 8.0.0;
+				minimumVersion = 12.0.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		5FAA00022F42000000000002 /* Kingfisher */ = {
+		A0BE00022F42000000000002 /* Nuke */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5FAA00012F42000000000001 /* XCRemoteSwiftPackageReference "Kingfisher" */;
-			productName = Kingfisher;
+			package = A0BE00012F42000000000001 /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = Nuke;
+		};
+		A0BE00032F42000000000003 /* NukeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A0BE00012F42000000000001 /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = NukeUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
