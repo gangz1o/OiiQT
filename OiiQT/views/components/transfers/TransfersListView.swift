@@ -151,9 +151,16 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
                 return
             }
 
-            if previousSelection != parent.selectedTaskIDs
-                || previousEditing != parent.isEditing
-                || previousShowPoster != parent.showTMDBData {
+            if previousShowPoster != parent.showTMDBData {
+                // Poster column changes every row's height. reloadData() clears the entire
+                // UITableView height cache so off-screen rows are not measured at the old
+                // size, which would cause scroll-offset corrections (micro-bounce) when
+                // the user scrolls to them after the toggle.
+                tableView.reloadData()
+                return
+            }
+
+            if previousSelection != parent.selectedTaskIDs || previousEditing != parent.isEditing {
                 reloadVisibleRows(on: tableView)
             }
         }

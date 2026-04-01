@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import Kingfisher
+import Nuke
 import UIKit
 import Combine
 
@@ -21,11 +21,31 @@ struct OiiQTApp: App {
     @State private var isAppReady = false
 
     init() {
-        // Configure Kingfisher Image Cache
-        let cache = ImageCache.default
-        cache.memoryStorage.config.totalCostLimit = 100 * 1024 * 1024   // 100 MB memory
-        cache.diskStorage.config.sizeLimit = 500 * 1024 * 1024          // 500 MB disk
-        cache.diskStorage.config.expiration = .days(7)                  // 7-day expiry
+        // Configure Nuke image pipeline
+        let memoryCache = ImageCache.shared
+        memoryCache.costLimit = 100 * 1024 * 1024   // 100 MB memory
+
+        var config = ImagePipeline.Configuration()
+        config.imageCache = memoryCache
+
+        if let dataCache = try? DataCache(name: "oiiqt.images") {
+            dataCache.sizeLimit = 500 * 1024 * 1024   // 500 MB disk
+            config.dataCache = dataCache
+        }
+
+        #if targetEnvironment(simulator)
+        // In the simulator some Douban (doubanio.com) certificates are not trusted
+        // by default. Use a custom URLSession delegate that accepts them explicitly.
+        let doubanDelegate = OiiQTDoubanSessionDelegate()
+        let doubanSession = URLSession(
+            configuration: .default,
+            delegate: doubanDelegate,
+            delegateQueue: nil
+        )
+        config.dataLoader = DataLoader(session: doubanSession)
+        #endif
+
+        ImagePipeline.shared = ImagePipeline(configuration: config)
 
         // Start StoreKit transaction listener as early as possible to avoid
         // missing transactions or triggering runtime warnings on first purchase.

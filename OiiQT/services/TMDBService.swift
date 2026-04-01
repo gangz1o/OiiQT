@@ -28,7 +28,7 @@ class TMDBService {
 
     // MARK: - Caching
     // Memory Cache for Hash -> PosterURLString (NOT Image data, just mapping)
-    // Image data is handled by Kingfisher
+    // Image data is handled by Nuke
     private let urlCache: NSCache<NSString, NSString> = {
         let c = NSCache<NSString, NSString>()
         c.countLimit = 5_000   // max 5K hash→path entries (~400 KB)

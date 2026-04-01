@@ -43,6 +43,21 @@ final class TransfersPosterStore {
     @ObservationIgnored
     private var isPosterRenderingEnabled = false
 
+    @ObservationIgnored
+    private var isScrolling = false
+
+    /// Called by the scroll view delegate to pause/resume the fetch queue.
+    /// During scroll deceleration no new requests are started; in-flight ones
+    /// finish normally. When scroll ends the queue is pumped so all requests
+    /// that were enqueued while scrolling start immediately.
+    func setScrolling(_ isScrolling: Bool) {
+        guard self.isScrolling != isScrolling else { return }
+        self.isScrolling = isScrolling
+        if !isScrolling {
+            pumpQueue()
+        }
+    }
+
     func updateConfiguration(isEnabled: Bool, modelContext: ModelContext) {
         self.isPosterRenderingEnabled = isEnabled
         self.modelContext = modelContext
@@ -83,9 +98,13 @@ final class TransfersPosterStore {
 
         let state = posterState(for: hash)
         if let cachedURL = PosterArtworkService.shared.cachedPosterURL(for: hash) {
-            state.posterURL = cachedURL
-            state.hasResolved = true
-            state.isResolving = false
+            // Only mutate when the value actually changes to avoid triggering
+            // an @Observable re-render on every onAppear during fast scrolling.
+            if state.posterURL != cachedURL || !state.hasResolved {
+                state.posterURL = cachedURL
+                state.hasResolved = true
+                state.isResolving = false
+            }
             return
         }
 
@@ -116,7 +135,7 @@ final class TransfersPosterStore {
     }
 
     private func pumpQueue() {
-        guard isPosterRenderingEnabled else { return }
+        guard isPosterRenderingEnabled, !isScrolling else { return }
         guard let modelContext else { return }
 
         while inFlightTasks.count < Self.maxConcurrentRequests, let request = pendingRequests.popLast() {

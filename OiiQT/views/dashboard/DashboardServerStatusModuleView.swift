@@ -7,7 +7,6 @@
 
 import SwiftUI
 import Combine
-import Kingfisher
 import UIKit
 
 struct DashboardServerStatusModuleView: View {
@@ -161,29 +160,9 @@ private struct DashboardCachedServerIconView: View {
     }
 
     private func loadCachedIcon() {
-        let key = cacheKey
-        let iconType = type
-        if let memoryImage = ImageCache.default.retrieveImageInMemoryCache(forKey: key) {
-            cachedIcon = memoryImage
-            return
-        }
-
-        ImageCache.default.retrieveImage(forKey: key) { result in
-            if case .success(let value) = result, let image = value.image {
-                Task { @MainActor in
-                    cachedIcon = image
-                }
-                return
-            }
-
-            let assetName: String = iconType == .qBittorrent ? "qb_logo" : "tr_logo"
-            guard let image = UIImage(named: assetName) else { return }
-
-            ImageCache.default.store(image, forKey: key)
-            Task { @MainActor in
-                cachedIcon = image
-            }
-        }
+        // UIImage(named:) uses the system's internal asset cache — no manual caching needed.
+        let assetName: String = type == .qBittorrent ? "qb_logo" : "tr_logo"
+        cachedIcon = UIImage(named: assetName)
     }
 }
 

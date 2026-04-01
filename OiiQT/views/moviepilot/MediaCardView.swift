@@ -1,5 +1,5 @@
 import SwiftUI
-import Kingfisher
+import NukeUI
 
 struct MediaCardLayout: Equatable {
     static let strip = MediaCardLayout(width: 100)
@@ -87,24 +87,20 @@ private struct MediaCardContentView: View, Equatable {
     }
 
     private var posterImage: some View {
-        let posterURL = viewState.posterURL
+        let request = viewState.posterURL.map {
+            OiiQTImageLoading.request(for: $0, targetSize: layout.size)
+        }
 
-        return KFImage(posterURL)
-            .placeholder {
+        return LazyImage(request: request, transaction: Transaction(animation: .easeInOut(duration: 0.2))) { state in
+            if let image = state.image {
+                image.resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
                 MediaCardPlaceholderView()
             }
-            .seedPilotDownloader(for: posterURL)
-            .seedPilotRequestHeaders(for: posterURL)
-            .targetSize(layout.size)
-            .cacheOriginalImage(if: false)
-            .backgroundDecode(true)
-            .processingQueue(.dispatch(OiiQTImageLoading.processingQueue))
-            .fade(duration: 0.2)
-            .cancelOnDisappear(true)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: layout.width, height: layout.height)
-            .clipped()
+        }
+        .frame(width: layout.width, height: layout.height)
+        .clipped()
     }
 
     private var titleOverlay: some View {
