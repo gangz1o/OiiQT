@@ -158,7 +158,7 @@ struct RSSFaviconImage: View {
                         OiiQTPlaceholder()
                     }
                 }
-                .onComplete { result in
+                .onCompletion { result in
                     if case .failure = result {
                         loadFailed = true
                     }

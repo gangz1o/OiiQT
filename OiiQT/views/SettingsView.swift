@@ -535,7 +535,7 @@ struct SettingsView: View {
 
     private func clearCache() {
         // 1. Clear Nuke memory cache
-        ImagePipeline.shared.cache.removeAll(where: .memory)
+        ImagePipeline.shared.cache.removeAll()
 
         // 2. Clear URLCache (in-flight network responses)
         URLCache.shared.removeAllCachedResponses()

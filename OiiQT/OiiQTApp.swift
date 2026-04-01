@@ -37,12 +37,9 @@ struct OiiQTApp: App {
         // In the simulator some Douban (doubanio.com) certificates are not trusted
         // by default. Use a custom URLSession delegate that accepts them explicitly.
         let doubanDelegate = OiiQTDoubanSessionDelegate()
-        let doubanSession = URLSession(
-            configuration: .default,
-            delegate: doubanDelegate,
-            delegateQueue: nil
-        )
-        config.dataLoader = DataLoader(session: doubanSession)
+        let doubanLoader = DataLoader(configuration: .default)
+        doubanLoader.delegate = doubanDelegate
+        config.dataLoader = doubanLoader
         #endif
 
         ImagePipeline.shared = ImagePipeline(configuration: config)
