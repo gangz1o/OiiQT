@@ -464,10 +464,6 @@ struct TransfersView: View {
                         appStateManager: appStateManager,
                         displayOptions: rowDisplayOptions
                     )
-                    // Pause poster fetches while the scroll is decelerating to avoid
-                    // @Observable state mutations on the main thread competing with the
-                    // UIScrollView deceleration animation, which causes frame drops.
-                    posterStore.setScrolling(isScrolling)
                 },
                 onToggleSelection: { taskID in
                     viewModel.toggleSelection(for: taskID)
