@@ -9,6 +9,7 @@ struct TransfersListView: View {
     let isOverlayLoadingVisible: Bool
     let showTMDBData: Bool
     var rowStateProvider: (String) -> TransfersRowState
+    var rowHeightProvider: (String) -> CGFloat
     var onRowVisibilityChanged: (String, Bool) -> Void
     var onRefresh: () async -> Void
     var onScrollActivityChanged: (Bool) -> Void
@@ -27,6 +28,7 @@ struct TransfersListView: View {
             isEditing: isEditing,
             showTMDBData: showTMDBData,
             rowStateProvider: rowStateProvider,
+            rowHeightProvider: rowHeightProvider,
             onRowVisibilityChanged: onRowVisibilityChanged,
             onRefresh: onRefresh,
             onScrollActivityChanged: onScrollActivityChanged,
@@ -69,6 +71,7 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
     let isEditing: Bool
     let showTMDBData: Bool
     var rowStateProvider: (String) -> TransfersRowState
+    var rowHeightProvider: (String) -> CGFloat
     var onRowVisibilityChanged: (String, Bool) -> Void
     var onRefresh: () async -> Void
     var onScrollActivityChanged: (Bool) -> Void
@@ -91,8 +94,8 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
         tableView.separatorStyle = .none
         tableView.backgroundColor = .clear
         tableView.showsVerticalScrollIndicator = true
-        tableView.rowHeight = UITableView.automaticDimension
-        tableView.estimatedRowHeight = 126
+        tableView.rowHeight = TransfersRowDisplayModel.defaultPreferredRowHeight
+        tableView.estimatedRowHeight = TransfersRowDisplayModel.defaultPreferredRowHeight
         tableView.contentInset = .zero
         tableView.scrollIndicatorInsets = .zero
         tableView.keyboardDismissMode = .onDrag
@@ -186,6 +189,14 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
             let cell = tableView.dequeueReusableCell(withIdentifier: Self.cellReuseIdentifier, for: indexPath)
             configure(cell, at: indexPath)
             return cell
+        }
+
+        func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+            preferredHeight(for: indexPath)
+        }
+
+        func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
+            preferredHeight(for: indexPath)
         }
 
         func tableView(
@@ -289,6 +300,14 @@ private struct TransfersTableViewRepresentable: UIViewRepresentable {
         private func rowSnapshot(at indexPath: IndexPath) -> TransfersRowDisplayModel? {
             guard indexPath.row < parent.taskIDs.count else { return nil }
             return parent.rowStateProvider(parent.taskIDs[indexPath.row]).snapshot
+        }
+
+        private func preferredHeight(for indexPath: IndexPath) -> CGFloat {
+            guard indexPath.row < parent.taskIDs.count else {
+                return TransfersRowDisplayModel.defaultPreferredRowHeight
+            }
+            let taskID = parent.taskIDs[indexPath.row]
+            return parent.rowHeightProvider(taskID)
         }
 
         private func swipeActionImage(systemName: String) -> UIImage? {

@@ -13,8 +13,12 @@ struct MediaDetailPageContentView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 24) {
-                    MediaDetailHeroSectionView(
-                        viewState: viewState.hero,
+                    MediaDetailHeroSectionView(viewState: viewState.hero)
+
+                    MediaDetailActorsSectionView(viewState: viewState.actors)
+
+                    MediaDetailSearchActionSectionView(
+                        isLoading: viewState.hero.isSearchLoading,
                         onSearch: onSearch
                     )
 
@@ -58,7 +62,6 @@ private struct MediaDetailBackgroundView: View {
 
 private struct MediaDetailHeroSectionView: View {
     let viewState: MediaDetailHeroSectionViewState
-    let onSearch: () -> Void
 
     private let posterSize = CGSize(width: 118, height: 176)
 
@@ -79,17 +82,56 @@ private struct MediaDetailHeroSectionView: View {
                 isLoading: viewState.isOverviewLoading,
                 showsSyncProgress: viewState.showsSyncProgress
             )
-
-            actionButtons
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 6)
     }
+}
 
-    private var actionButtons: some View {
+private struct MediaDetailActorsSectionView: View {
+    let viewState: MediaDetailActorsSectionViewState
+
+    private let itemWidth: CGFloat = 92
+    private let avatarSize: CGFloat = 68
+
+    var body: some View {
+        if viewState.isLoading || !viewState.actors.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                MediaDetailSectionHeader(title: "演员")
+
+                if viewState.isLoading {
+                    MediaDetailActorsPlaceholderStripView(
+                        itemWidth: itemWidth,
+                        avatarSize: avatarSize
+                    )
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(alignment: .top, spacing: 14) {
+                            ForEach(viewState.actors) { actor in
+                                MediaDetailActorItemView(
+                                    viewState: actor,
+                                    itemWidth: itemWidth,
+                                    avatarSize: avatarSize
+                                )
+                            }
+                        }
+                    }
+                    .scrollClipDisabled()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct MediaDetailSearchActionSectionView: View {
+    let isLoading: Bool
+    let onSearch: () -> Void
+
+    var body: some View {
         Button(action: onSearch) {
             Group {
-                if viewState.isSearchLoading {
+                if isLoading {
                     ProgressView()
                         .controlSize(.small)
                 } else {
@@ -105,7 +147,7 @@ private struct MediaDetailHeroSectionView: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(viewState.isSearchLoading)
+        .disabled(isLoading)
     }
 }
 
@@ -149,6 +191,111 @@ private struct MediaDetailPosterColumnView: View {
             }
         }
         .frame(width: posterSize.width, alignment: .center)
+    }
+}
+
+private struct MediaDetailActorItemView: View {
+    let viewState: ActorViewState
+    let itemWidth: CGFloat
+    let avatarSize: CGFloat
+
+    var body: some View {
+        VStack(spacing: 10) {
+            MediaDetailActorAvatarView(
+                imageURL: viewState.profileURL,
+                avatarSize: avatarSize
+            )
+
+            VStack(spacing: 2) {
+                Text(viewState.name)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary.opacity(0.92))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: itemWidth, alignment: .top)
+
+                if let roleDisplayText = viewState.roleDisplayText {
+                    Text(roleDisplayText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: itemWidth, alignment: .top)
+                } else {
+                    Color.clear
+                        .frame(width: itemWidth, height: 14)
+                }
+            }
+        }
+        .frame(width: itemWidth)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(viewState.accessibilityLabel)
+    }
+}
+
+private struct MediaDetailActorAvatarView: View {
+    let imageURL: URL?
+    let avatarSize: CGFloat
+
+    var body: some View {
+        Group {
+            if let imageURL {
+                SimpleCachedImage(
+                    url: imageURL,
+                    downsampleSize: CGSize(width: avatarSize * 2, height: avatarSize * 2)
+                )
+                .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    OiiQTPlaceholder()
+
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.secondary.opacity(0.85))
+                }
+            }
+        }
+        .frame(width: avatarSize, height: avatarSize)
+        .clipShape(Circle())
+        .overlay {
+            Circle()
+                .stroke(.white.opacity(0.16), lineWidth: 0.8)
+        }
+        .shadow(color: .black.opacity(0.14), radius: 10, x: 0, y: 6)
+    }
+}
+
+private struct MediaDetailActorsPlaceholderStripView: View {
+    let itemWidth: CGFloat
+    let avatarSize: CGFloat
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(0..<5, id: \.self) { _ in
+                    VStack(spacing: 10) {
+                        Circle()
+                            .fill(.secondary.opacity(0.18))
+                            .frame(width: avatarSize, height: avatarSize)
+
+                        VStack(spacing: 4) {
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(.secondary.opacity(0.16))
+                                .frame(width: itemWidth * 0.8, height: 11)
+
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(.secondary.opacity(0.14))
+                                .frame(width: itemWidth * 0.68, height: 10)
+                        }
+                    }
+                    .frame(width: itemWidth)
+                }
+            }
+        }
+        .redacted(reason: .placeholder)
+        .scrollClipDisabled()
     }
 }
 

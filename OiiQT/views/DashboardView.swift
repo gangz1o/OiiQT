@@ -131,7 +131,7 @@ struct DashboardView: View {
                 .padding(.horizontal, 24)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 16) {
                         ForEach(visibleModules) { module in
                             moduleContent(for: module)
                                 .frame(minHeight: estimatedModuleMinHeight(for: module), alignment: .top)
@@ -281,12 +281,32 @@ struct DashboardView: View {
         case .globalAssets:
             return 200
         case .serverStatus:
-            return 176
+            return estimatedGridModuleMinHeight(
+                itemCount: appStateManager.servers.count,
+                tileMinHeight: 118
+            )
         case .storageAudit:
-            return 162
+            return estimatedGridModuleMinHeight(
+                itemCount: appStateManager.servers.count,
+                tileMinHeight: 104
+            )
         case .recentFinished:
-            return 176
+            return 196
         }
+    }
+
+    private func estimatedGridModuleMinHeight(itemCount: Int, tileMinHeight: CGFloat) -> CGFloat {
+        let visibleItemCount = max(itemCount, 2)
+        let rowCount = max(
+            Int(ceil(Double(visibleItemCount) / Double(DashboardGrid.columns.count))),
+            1
+        )
+        let tileHeight = tileMinHeight + 24
+        let sectionHeaderHeight: CGFloat = 34
+        let rowSpacing: CGFloat = 12
+        let totalTileHeight = CGFloat(rowCount) * tileHeight
+        let totalRowSpacing = CGFloat(max(rowCount - 1, 0)) * rowSpacing
+        return sectionHeaderHeight + totalTileHeight + totalRowSpacing
     }
 
     @ViewBuilder

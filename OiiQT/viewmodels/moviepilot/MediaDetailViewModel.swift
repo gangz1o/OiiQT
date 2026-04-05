@@ -1223,7 +1223,8 @@ final class MediaDetailViewModel {
     }
 
     nonisolated private static func makeHeroMetadataRows(
-        detailViewState: MediaDetailViewState
+        detailViewState: MediaDetailViewState,
+        showsActorStrip: Bool
     ) -> [MediaDetailMetadataRowViewState] {
         var rows: [MediaDetailMetadataRowViewState] = []
 
@@ -1251,7 +1252,8 @@ final class MediaDetailViewModel {
             )
         }
 
-        if let castText = detailViewState.castText?.nonEmpty {
+        if !showsActorStrip,
+           let castText = detailViewState.castText?.nonEmpty {
             rows.append(
                 MediaDetailMetadataRowViewState(
                     id: "cast",
@@ -1301,7 +1303,10 @@ final class MediaDetailViewModel {
                 title: detailViewState.title.isEmpty ? "正在载入..." : detailViewState.title,
                 mediaTypeText: detailViewState.isSeries ? "剧集" : "电影",
                 ratingText: detailViewState.ratingText,
-                metadataRows: makeHeroMetadataRows(detailViewState: detailViewState),
+                metadataRows: makeHeroMetadataRows(
+                    detailViewState: detailViewState,
+                    showsActorStrip: !detailViewState.actors.isEmpty
+                ),
                 overviewText: detailViewState.overviewText?.nonEmpty,
                 isOverviewLoading: detailViewState.isOverviewLoading,
                 showsSyncProgress: detailViewState.isOverviewLoading || detailViewState.isActorsLoading,

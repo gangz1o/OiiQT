@@ -120,9 +120,12 @@ struct MoviePilotSectionListRowContentView: View, Equatable {
 
                     HStack(spacing: 6) {
                         if !viewState.ratingText.isEmpty {
-                            Label(viewState.ratingText, systemImage: "star.fill")
-                                .font(.system(.caption, weight: .medium))
-                                .foregroundStyle(Color.orange)
+                            HStack(spacing: 3) {
+                                Image(systemName: "star.fill")
+                                Text(viewState.ratingText)
+                            }
+                            .font(.system(.caption, weight: .medium))
+                            .foregroundStyle(Color.orange)
                         }
 
                         Text(moviePilotLocalized(viewState.mediaTypeText))

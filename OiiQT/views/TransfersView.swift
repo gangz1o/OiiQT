@@ -451,6 +451,9 @@ struct TransfersView: View {
                 rowStateProvider: { taskID in
                     viewModel.rowState(for: taskID)
                 },
+                rowHeightProvider: { taskID in
+                    viewModel.preferredRowHeight(for: taskID)
+                },
                 onRowVisibilityChanged: { taskID, isVisible in
                     viewModel.setRowVisibility(taskID, isVisible: isVisible)
                 },

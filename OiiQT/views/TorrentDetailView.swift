@@ -19,6 +19,7 @@ struct TorrentDetailView: View {
     @State private var tmdbItem: TMDBItem?
     @State private var isLoadingTMDB = false
     @State private var resolvedPosterURL: URL?
+    @State private var hasCompletedTMDBLoad = false
 
     // Derived properties
     private var serverName: String {
@@ -129,82 +130,13 @@ struct TorrentDetailView: View {
         List {
             // MARK: - 1. Header Section
             Section {
-                if tmdbPosterEnabled, (tmdbItem != nil || resolvedPosterURL != nil) {
-                    // Pro Mode with Match
-                    HStack(alignment: .top, spacing: 16) {
-                        // Poster (2:3 aspect ratio)
-                        if let url = resolvedPosterURL ?? tmdbItem?.fullPosterURL {
-                            SimpleCachedImage(
-                                url: url,
-                                downsampleSize: CGSize(width: 100, height: 150)
-                            )
-                                .aspectRatio(2/3, contentMode: .fit)
-                                .frame(width: 100)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .shadow(radius: 4)
-                        } else {
-                            Rectangle()
-                                .fill(Color.secondary.opacity(0.2))
-                                .frame(width: 100, height: 150)
-                                .cornerRadius(8)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(tmdbItem?.title ?? task.name)
-                                .font(.title3.bold())
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            HStack(spacing: 8) {
-                                if let rating = tmdbItem?.voteAverage, rating > 0 {
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "star.fill")
-                                            .foregroundStyle(.yellow)
-                                            .font(.caption)
-                                        Text(String(format: "%.1f", rating))
-                                            .font(.caption.monospacedDigit().bold())
-                                    }
-                                }
-
-                                if let year = tmdbItem?.year, !year.isEmpty {
-                                    Text(year)
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color(.systemGray5))
-                                        .clipShape(Capsule())
-                                }
-                            }
-
-                            if let overview = tmdbItem?.overview, !overview.isEmpty {
-                                Text(overview)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(6)
-                            } else {
-                                Text(LanguageManager.shared.localized("No Overview"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } else {
-                    // Standard Mode / No Match
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.name)
-                            .font(.headline)
-                            .lineLimit(3)
-
-                        Text(task.status.localizedDisplayName)
-                             .font(.subheadline)
-                             .foregroundStyle(task.status.color)
-                             .lineLimit(1)
-                             .minimumScaleFactor(0.8)
-                    }
-                    .padding(.vertical, 4)
-                }
+                TorrentDetailHeaderSection(
+                    task: task,
+                    tmdbPosterEnabled: tmdbPosterEnabled,
+                    tmdbItem: tmdbItem,
+                    posterURL: resolvedPosterURL ?? tmdbItem?.fullPosterURL,
+                    isLoadingTMDB: tmdbPosterEnabled && (!hasCompletedTMDBLoad || isLoadingTMDB)
+                )
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
@@ -427,7 +359,11 @@ struct TorrentDetailView: View {
     }
 
     private func loadTMDBData() async {
-        guard tmdbPosterEnabled else { return }
+        guard tmdbPosterEnabled else {
+            hasCompletedTMDBLoad = true
+            return
+        }
+        hasCompletedTMDBLoad = false
         isLoadingTMDB = true
         TransfersPosterDiagnostics.log("torrent detail load start taskID=\(task.id) hash=\(task.hash) name=\(task.name)")
         resolvedPosterURL = await PosterArtworkService.shared.fetchPoster(
@@ -444,6 +380,7 @@ struct TorrentDetailView: View {
             "torrent detail load finish taskID=\(task.id) hash=\(task.hash) posterLoaded=\(resolvedPosterURL != nil) detailsLoaded=\(tmdbItem != nil)"
         )
         isLoadingTMDB = false
+        hasCompletedTMDBLoad = true
     }
 
     private func ratioColor(_ ratio: Double) -> Color {
@@ -455,6 +392,155 @@ struct TorrentDetailView: View {
     private func formattedTaskTimestamp(_ date: Date?) -> String {
         guard let date, date.timeIntervalSince1970 > 0 else { return "--" }
         return Self.taskTimestampFormatter.string(from: date)
+    }
+}
+
+private struct TorrentDetailHeaderSection: View {
+    let task: TorrentTask
+    let tmdbPosterEnabled: Bool
+    let tmdbItem: TMDBItem?
+    let posterURL: URL?
+    let isLoadingTMDB: Bool
+
+    var body: some View {
+        Group {
+            if tmdbPosterEnabled {
+                TorrentDetailTMDBHeroHeader(
+                    task: task,
+                    tmdbItem: tmdbItem,
+                    posterURL: posterURL,
+                    isLoadingTMDB: isLoadingTMDB
+                )
+            } else {
+                TorrentDetailCompactHeader(task: task)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct TorrentDetailCompactHeader: View {
+    let task: TorrentTask
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(task.name)
+                .font(.headline)
+                .lineLimit(3)
+
+            Text(task.status.localizedDisplayName)
+                .font(.subheadline)
+                .foregroundStyle(task.status.color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+}
+
+private struct TorrentDetailTMDBHeroHeader: View {
+    let task: TorrentTask
+    let tmdbItem: TMDBItem?
+    let posterURL: URL?
+    let isLoadingTMDB: Bool
+
+    private var overviewText: String {
+        if let overview = tmdbItem?.overview, !overview.isEmpty {
+            return overview
+        }
+        if isLoadingTMDB {
+            return LanguageManager.shared.localized("Loading...")
+        }
+        return LanguageManager.shared.localized("No Overview")
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            posterView
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tmdbItem?.title ?? task.name)
+                    .font(.title3.bold())
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .topLeading)
+
+                HStack(spacing: 8) {
+                    TorrentDetailStatusBadge(task: task)
+
+                    if let rating = tmdbItem?.voteAverage, rating > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(.yellow)
+                                .font(.caption)
+                            Text(String(format: "%.1f", rating))
+                                .font(.caption.monospacedDigit().bold())
+                        }
+                    }
+
+                    if let year = tmdbItem?.year, !year.isEmpty {
+                        Text(year)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray5))
+                            .clipShape(Capsule())
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
+
+                Text(overviewText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(6)
+                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
+                    .redacted(reason: isLoadingTMDB ? .placeholder : [])
+            }
+            .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+        }
+    }
+
+    private var posterView: some View {
+        Group {
+            if let posterURL {
+                SimpleCachedImage(
+                    url: posterURL,
+                    downsampleSize: CGSize(width: 100, height: 150)
+                )
+                .aspectRatio(2/3, contentMode: .fit)
+            } else {
+                ZStack {
+                    OiiQTPlaceholder()
+
+                    if isLoadingTMDB {
+                        ProgressView()
+                            .tint(.secondary)
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(width: 100, height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .shadow(radius: 4)
+    }
+}
+
+private struct TorrentDetailStatusBadge: View {
+    let task: TorrentTask
+
+    var body: some View {
+        Text(task.status.localizedDisplayName)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(task.status.color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(task.status.color.opacity(0.14))
+            .clipShape(Capsule())
     }
 }
 

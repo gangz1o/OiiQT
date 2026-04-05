@@ -93,6 +93,7 @@ nonisolated private let moviePilotEnglishOverrides: [String: String] = [
     "上映": "Release",
     "导演": "Director",
     "演员": "Cast",
+    "饰演": "as",
     "类型": "Genre",
     "详情": "Details",
     "正在载入...": "Loading...",

@@ -23,11 +23,7 @@ struct DashboardStorageAuditModuleView: View {
                         .foregroundStyle(.secondary)
                 }
             } else if snapshot.serverStorage.isEmpty {
-                DashboardTile(minHeight: 68) {
-                    Text(LanguageManager.shared.localized("Syncing server storage information..."))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                DashboardStorageAuditLoadingGrid(serverCount: servers.count)
             } else {
                 LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
                     ForEach(snapshot.serverStorage) { entry in
@@ -40,6 +36,28 @@ struct DashboardStorageAuditModuleView: View {
             guard !hasTriggeredFirstAppear else { return }
             hasTriggeredFirstAppear = true
             onFirstAppear?()
+        }
+    }
+}
+
+private struct DashboardStorageAuditLoadingGrid: View {
+    let serverCount: Int
+
+    var body: some View {
+        LazyVGrid(columns: DashboardGrid.columns, spacing: 12) {
+            ForEach(0..<max(serverCount, 2), id: \.self) { _ in
+                DashboardTile(minHeight: 104) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            DashboardStorageAuditPlaceholderBlock(width: 8, height: 8, cornerRadius: 4)
+                            DashboardStorageAuditPlaceholderBlock(width: 72, height: 12, cornerRadius: 4)
+                        }
+
+                        DashboardStorageAuditPlaceholderBlock(width: 110, height: 10, cornerRadius: 4)
+                        DashboardStorageAuditPlaceholderBlock(width: 64, height: 12, cornerRadius: 4)
+                    }
+                }
+            }
         }
     }
 }
@@ -78,5 +96,24 @@ private struct DashboardStorageServerTile: View {
                 }
             }
         }
+    }
+}
+
+private struct DashboardStorageAuditPlaceholderBlock: View {
+    let width: CGFloat
+    let height: CGFloat
+    let cornerRadius: CGFloat
+
+    @State private var isAnimating = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color(uiColor: .tertiarySystemFill))
+            .frame(width: width, height: height)
+            .opacity(isAnimating ? 0.55 : 0.95)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isAnimating)
+            .onAppear {
+                isAnimating = true
+            }
     }
 }

@@ -33,6 +33,12 @@ struct DashboardRecentFinishedModuleView: View {
             : LanguageManager.shared.localized("View All")
     }
 
+    init(tasks: [TorrentTask], refreshKey: String) {
+        self.tasks = tasks
+        self.refreshKey = refreshKey
+        _recentFinishedTasks = State(initialValue: Self.computeRecentFinishedTasks(from: tasks))
+    }
+
     var body: some View {
         Group {
             if !recentFinishedTasks.isEmpty {

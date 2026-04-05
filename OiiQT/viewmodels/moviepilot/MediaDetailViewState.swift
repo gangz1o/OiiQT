@@ -6,7 +6,7 @@ nonisolated struct ActorViewState: Identifiable, Equatable, Sendable {
     let characterName: String
     let profileURLString: String
     let profileURL: URL?
-    let accessibilityLabel: String
+    private let explicitAccessibilityLabel: String?
 
     init(
         id: String,
@@ -17,18 +17,51 @@ nonisolated struct ActorViewState: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.name = name
-        self.characterName = characterName
+        self.characterName = Self.normalizedCharacterName(characterName)
         self.profileURLString = profileURLString
         self.profileURL = URL(string: profileURLString)
+        self.explicitAccessibilityLabel = accessibilityLabel
+    }
 
-        let resolvedCharacterName = characterName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let accessibilityLabel {
-            self.accessibilityLabel = accessibilityLabel
-        } else if resolvedCharacterName.isEmpty {
-            self.accessibilityLabel = name
-        } else {
-            self.accessibilityLabel = "\(name)，饰演 \(resolvedCharacterName)"
+    var roleDisplayText: String? {
+        guard !characterName.isEmpty else { return nil }
+        return "\(moviePilotLocalized("饰演")) \(characterName)"
+    }
+
+    var accessibilityLabel: String {
+        if let explicitAccessibilityLabel {
+            return explicitAccessibilityLabel
         }
+        if let roleDisplayText {
+            return "\(name)，\(roleDisplayText)"
+        }
+        return name
+    }
+
+    private static func normalizedCharacterName(_ rawValue: String) -> String {
+        let separatorCharacterSet = CharacterSet(charactersIn: ":：-·.，,／/| ")
+        let knownPrefixes = ["饰演", "饰", "配音", "配", "CV", "cv"]
+        var normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        while !normalized.isEmpty {
+            var strippedPrefix = false
+
+            for prefix in knownPrefixes {
+                guard normalized.hasPrefix(prefix) else { continue }
+                let start = normalized.index(normalized.startIndex, offsetBy: prefix.count)
+                normalized = String(normalized[start...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: separatorCharacterSet)
+                strippedPrefix = true
+                break
+            }
+
+            if !strippedPrefix {
+                break
+            }
+        }
+
+        return normalized.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

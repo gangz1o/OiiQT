@@ -39,9 +39,9 @@ struct TorrentRowView: View {
                         posterArea
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            if let trackerText = row.trackerText {
+	                VStack(alignment: .leading, spacing: 8) {
+	                        HStack(spacing: 6) {
+	                            if let trackerText = row.trackerText {
                                 Text(verbatim: trackerText)
                                     .font(.system(size: 10, weight: .bold))
                                     .foregroundStyle(.white)
@@ -75,44 +75,30 @@ struct TorrentRowView: View {
                                 Text(verbatim: row.percentText)
                                     .font(.caption2.monospacedDigit().bold())
                                     .foregroundStyle(statusColor)
-                            }
-                            .fixedSize(horizontal: true, vertical: false)
-                            .layoutPriority(2)
-                        }
+	                            }
+	                            .fixedSize(horizontal: true, vertical: false)
+	                            .layoutPriority(2)
+	                        }
+	                        .frame(height: Self.headerInlinePillHeight, alignment: .top)
 
-                        let titleText = Text(verbatim: row.titleText)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.primary)
+	                        let titleText = Text(verbatim: row.titleText)
+	                            .font(.system(size: 14, weight: .medium))
+	                            .foregroundStyle(.primary)
 
-                        if let serverType = row.serverType {
-                            HStack(alignment: .center, spacing: 6) {
-                                titleText
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+	                        HStack(alignment: .top, spacing: 6) {
+	                            titleText
+	                                .lineLimit(2)
+	                                .fixedSize(horizontal: false, vertical: true)
+	                                .frame(maxWidth: .infinity, alignment: .topLeading)
+	                                .frame(height: Self.titleBlockHeight, alignment: .topLeading)
 
-                                Group {
-                                    if serverType == .transmission {
-                                        Image("tr_logo")
-                                            .resizable()
-                                            .scaledToFit()
-                                    } else {
-                                        Image("qb_logo")
-                                            .resizable()
-                                            .scaledToFit()
-                                    }
-                                }
-                                .frame(width: 14, height: 14)
-                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                            }
-                        } else {
-                            titleText
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+	                            serverTypeIconSlot
+	                                .frame(width: 14, height: 14)
+	                        }
+	                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                        TaskProgressView(
-                            downloadSpeedText: row.downloadSpeedText,
+	                        TaskProgressView(
+	                            downloadSpeedText: row.downloadSpeedText,
                             uploadSpeedText: row.uploadSpeedText,
                             peersText: row.peersText,
                             seedsText: row.seedsText,
@@ -204,13 +190,35 @@ struct TorrentRowView: View {
         CGSize(width: 65, height: 97.5)
     }
 
-    private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-    }
+	    private var cardShape: RoundedRectangle {
+	        RoundedRectangle(cornerRadius: 12, style: .continuous)
+	    }
+
+	    @ViewBuilder
+	    private var serverTypeIconSlot: some View {
+	        if let serverType = row.serverType {
+	            Group {
+	                if serverType == .transmission {
+	                    Image("tr_logo")
+	                        .resizable()
+	                        .scaledToFit()
+	                } else {
+	                    Image("qb_logo")
+	                        .resizable()
+	                        .scaledToFit()
+	                }
+	            }
+	            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+	        } else {
+	            Color.clear
+	        }
+	    }
 }
 
 private extension TorrentRowView {
-    static let headerInlinePillMinHeight: CGFloat = 20
+	    static let headerInlinePillMinHeight: CGFloat = 20
+	    static let headerInlinePillHeight: CGFloat = 20
+	    static let titleBlockHeight: CGFloat = 36
 }
 
 private struct TransfersPosterThumbnailView: View {

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 struct TransfersRowDisplayOptions: Equatable, Sendable {
@@ -7,6 +8,8 @@ struct TransfersRowDisplayOptions: Equatable, Sendable {
 }
 
 struct TransfersRowDisplayModel: Identifiable, Equatable, Sendable {
+    nonisolated static let defaultPreferredRowHeight: CGFloat = 126
+
     let id: String
     let status: TorrentStatus
     let progress: Double
@@ -27,6 +30,7 @@ struct TransfersRowDisplayModel: Identifiable, Equatable, Sendable {
     let resolutionBadge: ResolutionBadge?
     let taskHash: String
     let taskRawName: String
+    let preferredRowHeight: CGFloat
 
     nonisolated static func make(
         from task: TorrentTask,
@@ -85,7 +89,8 @@ struct TransfersRowDisplayModel: Identifiable, Equatable, Sendable {
             serverType: serverType,
             resolutionBadge: task.resolutionBadge,
             taskHash: task.hash,
-            taskRawName: task.name
+            taskRawName: task.name,
+            preferredRowHeight: defaultPreferredRowHeight
         )
     }
 }

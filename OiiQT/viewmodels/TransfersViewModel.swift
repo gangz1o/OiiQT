@@ -283,6 +283,7 @@ final class TransfersViewModel {
         let categoryFilterSupported = appStateManager.activeServerType != .transmission
         let aliasMapSnapshot = displayOptions.isProUser ? TrackerAliasManager.shared.aliasMap : [:]
         let startUptime = DispatchTime.now().uptimeNanoseconds
+        let computationPriority: TaskPriority = showOverlayHint ? .userInitiated : .utility
 
 
 
@@ -292,7 +293,7 @@ final class TransfersViewModel {
         }
 
         filterComputationTask = Task {
-            let computed = await Task.detached(priority: .userInitiated) {
+            let computed = await Task.detached(priority: computationPriority) {
                 Self.computeFilteredContent(
                     sourceTasks: sourceTasks,
                     selectedStatuses: statuses,
@@ -392,11 +393,21 @@ final class TransfersViewModel {
             serverType: nil,
             resolutionBadge: nil,
             taskHash: "",
-            taskRawName: ""
+            taskRawName: "",
+            preferredRowHeight: TransfersRowDisplayModel.defaultPreferredRowHeight
         )
         let state = TransfersRowState(snapshot: initialSnapshot)
         rowStateByID[taskID] = state
         return state
+    }
+
+    func preferredRowHeight(for taskID: String) -> CGFloat {
+        if let state = rowStateByID[taskID] {
+            return state.snapshot.preferredRowHeight
+        }
+
+        return makeRowSnapshot(for: taskID)?.preferredRowHeight
+            ?? TransfersRowDisplayModel.defaultPreferredRowHeight
     }
 
     func setRowVisibility(_ taskID: String, isVisible: Bool) {
@@ -418,7 +429,7 @@ final class TransfersViewModel {
 
         rowStateByID = rowStateByID.filter { computed.tasksByID[$0.key] != nil }
         visibleTaskIDs = visibleTaskIDs.filter { computed.tasksByID[$0] != nil }
-        refreshVisibleRowStates(using: computed.rowSnapshotsByID)
+        refreshVisibleRowStates()
 
         if !selectedTaskHashes.isEmpty {
             selectedTaskHashes = Set(selectedTaskHashes.filter { computed.tasksByID[$0] != nil })
@@ -527,7 +538,7 @@ final class TransfersViewModel {
         displayOptions: TransfersRowDisplayOptions
     ) -> FilteredContentResult {
         guard !sourceTasks.isEmpty else {
-            return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
+            return FilteredContentResult(taskIDs: [], tasksByID: [:])
         }
 
         let effectiveStatuses = selectedStatuses.filter { $0 != .all }
@@ -568,7 +579,7 @@ final class TransfersViewModel {
 
         for task in sourceTasks {
             if Task.isCancelled {
-                return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
+                return FilteredContentResult(taskIDs: [], tasksByID: [:])
             }
 
             if statusFilterEnabled && !effectiveStatuses.contains(where: { $0.matches(task) }) {
@@ -612,36 +623,28 @@ final class TransfersViewModel {
         }
 
         if Task.isCancelled {
-            return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
+            return FilteredContentResult(taskIDs: [], tasksByID: [:])
         }
 
         sortTasks(&filtered, by: sortOption, ascending: sortAscending)
 
         var taskIDs: [String] = []
         var tasksByID: [String: TorrentTask] = [:]
-        var rowSnapshotsByID: [String: TransfersRowDisplayModel] = [:]
         taskIDs.reserveCapacity(filtered.count)
         tasksByID.reserveCapacity(filtered.count)
-        rowSnapshotsByID.reserveCapacity(filtered.count)
 
         for task in filtered {
             if Task.isCancelled {
-                return FilteredContentResult(taskIDs: [], tasksByID: [:], rowSnapshotsByID: [:])
+                return FilteredContentResult(taskIDs: [], tasksByID: [:])
             }
 
             taskIDs.append(task.id)
             tasksByID[task.id] = task
-            rowSnapshotsByID[task.id] = TransfersRowDisplayModel.make(
-                from: task,
-                aliasMap: aliasMap,
-                options: displayOptions
-            )
         }
 
         return FilteredContentResult(
             taskIDs: taskIDs,
-            tasksByID: tasksByID,
-            rowSnapshotsByID: rowSnapshotsByID
+            tasksByID: tasksByID
         )
     }
 
@@ -699,7 +702,6 @@ final class TransfersViewModel {
     private struct FilteredContentResult: Sendable {
         let taskIDs: [String]
         let tasksByID: [String: TorrentTask]
-        let rowSnapshotsByID: [String: TransfersRowDisplayModel]
     }
 
     private struct TaskFilterOptions: Sendable {
