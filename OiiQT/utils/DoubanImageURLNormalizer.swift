@@ -1,7 +1,7 @@
 import Foundation
 
 enum DoubanImageURLNormalizer {
-    static func normalize(_ rawPath: String) -> String {
+    nonisolated static func normalize(_ rawPath: String) -> String {
         let trimmedPath = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty else { return rawPath }
 

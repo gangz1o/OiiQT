@@ -1213,8 +1213,6 @@ private struct TMDBAPIKeySettingsView: View {
     }
 }
 
-
-
 #Preview {
     SettingsView()
 }

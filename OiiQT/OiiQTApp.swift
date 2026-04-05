@@ -10,6 +10,7 @@ import SwiftData
 import Nuke
 import UIKit
 import Combine
+import Darwin
 
 @main
 struct OiiQTApp: App {
@@ -55,6 +56,7 @@ struct OiiQTApp: App {
             Item.self,
             ServerConfig.self,
             PosterMatchRecord.self,
+            DoubanPosterLookupRecord.self,
             TMDBMatch.self,
             RSSFeedSource.self,
             RSSItem.self,
@@ -158,6 +160,13 @@ private struct AppRootView: View {
     private func bootstrapIfNeeded() async {
         guard !didStartBootstrap else { return }
         didStartBootstrap = true
+
+#if DEBUG
+        if PosterArtworkService.isReliabilityVerificationRequested {
+            let succeeded = await PosterArtworkService.runReliabilityVerification()
+            exit(succeeded ? EXIT_SUCCESS : EXIT_FAILURE)
+        }
+#endif
 
         appStateManager.loadServers(context: modelContext)
         ServerCredentialStore.shared.migrateLegacyPasswords(in: modelContext)

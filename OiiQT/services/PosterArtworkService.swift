@@ -12,15 +12,14 @@ enum PosterArtworkProvider: String, Sendable {
 
 @MainActor
 final class PosterArtworkService {
-    fileprivate enum DoubanRequestOutcome {
-        case success([DoubanSuggestionItem])
-        case failure(String)
-    }
-
     static let shared = PosterArtworkService()
-    private static let doubanFailureThreshold = 2
-    private static let doubanCooldownInterval: TimeInterval = 180
-    private static let doubanRequestTimeout: TimeInterval = 2.5
+    private static let doubanSuccessLookupTTL: TimeInterval = 60 * 60 * 24 * 30
+    private static let doubanNegativeLookupTTL: TimeInterval = 60 * 60 * 12
+    private static let doubanRateLimitLookupTTL: TimeInterval = 60 * 5
+    private static let doubanNetworkLookupTTL: TimeInterval = 60 * 2
+    private static let doubanDecodeLookupTTL: TimeInterval = 60 * 10
+    private static let doubanBaseSuppressionInterval: TimeInterval = 20
+    private static let doubanMaxSuppressionInterval: TimeInterval = 60 * 5
 
     private let urlCache: NSCache<NSString, NSString> = {
         let cache = NSCache<NSString, NSString>()
@@ -35,8 +34,10 @@ final class PosterArtworkService {
 
     private var persistedMatchesByHash: [String: PersistedPosterMatchRecord] = [:]
     private var hasHydratedPersistedMatches = false
-    private var consecutiveDoubanFailures = 0
-    private var doubanCooldownUntil: Date?
+    private var persistedDoubanLookupsByKey: [String: PersistedDoubanLookupRecord] = [:]
+    private var hasHydratedPersistedDoubanLookups = false
+    private var doubanFailureStreak = 0
+    private var doubanSuppressedUntil: Date?
 
     private init() {}
 
@@ -46,6 +47,7 @@ final class PosterArtworkService {
 
     func preparePosterCacheIfNeeded(context: ModelContext) {
         hydratePersistedMatchesIfNeeded(context: context)
+        hydratePersistedDoubanLookupsIfNeeded(context: context)
         TMDBService.shared.preparePosterCacheIfNeeded(context: context)
     }
 
@@ -130,7 +132,11 @@ final class PosterArtworkService {
             return nil
         }
 
-        if let doubanURL = await resolveDoubanPosterURL(metadata: metadata) {
+        if let doubanURL = await resolveDoubanPosterURL(
+            metadata: metadata,
+            titleCacheKey: titleCacheKey,
+            context: context
+        ) {
             TransfersPosterDiagnostics.log(
                 "poster fetch hit source=douban hash=\(hash) url=\(doubanURL.absoluteString)"
             )
@@ -285,6 +291,10 @@ final class PosterArtworkService {
             }
         }
 
+        if let name {
+            clearPersistedDoubanLookups(titleCacheKey: cleanedTitleCacheKey(for: name), context: context)
+        }
+
         TMDBService.shared.clearPosterMatch(for: hash, name: name, context: context)
         try? context.save()
     }
@@ -298,6 +308,17 @@ final class PosterArtworkService {
             uniqueKeysWithValues: matches.map { ($0.hashString, PersistedPosterMatchRecord(record: $0)) }
         )
         hasHydratedPersistedMatches = true
+    }
+
+    private func hydratePersistedDoubanLookupsIfNeeded(context: ModelContext) {
+        guard !hasHydratedPersistedDoubanLookups else { return }
+
+        let descriptor = FetchDescriptor<DoubanPosterLookupRecord>()
+        let records = (try? context.fetch(descriptor)) ?? []
+        persistedDoubanLookupsByKey = Dictionary(
+            uniqueKeysWithValues: records.map { ($0.lookupKey, PersistedDoubanLookupRecord(record: $0)) }
+        )
+        hasHydratedPersistedDoubanLookups = true
     }
 
     private func persistMatch(
@@ -329,6 +350,64 @@ final class PosterArtworkService {
 
         persistedMatchesByHash[hash] = PersistedPosterMatchRecord(record: record)
         try? context.save()
+    }
+
+    private func persistDoubanLookup(
+        candidate: DoubanLookupCandidate,
+        posterURLString: String?,
+        subjectID: String?,
+        outcome: DoubanLookupOutcome,
+        failureReason: String?,
+        ttl: TimeInterval,
+        context: ModelContext
+    ) {
+        let lookupKey = candidate.lookupKey
+        let descriptor = FetchDescriptor<DoubanPosterLookupRecord>(
+            predicate: #Predicate { $0.lookupKey == lookupKey }
+        )
+        let existing = try? context.fetch(descriptor).first
+        let record = existing ?? DoubanPosterLookupRecord(
+            lookupKey: lookupKey,
+            titleCacheKey: candidate.titleCacheKey,
+            queryValue: candidate.queryValue,
+            targetYear: candidate.targetYear,
+            mediaType: candidate.mediaType,
+            posterURLString: posterURLString,
+            subjectID: subjectID,
+            outcomeRawValue: outcome.rawValue,
+            failureReason: failureReason,
+            validUntil: Date().addingTimeInterval(ttl)
+        )
+
+        record.titleCacheKey = candidate.titleCacheKey
+        record.queryValue = candidate.queryValue
+        record.targetYear = candidate.targetYear
+        record.mediaType = candidate.mediaType
+        record.posterURLString = posterURLString
+        record.subjectID = subjectID
+        record.outcomeRawValue = outcome.rawValue
+        record.failureReason = failureReason
+        record.validUntil = Date().addingTimeInterval(ttl)
+        record.lastUpdatedAt = Date()
+
+        if existing == nil {
+            context.insert(record)
+        }
+
+        persistedDoubanLookupsByKey[lookupKey] = PersistedDoubanLookupRecord(record: record)
+        try? context.save()
+    }
+
+    private func clearPersistedDoubanLookups(titleCacheKey: String, context: ModelContext) {
+        let normalizedKey = titleCacheKey.lowercased()
+        let descriptor = FetchDescriptor<DoubanPosterLookupRecord>(
+            predicate: #Predicate { $0.titleCacheKey == normalizedKey }
+        )
+        let records = (try? context.fetch(descriptor)) ?? []
+        for record in records {
+            persistedDoubanLookupsByKey.removeValue(forKey: record.lookupKey)
+            context.delete(record)
+        }
     }
 
     private func cachedURL(for cacheKey: String) -> URL? {
@@ -369,36 +448,179 @@ final class PosterArtworkService {
         return finalTitle.isEmpty ? rawName : finalTitle
     }
 
-    private func resolveDoubanPosterURL(metadata: OiiQTMetadata) async -> URL? {
+    private func resolveDoubanPosterURL(
+        metadata: OiiQTMetadata,
+        titleCacheKey: String,
+        context: ModelContext
+    ) async -> URL? {
+        let candidates = doubanLookupCandidates(for: metadata, titleCacheKey: titleCacheKey)
+        var pendingCandidates: [DoubanLookupCandidate] = []
+
+        for candidate in candidates {
+            if let persisted = persistedDoubanLookupsByKey[candidate.lookupKey], persisted.isValid {
+                TransfersPosterDiagnostics.log(
+                    "douban lookup hit source=persisted key=\(candidate.lookupKey) outcome=\(persisted.outcome.rawValue)"
+                )
+                if let posterURL = persisted.posterURL {
+                    return posterURL
+                }
+                continue
+            }
+            pendingCandidates.append(candidate)
+        }
+
         guard canAttemptDoubanRequest() else {
-            let cooldownText = doubanCooldownUntil.map { ISO8601DateFormatter().string(from: $0) } ?? "nil"
+            let cooldownText = doubanSuppressedUntil.map { ISO8601DateFormatter().string(from: $0) } ?? "nil"
             TransfersPosterDiagnostics.log(
-                "douban search skip reason=cooldown-until value=\(cooldownText)"
+                "douban search skip reason=suppressed-until value=\(cooldownText)"
             )
             return nil
         }
 
-        let primaryResults = await fetchDoubanSuggestions(query: metadata.title)
-        TransfersPosterDiagnostics.log(
-            "douban search primary title=\(metadata.title) year=\(metadata.year ?? "nil") results=\(primaryResults.count)"
-        )
-        if let bestPrimary = selectBestDoubanSuggestion(from: primaryResults, metadata: metadata) {
-            return URL(string: bestPrimary.normalizedPosterURLString)
-        }
-
-        if let englishTitle = metadata.englishTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !englishTitle.isEmpty,
-           englishTitle.caseInsensitiveCompare(metadata.title) != .orderedSame {
-            let fallbackResults = await fetchDoubanSuggestions(query: englishTitle)
-            TransfersPosterDiagnostics.log(
-                "douban search fallback title=\(englishTitle) year=\(metadata.year ?? "nil") results=\(fallbackResults.count)"
-            )
-            if let bestFallback = selectBestDoubanSuggestion(from: fallbackResults, metadata: metadata) {
-                return URL(string: bestFallback.normalizedPosterURLString)
+        for candidate in pendingCandidates {
+            let result = await fetchDoubanSuggestionsResult(query: candidate.queryValue)
+            switch result {
+            case .success(let items):
+                TransfersPosterDiagnostics.log(
+                    "douban search finish key=\(candidate.lookupKey) query=\(candidate.queryValue) results=\(items.count)"
+                )
+                if let best = selectBestDoubanSuggestion(from: items, metadata: metadata) {
+                    let posterURLString = best.normalizedPosterURLString
+                    persistDoubanLookup(
+                        candidate: candidate,
+                        posterURLString: posterURLString,
+                        subjectID: best.id,
+                        outcome: .success,
+                        failureReason: nil,
+                        ttl: Self.doubanSuccessLookupTTL,
+                        context: context
+                    )
+                    return URL(string: posterURLString)
+                }
+                persistDoubanLookup(
+                    candidate: candidate,
+                    posterURLString: nil,
+                    subjectID: nil,
+                    outcome: .negative,
+                    failureReason: nil,
+                    ttl: Self.doubanNegativeLookupTTL,
+                    context: context
+                )
+            case .negative:
+                TransfersPosterDiagnostics.log(
+                    "douban search finish key=\(candidate.lookupKey) query=\(candidate.queryValue) results=0"
+                )
+                persistDoubanLookup(
+                    candidate: candidate,
+                    posterURLString: nil,
+                    subjectID: nil,
+                    outcome: .negative,
+                    failureReason: nil,
+                    ttl: Self.doubanNegativeLookupTTL,
+                    context: context
+                )
+            case .rateLimited(let reason):
+                persistDoubanLookup(
+                    candidate: candidate,
+                    posterURLString: nil,
+                    subjectID: nil,
+                    outcome: .rateLimited,
+                    failureReason: reason,
+                    ttl: Self.doubanRateLimitLookupTTL,
+                    context: context
+                )
+            case .timeout:
+                persistDoubanLookup(
+                    candidate: candidate,
+                    posterURLString: nil,
+                    subjectID: nil,
+                    outcome: .timeout,
+                    failureReason: result.failureReason,
+                    ttl: Self.doubanNetworkLookupTTL,
+                    context: context
+                )
+            case .decodeFailure:
+                persistDoubanLookup(
+                    candidate: candidate,
+                    posterURLString: nil,
+                    subjectID: nil,
+                    outcome: .decodeFailure,
+                    failureReason: result.failureReason,
+                    ttl: Self.doubanDecodeLookupTTL,
+                    context: context
+                )
+            case .networkError(let reason):
+                persistDoubanLookup(
+                    candidate: candidate,
+                    posterURLString: nil,
+                    subjectID: nil,
+                    outcome: .networkError,
+                    failureReason: reason,
+                    ttl: Self.doubanNetworkLookupTTL,
+                    context: context
+                )
             }
         }
 
         return nil
+    }
+
+    private func doubanLookupCandidates(
+        for metadata: OiiQTMetadata,
+        titleCacheKey: String
+    ) -> [DoubanLookupCandidate] {
+        let normalizedTitleCacheKey = titleCacheKey.lowercased()
+        let mediaType = inferredDoubanMediaType(for: metadata)
+        var candidates: [DoubanLookupCandidate] = [
+            DoubanLookupCandidate(
+                lookupKey: doubanLookupKey(
+                    titleCacheKey: normalizedTitleCacheKey,
+                    query: metadata.title,
+                    targetYear: metadata.year,
+                    mediaType: mediaType
+                ),
+                titleCacheKey: normalizedTitleCacheKey,
+                queryValue: metadata.title,
+                targetYear: metadata.year,
+                mediaType: mediaType
+            )
+        ]
+
+        if let englishTitle = metadata.englishTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !englishTitle.isEmpty,
+           englishTitle.caseInsensitiveCompare(metadata.title) != .orderedSame {
+            candidates.append(
+                DoubanLookupCandidate(
+                    lookupKey: doubanLookupKey(
+                        titleCacheKey: normalizedTitleCacheKey,
+                        query: englishTitle,
+                        targetYear: metadata.year,
+                        mediaType: mediaType
+                    ),
+                    titleCacheKey: normalizedTitleCacheKey,
+                    queryValue: englishTitle,
+                    targetYear: metadata.year,
+                    mediaType: mediaType
+                )
+            )
+        }
+
+        return candidates
+    }
+
+    private func doubanLookupKey(
+        titleCacheKey: String,
+        query: String,
+        targetYear: String?,
+        mediaType: String
+    ) -> String {
+        let normalizedQuery = normalizeDoubanTitle(query)
+        let normalizedYear = targetYear?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "na"
+        return "douban::\(titleCacheKey)::\(normalizedQuery)::\(normalizedYear)::\(mediaType)"
+    }
+
+    private func inferredDoubanMediaType(for metadata: OiiQTMetadata) -> String {
+        metadata.season != nil ? "tv" : "movie"
     }
 
     private func fetchTMDBManualCandidates(
@@ -421,23 +643,36 @@ final class PosterArtworkService {
     }
 
     private func fetchDoubanSuggestions(query: String) async -> [DoubanSuggestionItem] {
+        let result = await fetchDoubanSuggestionsResult(query: query)
+        switch result {
+        case .success(let items):
+            return items
+        case .negative, .rateLimited, .timeout, .decodeFailure, .networkError:
+            return []
+        }
+    }
+
+    private func fetchDoubanSuggestionsResult(query: String) async -> DoubanSuggestionFetchResult {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedQuery.isEmpty else { return [] }
-        guard canAttemptDoubanRequest() else { return [] }
+        guard !normalizedQuery.isEmpty else { return .negative }
+        guard canAttemptDoubanRequest() else { return .rateLimited("suppressed") }
 
         let lookup = await doubanSearchCoordinator.cachedOrTask(for: normalizedQuery.lowercased()) {
             let coordinator = self.doubanSearchCoordinator
             let cacheKey = normalizedQuery.lowercased()
             return Task {
                 await coordinator.acquirePermit()
-                let outcome = await Self.performDoubanSuggestionRequest(query: normalizedQuery)
+                let outcome = await DoubanRequestClient.shared.fetchSuggestions(query: normalizedQuery)
                 let cacheableResults: [DoubanSuggestionItem]
                 let isCacheable: Bool
                 switch outcome {
                 case .success(let items):
                     cacheableResults = items
                     isCacheable = true
-                case .failure:
+                case .negative:
+                    cacheableResults = []
+                    isCacheable = true
+                case .rateLimited, .timeout, .decodeFailure, .networkError:
                     cacheableResults = []
                     isCacheable = false
                 }
@@ -448,17 +683,22 @@ final class PosterArtworkService {
 
         switch lookup {
         case .cached(let items):
-            return items
+            return items.isEmpty ? .negative : .success(items)
         case .task(let task):
             let outcome = await task.value
             switch outcome {
-            case .success(let items):
-                resetDoubanFailureState()
-                return items
-            case .failure(let reason):
-                recordDoubanFailure(reason: reason)
-                return []
+            case .success, .negative:
+                recordDoubanHealthyResponse()
+            case .rateLimited(let reason):
+                recordDoubanFailure(outcome: .rateLimited, reason: reason)
+            case .timeout:
+                recordDoubanFailure(outcome: .timeout, reason: outcome.failureReason ?? "timeout")
+            case .decodeFailure:
+                recordDoubanFailure(outcome: .decodeFailure, reason: outcome.failureReason ?? "decode-failure")
+            case .networkError(let reason):
+                recordDoubanFailure(outcome: .networkError, reason: reason)
             }
+            return outcome
         }
     }
 
@@ -527,70 +767,50 @@ final class PosterArtworkService {
     }
 
     private func canAttemptDoubanRequest() -> Bool {
-        guard let doubanCooldownUntil else { return true }
-        if doubanCooldownUntil <= Date() {
-            self.doubanCooldownUntil = nil
-            self.consecutiveDoubanFailures = 0
+        guard let doubanSuppressedUntil else { return true }
+        if doubanSuppressedUntil <= Date() {
+            self.doubanSuppressedUntil = nil
+            self.doubanFailureStreak = max(0, doubanFailureStreak - 1)
             return true
         }
         return false
     }
 
-    private func resetDoubanFailureState() {
-        consecutiveDoubanFailures = 0
-        doubanCooldownUntil = nil
+    private func recordDoubanHealthyResponse() {
+        guard doubanFailureStreak > 0 || doubanSuppressedUntil != nil else { return }
+        doubanFailureStreak = max(0, doubanFailureStreak - 1)
+        if doubanFailureStreak == 0 {
+            doubanSuppressedUntil = nil
+        }
     }
 
-    private func recordDoubanFailure(reason: String) {
-        consecutiveDoubanFailures += 1
+    private func recordDoubanFailure(outcome: DoubanLookupOutcome, reason: String) {
+        let baseInterval: TimeInterval
+        switch outcome {
+        case .rateLimited:
+            baseInterval = 30
+        case .networkError, .timeout:
+            baseInterval = 15
+        case .decodeFailure:
+            baseInterval = 45
+        case .success, .negative:
+            return
+        }
+
+        doubanFailureStreak += 1
         TransfersPosterDiagnostics.log(
-            "douban failure count=\(consecutiveDoubanFailures) threshold=\(Self.doubanFailureThreshold) reason=\(reason)"
+            "douban failure count=\(doubanFailureStreak) outcome=\(outcome.rawValue) reason=\(reason)"
         )
-        guard consecutiveDoubanFailures >= Self.doubanFailureThreshold else { return }
-        let cooldownUntil = Date().addingTimeInterval(Self.doubanCooldownInterval)
-        doubanCooldownUntil = cooldownUntil
+        let exponent = min(max(doubanFailureStreak - 1, 0), 4)
+        let suppressionInterval = min(
+            baseInterval * pow(2.0, Double(exponent)),
+            Self.doubanMaxSuppressionInterval
+        )
+        let cooldownUntil = Date().addingTimeInterval(max(Self.doubanBaseSuppressionInterval, suppressionInterval))
+        doubanSuppressedUntil = cooldownUntil
         TransfersPosterDiagnostics.log(
             "douban circuit open until=\(ISO8601DateFormatter().string(from: cooldownUntil))"
         )
-    }
-
-    private static func performDoubanSuggestionRequest(query: String) async -> DoubanRequestOutcome {
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://movie.douban.com/j/subject_suggest?q=\(encodedQuery)") else {
-            return .failure("bad-url")
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-        request.setValue("https://movie.douban.com/", forHTTPHeaderField: "Referer")
-        request.timeoutInterval = Self.doubanRequestTimeout
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse,
-               !(200...299).contains(httpResponse.statusCode) {
-                TransfersPosterDiagnostics.log(
-                    "douban request error query=\(query) status=\(httpResponse.statusCode)"
-                )
-                return .failure("http-\(httpResponse.statusCode)")
-            }
-            let decoder = JSONDecoder()
-            guard let decoded = try? decoder.decode([DoubanSuggestionResponseItem].self, from: data).map(DoubanSuggestionItem.init) else {
-                TransfersPosterDiagnostics.log(
-                    "douban request error query=\(query) reason=decode-failed bytes=\(data.count)"
-                )
-                return .failure("decode-failed")
-            }
-            TransfersPosterDiagnostics.log(
-                "douban request finish query=\(query) results=\(decoded.count)"
-            )
-            return .success(decoded)
-        } catch {
-            TransfersPosterDiagnostics.log(
-                "douban request error query=\(query) error=\(error.localizedDescription)"
-            )
-            return .failure(error.localizedDescription)
-        }
     }
 
     private func mergeManualCandidates(
@@ -633,7 +853,53 @@ private struct PersistedPosterMatchRecord {
     }
 }
 
-private struct DoubanSuggestionResponseItem: Decodable, Sendable {
+private struct PersistedDoubanLookupRecord {
+    let lookupKey: String
+    let titleCacheKey: String
+    let posterURLString: String?
+    let subjectID: String?
+    let outcome: DoubanLookupOutcome
+    let failureReason: String?
+    let validUntil: Date
+
+    var posterURL: URL? {
+        guard let posterURLString else { return nil }
+        return URL(string: posterURLString)
+    }
+
+    var isValid: Bool {
+        validUntil > Date()
+    }
+
+    init(record: DoubanPosterLookupRecord) {
+        self.lookupKey = record.lookupKey
+        self.titleCacheKey = record.titleCacheKey
+        self.posterURLString = record.posterURLString
+        self.subjectID = record.subjectID
+        self.outcome = DoubanLookupOutcome(rawValue: record.outcomeRawValue) ?? .negative
+        self.failureReason = record.failureReason
+        self.validUntil = record.validUntil
+    }
+}
+
+private enum DoubanLookupOutcome: String {
+    case success
+    case negative
+    case rateLimited = "rate_limited"
+    case networkError = "network_error"
+    case timeout
+    case decodeFailure = "decode_failure"
+}
+
+private struct DoubanLookupCandidate {
+    let lookupKey: String
+    let titleCacheKey: String
+    let queryValue: String
+    let targetYear: String?
+    let mediaType: String
+}
+
+struct DoubanSuggestionResponseItem: Decodable, Sendable {
     let episode: String?
     let img: String?
     let title: String
@@ -655,7 +921,7 @@ private struct DoubanSuggestionResponseItem: Decodable, Sendable {
     }
 }
 
-private struct DoubanSuggestionItem: Sendable {
+struct DoubanSuggestionItem: Sendable {
     let title: String
     let subtitle: String
     let year: String
@@ -663,11 +929,11 @@ private struct DoubanSuggestionItem: Sendable {
     let posterURLString: String
     let id: String
 
-    var normalizedPosterURLString: String {
+    nonisolated var normalizedPosterURLString: String {
         DoubanImageURLNormalizer.normalize(posterURLString)
     }
 
-    init(response: DoubanSuggestionResponseItem) {
+    nonisolated init(response: DoubanSuggestionResponseItem) {
         self.title = response.title
         self.subtitle = response.subTitle ?? ""
         self.year = response.year
@@ -717,7 +983,7 @@ struct PosterSearchCandidate: Identifiable, Equatable, Sendable {
 private actor DoubanPosterSearchCoordinator {
     enum Lookup {
         case cached([DoubanSuggestionItem])
-        case task(Task<PosterArtworkService.DoubanRequestOutcome, Never>)
+        case task(Task<DoubanSuggestionFetchResult, Never>)
     }
 
     private let maxConcurrentRequests: Int
@@ -726,7 +992,7 @@ private actor DoubanPosterSearchCoordinator {
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var cachedResults: [String: [DoubanSuggestionItem]] = [:]
     private var cacheOrder: [String] = []
-    private var inFlightTasks: [String: Task<PosterArtworkService.DoubanRequestOutcome, Never>] = [:]
+    private var inFlightTasks: [String: Task<DoubanSuggestionFetchResult, Never>] = [:]
 
     init(maxConcurrentRequests: Int, maxCachedEntries: Int) {
         self.maxConcurrentRequests = max(1, maxConcurrentRequests)
@@ -735,7 +1001,7 @@ private actor DoubanPosterSearchCoordinator {
 
     func cachedOrTask(
         for cacheKey: String,
-        makeTask: @escaping @Sendable () -> Task<PosterArtworkService.DoubanRequestOutcome, Never>
+        makeTask: @escaping @Sendable () -> Task<DoubanSuggestionFetchResult, Never>
     ) -> Lookup {
         if let cached = cachedResults[cacheKey] {
             touch(cacheKey)
@@ -791,3 +1057,212 @@ private actor DoubanPosterSearchCoordinator {
         activeRequests = max(0, activeRequests - 1)
     }
 }
+
+#if DEBUG
+private struct PosterReliabilityVerificationResult {
+    let id: String
+    let passed: Bool
+    let detail: String
+}
+
+extension PosterArtworkService {
+    nonisolated static var isReliabilityVerificationRequested: Bool {
+        ProcessInfo.processInfo.arguments.contains("-OiiQTPosterReliabilityVerification")
+    }
+
+    @MainActor
+    static func runReliabilityVerification() async -> Bool {
+        let results = [
+            await verifyPersistedLookupReuse(),
+            await verifyRateLimitedShortCircuit(),
+            await verifyProxyRouting()
+        ]
+
+        for result in results {
+            let status = result.passed ? "PASS" : "FAIL"
+            print("[PosterReliabilityVerification] \(result.id): \(status) - \(result.detail)")
+        }
+
+        let overallPassed = results.allSatisfy(\.passed)
+        print("[PosterReliabilityVerification] overall: \(overallPassed ? "PASS" : "FAIL")")
+        return overallPassed
+    }
+
+    @MainActor
+    private static func verifyPersistedLookupReuse() async -> PosterReliabilityVerificationResult {
+        do {
+            let (_, context) = try makeVerificationStore(name: "persisted-reuse")
+            let firstService = PosterArtworkService()
+            let sampleName = "The.Matrix.1999.1080p.BluRay.x265"
+            let metadata = OiiQTParser.parse(sampleName)
+            let titleCacheKey = firstService.cleanedTitleCacheKey(for: sampleName)
+            let candidate = try requireCandidate(from: firstService.doubanLookupCandidates(for: metadata, titleCacheKey: titleCacheKey))
+            let expectedURLString = "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p480747492.webp"
+
+            firstService.persistDoubanLookup(
+                candidate: candidate,
+                posterURLString: expectedURLString,
+                subjectID: "1291843",
+                outcome: .success,
+                failureReason: nil,
+                ttl: Self.doubanSuccessLookupTTL,
+                context: context
+            )
+
+            let secondService = PosterArtworkService()
+            secondService.preparePosterCacheIfNeeded(context: context)
+            secondService.doubanSuppressedUntil = Date().addingTimeInterval(300)
+
+            let resolvedURL = await secondService.resolveDoubanPosterURL(
+                metadata: metadata,
+                titleCacheKey: titleCacheKey,
+                context: context
+            )
+
+            let passed = resolvedURL?.absoluteString == expectedURLString
+            return PosterReliabilityVerificationResult(
+                id: "5.1",
+                passed: passed,
+                detail: passed
+                    ? "fresh service instance reused persisted Douban lookup"
+                    : "expected persisted URL \(expectedURLString), got \(resolvedURL?.absoluteString ?? "nil")"
+            )
+        } catch {
+            return PosterReliabilityVerificationResult(
+                id: "5.1",
+                passed: false,
+                detail: "verification threw \(error.localizedDescription)"
+            )
+        }
+    }
+
+    @MainActor
+    private static func verifyRateLimitedShortCircuit() async -> PosterReliabilityVerificationResult {
+        do {
+            let (_, context) = try makeVerificationStore(name: "rate-limit-short-circuit")
+            let service = PosterArtworkService()
+            let sampleName = "Severance.S02E01.2025.1080p.WEB-DL"
+            let metadata = OiiQTParser.parse(sampleName)
+            let titleCacheKey = service.cleanedTitleCacheKey(for: sampleName)
+
+            service.preparePosterCacheIfNeeded(context: context)
+            service.recordDoubanFailure(outcome: .rateLimited, reason: "http-429")
+
+            let start = DispatchTime.now().uptimeNanoseconds
+            let resolvedURL = await service.resolveDoubanPosterURL(
+                metadata: metadata,
+                titleCacheKey: titleCacheKey,
+                context: context
+            )
+            let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+            let passed = resolvedURL == nil && elapsedMs < 50
+            let detail = passed
+                ? String(format: "suppressed Douban path returned nil in %.2f ms", elapsedMs)
+                : String(format: "expected quick nil under suppression, got %@ in %.2f ms", resolvedURL?.absoluteString ?? "nil", elapsedMs)
+
+            return PosterReliabilityVerificationResult(
+                id: "5.2",
+                passed: passed,
+                detail: detail
+            )
+        } catch {
+            return PosterReliabilityVerificationResult(
+                id: "5.2",
+                passed: false,
+                detail: "verification threw \(error.localizedDescription)"
+            )
+        }
+    }
+
+    @MainActor
+    private static func verifyProxyRouting() async -> PosterReliabilityVerificationResult {
+        let defaults = UserDefaults.standard
+        let previousSearchProxy = defaults.string(forKey: DoubanNetworkRouting.searchProxyUserDefaultsKey)
+        let previousImageProxy = defaults.string(forKey: DoubanNetworkRouting.imageProxyUserDefaultsKey)
+
+        defer {
+            if let previousSearchProxy {
+                defaults.set(previousSearchProxy, forKey: DoubanNetworkRouting.searchProxyUserDefaultsKey)
+            } else {
+                defaults.removeObject(forKey: DoubanNetworkRouting.searchProxyUserDefaultsKey)
+            }
+
+            if let previousImageProxy {
+                defaults.set(previousImageProxy, forKey: DoubanNetworkRouting.imageProxyUserDefaultsKey)
+            } else {
+                defaults.removeObject(forKey: DoubanNetworkRouting.imageProxyUserDefaultsKey)
+            }
+        }
+
+        defaults.removeObject(forKey: DoubanNetworkRouting.searchProxyUserDefaultsKey)
+        defaults.removeObject(forKey: DoubanNetworkRouting.imageProxyUserDefaultsKey)
+
+        let originalImageURL = URL(string: "https://img9.doubanio.com/view/photo/s_ratio_poster/public/p480747492.webp")!
+        let directSearchURL = DoubanNetworkRouting.searchRequestURL(query: "matrix")
+        let directImageURL = DoubanNetworkRouting.routedImageURL(for: originalImageURL)
+
+        defaults.set("https://proxy.example.com/douban/search", forKey: DoubanNetworkRouting.searchProxyUserDefaultsKey)
+        defaults.set("https://proxy.example.com/douban/image", forKey: DoubanNetworkRouting.imageProxyUserDefaultsKey)
+
+        let proxiedSearchURL = DoubanNetworkRouting.searchRequestURL(query: "matrix")
+        let proxiedImageURL = DoubanNetworkRouting.routedImageURL(for: originalImageURL)
+        let proxiedSearchQuery = URLComponents(url: proxiedSearchURL ?? originalImageURL, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "q" })?
+            .value
+        let proxiedImageQuery = URLComponents(url: proxiedImageURL, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "imgurl" })?
+            .value
+
+        let directSearchIsDirect = directSearchURL?.host?.contains("douban.com") == true
+        let directImageIsInert = directImageURL == originalImageURL
+        let proxiedSearchWorks = proxiedSearchURL?.host == "proxy.example.com"
+            && proxiedSearchURL?.path == "/douban/search"
+            && proxiedSearchQuery == "matrix"
+        let proxiedImageWorks = proxiedImageURL.host == "proxy.example.com"
+            && proxiedImageURL.path == "/douban/image"
+            && proxiedImageQuery == originalImageURL.absoluteString
+        let passed = directSearchIsDirect && directImageIsInert && proxiedSearchWorks && proxiedImageWorks
+
+        return PosterReliabilityVerificationResult(
+            id: "5.3",
+            passed: passed,
+            detail: passed
+                ? "direct routing stayed inert and configured proxies rewrote search/image URLs"
+                : "directSearch=\(directSearchURL?.absoluteString ?? "nil"), directImage=\(directImageURL.absoluteString), proxiedSearch=\(proxiedSearchURL?.absoluteString ?? "nil"), proxiedImage=\(proxiedImageURL.absoluteString)"
+        )
+    }
+
+    @MainActor
+    private static func makeVerificationStore(name: String) throws -> (URL, ModelContext) {
+        let storeURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("oiiqt-poster-verification-\(name)-\(UUID().uuidString).sqlite")
+        let schema = Schema([
+            PosterMatchRecord.self,
+            DoubanPosterLookupRecord.self,
+            TMDBMatch.self
+        ])
+        let configuration = ModelConfiguration(
+            "PosterReliability-\(name)",
+            schema: schema,
+            url: storeURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        return (storeURL, context)
+    }
+
+    @MainActor
+    private static func requireCandidate(from candidates: [DoubanLookupCandidate]) throws -> DoubanLookupCandidate {
+        guard let first = candidates.first else {
+            throw NSError(domain: "PosterReliabilityVerification", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "missing Douban lookup candidate"
+            ])
+        }
+        return first
+    }
+}
+#endif

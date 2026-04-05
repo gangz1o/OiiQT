@@ -27,18 +27,14 @@ enum OiiQTImageLoading {
         #endif
     }
 
-    static func needsDoubanHeaders(for url: URL?) -> Bool {
-        guard let host = url?.host?.lowercased() else { return false }
-        return host.contains("doubanio.com")
-    }
-
     /// Build a Nuke `ImageRequest` for the given URL.
     /// - If the URL is a Douban image, injects the required HTTP headers.
     /// - If `targetSize` is supplied, appends a `Resize` processor (in points, automatically scaled to pixels by Nuke).
     static func request(for url: URL, targetSize: CGSize? = nil) -> ImageRequest {
-        var urlRequest = URLRequest(url: url)
+        let routedURL = DoubanNetworkRouting.routedImageURL(for: url)
+        var urlRequest = URLRequest(url: routedURL)
 
-        if needsDoubanHeaders(for: url) {
+        if DoubanNetworkRouting.needsDirectDoubanHeaders(for: routedURL) {
             urlRequest.setValue("https://movie.douban.com/", forHTTPHeaderField: "Referer")
             urlRequest.setValue(
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
