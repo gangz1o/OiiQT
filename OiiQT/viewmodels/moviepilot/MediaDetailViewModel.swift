@@ -15,6 +15,9 @@ final class MediaDetailViewModel {
     @ObservationIgnored
     private let apiClient: MoviePilotMediaDetailAPIClient
 
+    @ObservationIgnored
+    private var taskRefreshCoordinator: (any ExternalTaskSubmissionRefreshing)?
+
     private(set) var viewState: MediaDetailViewState {
         didSet {
             rebuildPageViewState()
@@ -57,6 +60,10 @@ final class MediaDetailViewModel {
             searchFilterState: .default
         )
         detailContext = Self.makeInitialContext(from: initialViewState)
+    }
+
+    func configure(taskRefreshCoordinator: any ExternalTaskSubmissionRefreshing) {
+        self.taskRefreshCoordinator = taskRefreshCoordinator
     }
 
     func loadDetail(id: String) async {
@@ -185,6 +192,7 @@ final class MediaDetailViewModel {
             if response.success == true {
                 downloadFormViewState = nil
                 viewState.toastMessage = moviePilotLocalized("添加下载成功")
+                await triggerExternalTaskRefreshIfNeeded()
             } else {
                 downloadFormViewState?.isSubmitting = false
                 downloadFormViewState?.errorMessage = response.message ?? moviePilotLocalized("下载失败，请重试。")
@@ -201,6 +209,11 @@ final class MediaDetailViewModel {
 
     func clearToastMessage() {
         viewState.toastMessage = nil
+    }
+
+    private func triggerExternalTaskRefreshIfNeeded() async {
+        guard let taskRefreshCoordinator else { return }
+        await taskRefreshCoordinator.refreshAfterExternalTaskSubmission()
     }
 
     private func rebuildPageViewState() {

@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct MediaDetailView: View {
+    @Environment(AppStateManager.self) private var appStateManager
     @State private var viewModel: MediaDetailViewModel
 
     init(initialViewState: MediaDetailViewState) {
@@ -24,6 +25,9 @@ struct MediaDetailView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .task(id: viewModel.pageViewState.id) {
             await viewModel.loadDetail(id: viewModel.pageViewState.id)
+        }
+        .task {
+            viewModel.configure(taskRefreshCoordinator: appStateManager)
         }
         .sheet(item: searchFilterSheetBinding) { sheetViewState in
             SearchResultFilterSheetView(

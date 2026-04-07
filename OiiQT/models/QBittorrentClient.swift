@@ -14,8 +14,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     private let config: ServerConfig
 
     private lazy var session: URLSession = {
-        let sessionConfig = URLSessionConfiguration.default
-        sessionConfig.httpCookieStorage = HTTPCookieStorage.shared
+        let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.httpCookieAcceptPolicy = .always
         sessionConfig.timeoutIntervalForRequest = Self.standardRequestTimeout
         sessionConfig.timeoutIntervalForResource = Self.heavyPayloadTimeout
@@ -26,6 +25,7 @@ class QBittorrentClient: NSObject, TorrentClient {
 
     // Cookie 存储
     private var cookies: [HTTPCookie] = []
+    private var authenticatedSessionFingerprint: String?
 
     init(config: ServerConfig) {
         self.config = config
@@ -54,10 +54,57 @@ class QBittorrentClient: NSObject, TorrentClient {
             .replacingOccurrences(of: "%20", with: "+")
     }
 
+    private var currentAuthenticationFingerprint: String {
+        "\(getBaseURL())|\(apiPathPrefix)|\(config.username)|\(config.resolvedPassword)"
+    }
+
+    private func invalidateAuthenticatedSessionIfNeeded() {
+        let currentFingerprint = currentAuthenticationFingerprint
+        guard authenticatedSessionFingerprint != currentFingerprint else { return }
+        clearSIDCookies()
+        authenticatedSessionFingerprint = nil
+    }
+
+    private func clearSIDCookies() {
+        guard let cookieStorage = session.configuration.httpCookieStorage,
+              let storedCookies = cookieStorage.cookies else {
+            return
+        }
+
+        for cookie in storedCookies where cookie.name == "SID" {
+            cookieStorage.deleteCookie(cookie)
+        }
+    }
+
+    private func sidCookieFingerprint(for url: URL) -> String? {
+        guard let sidCookie = session.configuration.httpCookieStorage?
+            .cookies(for: url)?
+            .first(where: { $0.name == "SID" }) else {
+            return nil
+        }
+
+        return "\(sidCookie.name)|\(sidCookie.value)|\(sidCookie.domain)|\(sidCookie.path)"
+    }
+
+    private func responseSIDCookieFingerprint(from response: HTTPURLResponse, url: URL) -> String? {
+        let headerFields = response.allHeaderFields.reduce(into: [String: String]()) { partialResult, entry in
+            guard let key = entry.key as? String else { return }
+            partialResult[key] = entry.value as? String ?? String(describing: entry.value)
+        }
+
+        guard let sidCookie = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+            .first(where: { $0.name == "SID" }) else {
+            return nil
+        }
+
+        return "\(sidCookie.name)|\(sidCookie.value)|\(sidCookie.domain)|\(sidCookie.path)"
+    }
+
     // MARK: - Auth
 
     func login() async throws {
         let address = config.baseURL
+        invalidateAuthenticatedSessionIfNeeded()
 
         guard let url = apiURL("auth/login") else {
             throw TorrentClientError.invalidURL
@@ -73,6 +120,8 @@ class QBittorrentClient: NSObject, TorrentClient {
         request.setValue(address, forHTTPHeaderField: "Referer")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
 
+        let previousSIDFingerprint = sidCookieFingerprint(for: url)
+
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -81,15 +130,18 @@ class QBittorrentClient: NSObject, TorrentClient {
 
         // qBittorrent 成功返回 "Ok."，失败一般是 "Fails."
         if let responseString = String(data: data, encoding: .utf8), responseString.trimmingCharacters(in: .whitespacesAndNewlines) == "Ok." {
+            authenticatedSessionFingerprint = currentAuthenticationFingerprint
             return
         } else {
-             // Check if cookie was set anyway (sometimes 200 OK but content varies)
+             // Accept cookie-only success only when login actually issued a fresh SID.
             if httpResponse.statusCode == 200 {
-                 // Check if SID cookie is present in storage
-                 if let cookies = session.configuration.httpCookieStorage?.cookies(for: url), cookies.contains(where: { $0.name == "SID" }) {
+                 let currentSIDFingerprint =
+                    responseSIDCookieFingerprint(from: httpResponse, url: url) ??
+                    sidCookieFingerprint(for: url)
+                 if let currentSIDFingerprint, currentSIDFingerprint != previousSIDFingerprint {
+                     authenticatedSessionFingerprint = currentAuthenticationFingerprint
                      return
                  }
-                 // If status 200 but no SID and not "Ok.", might be failure
             }
             throw TorrentClientError.authenticationFailed
         }
@@ -98,6 +150,8 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Fetch List
 
     func fetchTorrents() async throws -> [TorrentTask] {
+        invalidateAuthenticatedSessionIfNeeded()
+
         guard let url = apiURL("torrents/info") else {
             throw TorrentClientError.invalidURL
         }
@@ -221,6 +275,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     private func configureRequest(_ request: inout URLRequest) {
+        invalidateAuthenticatedSessionIfNeeded()
         let baseURL = getBaseURL()
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue(baseURL, forHTTPHeaderField: "Referer")
@@ -826,6 +881,8 @@ class QBittorrentClient: NSObject, TorrentClient {
     // MARK: - Heartbeat
 
     func checkConnection() async throws -> String {
+        invalidateAuthenticatedSessionIfNeeded()
+
         guard let url = apiURL("app/version") else {
             throw TorrentClientError.invalidURL
         }

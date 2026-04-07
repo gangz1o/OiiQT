@@ -99,8 +99,13 @@ private struct TaskRefreshSnapshot: Sendable {
     let allTasksHash: Int
 }
 
+@MainActor
+protocol ExternalTaskSubmissionRefreshing: AnyObject {
+    func refreshAfterExternalTaskSubmission() async
+}
+
 @Observable
-class AppStateManager {
+class AppStateManager: ExternalTaskSubmissionRefreshing {
     @ObservationIgnored
     private let moviePilotRouteQueue = DispatchQueue(label: "com.gangz1o.oiiqt.moviepilot-route", qos: .utility)
 
@@ -327,6 +332,38 @@ class AppStateManager {
 
     var moviePilotSettingsEntryTrailingSymbolName: String {
         isMoviePilotFeatureUnlocked ? "chevron.right" : "lock.fill"
+    }
+
+    @MainActor
+    func refreshAfterExternalTaskSubmission() async {
+        let baselineHash = lastPublishedTasksHash
+        let retryDelays: [UInt64] = [
+            1_500_000_000,
+            1_500_000_000,
+            2_500_000_000
+        ]
+
+        for delay in retryDelays {
+            try? await Task.sleep(nanoseconds: delay)
+            await refreshData(isSilent: true)
+
+            if hasObservedTaskSnapshotChange(since: baselineHash) {
+                return
+            }
+        }
+    }
+
+    @MainActor
+    private func hasObservedTaskSnapshotChange(since baselineHash: Int) -> Bool {
+        if lastPublishedTasksHash != baselineHash {
+            return true
+        }
+
+        if pendingTaskRefreshSnapshot?.allTasksHash != baselineHash {
+            return true
+        }
+
+        return false
     }
 
     private func configureRouteStateEngine() {
