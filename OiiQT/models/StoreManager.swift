@@ -7,12 +7,10 @@ final class StoreManager: ObservableObject {
     static let shared = StoreManager()
     static let hidesReviewSensitiveFeatures = true
 
-    private let lifetimeProductID = "com.oiiqt.lifetime.pro"
+    private let lifetimeProductID = "com.qtassistant.lifetime.pro"
 
     let productIDs = [
-        "com.oiiqt.lifetime.pro",
-        "com.oiiqt.yearly.pro",
-        "com.oiiqt.monthly.pro"
+        "com.qtassistant.lifetime.pro"
     ]
 
     @Published var products: [Product] = []

@@ -25,7 +25,7 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "com.oiiqt.lifetime.pro",
+      "productID" : "com.qtassistant.lifetime.pro",
       "referenceName" : "Lifetime Pro",
       "type" : "NonConsumable"
     }
@@ -45,75 +45,7 @@
     "_timeRate" : 0
   },
   "subscriptionGroups" : [
-    {
-      "id" : "F54FAEEA",
-      "localizations" : [
 
-      ],
-      "name" : "OiiQT Pro",
-      "subscriptions" : [
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "88",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "38195B2C",
-          "introductoryOffers" : [
-
-          ],
-          "localizations" : [
-            {
-              "description" : "",
-              "displayName" : "",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.oiiqt.yearly.pro",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Yearly Pro",
-          "subscriptionGroupID" : "F54FAEEA",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "8",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "C0018434",
-          "introductoryOffers" : [
-
-          ],
-          "localizations" : [
-            {
-              "description" : "",
-              "displayName" : "",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.oiiqt.monthly.pro",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Monthly Pro",
-          "subscriptionGroupID" : "F54FAEEA",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        }
-      ]
-    }
   ],
   "version" : {
     "major" : 5,

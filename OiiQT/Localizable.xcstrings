@@ -5111,9 +5111,6 @@
         }
       }
     },
-    "OiiQT %@" : {
-
-    },
     "OiiQT Privacy Policy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6331,6 +6328,9 @@
           }
         }
       }
+    },
+    "QT助手 %@" : {
+
     },
     "Random" : {
       "extractionState" : "stale",
@@ -9654,7 +9654,7 @@
         }
       }
     },
-    "Welcome to OiiQT" : {
+    "Welcome to SeedPilot" : {
 
     },
     "When enabled, newly published compliant items will be automatically pushed to your downloader." : {
@@ -9876,6 +9876,7 @@
       }
     },
     "助力 OiiQT 持续迭代更新，解锁未来所有专属功能。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9890,6 +9891,9 @@
           }
         }
       }
+    },
+    "助力 QT助手 持续迭代更新，解锁未来所有专属功能。" : {
+
     },
     "在仪表盘以精美轮播图展示您最近添加的影视收藏。" : {
       "localizations" : {
@@ -10056,7 +10060,7 @@
         }
       }
     },
-    "欢迎使用OiiQT" : {
+    "欢迎使用QT助手" : {
 
     },
     "突破免费版上限，自由添加并管理任意数量的服务器节点。" : {

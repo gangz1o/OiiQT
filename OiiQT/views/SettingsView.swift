@@ -651,13 +651,13 @@ struct SettingsView: View {
     }
 
     private var versionTextInline: some View {
-        Text("OiiQT \(appVersionDisplayText)")
+        Text("QT助手 \(appVersionDisplayText)")
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
     }
 
     private var versionTextStacked: some View {
-        Text("OiiQT \(appVersionDisplayText)")
+        Text("QT助手 \(appVersionDisplayText)")
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .multilineTextAlignment(.center)
@@ -784,13 +784,13 @@ private struct FontSizeSettingsView: View {
                         .font(.headline)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("欢迎使用OiiQT")
+                        Text("欢迎使用QT助手")
                             .font(.system(size: 20 * fontScale, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
 
-                        Text("Welcome to OiiQT")
+                        Text("Welcome to SeedPilot")
                             .font(.system(size: 19 * fontScale, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)

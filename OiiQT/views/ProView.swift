@@ -19,7 +19,6 @@ struct ProView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.colorScheme) private var colorScheme
     @State var selectedOption: Int = 0
     @ObservedObject private var storeManager = StoreManager.shared
@@ -87,7 +86,7 @@ struct ProView: View {
             icon: "heart.fill",
             color: .red,
             title: "支持独立开发",
-            subtitle: "助力 OiiQT 持续迭代更新，解锁未来所有专属功能。",
+            subtitle: "助力 QT助手 持续迭代更新，解锁未来所有专属功能。",
             isHiddenDuringReview: false
         )
     ]
@@ -352,7 +351,7 @@ struct ProView: View {
             if storeManager.isSubscriptionStatusLoading && storeManager.products.isEmpty {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text(LanguageManager.shared.localized("Verifying subscription status..."))
+                    Text(LanguageManager.shared.localized("Loading purchase options..."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -463,17 +462,6 @@ struct ProView: View {
 
     private var complianceFooterSection: some View {
         VStack(spacing: 16) {
-            if isProUser {
-                Button(LanguageManager.shared.localized("Manage Subscription")) {
-                    guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
-                    openURL(url)
-                }
-                .font(.footnote)
-                .bold()
-                .foregroundStyle(.blue)
-                .padding(.top, 8)
-            }
-
             Button(LanguageManager.shared.localized("Restore Purchases")) {
                 Task {
                     await storeManager.restorePurchases()
@@ -543,15 +531,12 @@ struct ProView: View {
         if storeManager.isLifetime {
             return LanguageManager.shared.localized("Thank you for your long-term support")
         }
-        return LanguageManager.shared.localized("Thank you for your subscription")
+        return LanguageManager.shared.localized("Thank you for your support")
     }
 
     private var proStatusTitleText: String {
         if storeManager.isLifetime {
             return LanguageManager.shared.localized("Lifetime Pro Benefits")
-        }
-        if storeManager.expirationDate != nil {
-            return LanguageManager.shared.localized("Pro Subscription Active")
         }
         return LanguageManager.shared.localized("Pro Benefits")
     }
@@ -576,12 +561,8 @@ struct ProView: View {
 
     private func subtitleText(for product: Product) -> String? {
         switch product.id {
-        case "com.oiiqt.lifetime.pro":
+        case "com.qtassistant.lifetime.pro":
             return LanguageManager.shared.localized("Early bird special, pay once and unlock forever")
-        case "com.oiiqt.yearly.pro":
-            return LanguageManager.shared.localized("Annual subscription, billed once per year")
-        case "com.oiiqt.monthly.pro":
-            return LanguageManager.shared.localized("Flexible monthly plan, cancel anytime")
         default:
             return nil
         }
@@ -589,19 +570,15 @@ struct ProView: View {
 
     private func titleText(for product: Product) -> String {
         switch product.id {
-        case "com.oiiqt.lifetime.pro":
+        case "com.qtassistant.lifetime.pro":
             return LanguageManager.shared.localized("Lifetime Purchase")
-        case "com.oiiqt.yearly.pro":
-            return LanguageManager.shared.localized("Yearly Subscription")
-        case "com.oiiqt.monthly.pro":
-            return LanguageManager.shared.localized("Monthly Subscription")
         default:
             return product.displayName
         }
     }
 
     private func badgeText(for product: Product) -> String? {
-        product.id == "com.oiiqt.lifetime.pro"
+        product.id == "com.qtassistant.lifetime.pro"
             ? LanguageManager.shared.localized("Limited Early Bird")
             : nil
     }
