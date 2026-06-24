@@ -17,6 +17,10 @@ struct ContentView: View {
     @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
     @ObservedObject private var dashboardViewModel: DashboardViewModel
 
+    private var shouldShowSubscriptionsTab: Bool {
+        !appStateManager.servers.isEmpty
+    }
+
     init(dashboardViewModel: DashboardViewModel) {
         self.dashboardViewModel = dashboardViewModel
     }
@@ -39,11 +43,13 @@ struct ContentView: View {
                 .badge(appStateManager.downloadingTaskBadgeCount)
 
             // 自动化
-            RSSView()
-                .tabItem {
-                    Label(LanguageManager.shared.localized("Automation"), systemImage: "dot.radiowaves.up.forward")
-                }
-                .tag(AppTab.rss)
+            if shouldShowSubscriptionsTab {
+                RSSView()
+                    .tabItem {
+                        Label(LanguageManager.shared.localized("Automation"), systemImage: "dot.radiowaves.up.forward")
+                    }
+                    .tag(AppTab.rss)
+            }
 
             if appStateManager.shouldMountMoviePilotTab {
                 MoviePilotView()
@@ -115,6 +121,11 @@ struct ContentView: View {
                 appStateManager.stopAutoRefresh()
                 RSSMonitor.shared.stopAutoRefresh()
                 dashboardViewModel.stopAutoRefresh()
+            }
+        }
+        .onChange(of: appStateManager.servers.count) { _, count in
+            if count == 0, appStateManager.selectedTab == .rss {
+                appStateManager.selectedTab = .transfers
             }
         }
     }

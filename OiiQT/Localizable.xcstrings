@@ -1176,13 +1176,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "RSS"
+            "value" : "Subscriptions"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "RSS"
+            "value" : "订阅"
           }
         }
       }
@@ -3640,7 +3640,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Go to Server Settings"
+            "value" : "Set Up Server"
           }
         },
         "zh-Hans" : {
@@ -4729,7 +4729,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No Available Server"
+            "value" : "No Available Servers"
           }
         },
         "zh-Hans" : {
@@ -5488,13 +5488,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please check your server configuration or network status."
+            "value" : "Connect a server to view remote status and task information."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请检查服务器是否已正确配置，或当前网络是否离线。"
+            "value" : "连接服务器后可查看远程状态与任务信息。"
           }
         }
       }
@@ -6899,13 +6899,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Search Tasks..."
+            "value" : "Search Tasks or Sources"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "搜索任务..."
+            "value" : "搜索任务或来源..."
           }
         }
       }
@@ -7958,13 +7958,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tasks"
+            "value" : "Remote Tasks"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "任务"
+            "value" : "远程任务"
           }
         }
       }
@@ -8862,13 +8862,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracker"
+            "value" : "Source"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tracker"
+            "value" : "来源"
           }
         }
       }
@@ -8963,13 +8963,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transfers"
+            "value" : "Remote Tasks"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "传输任务"
+            "value" : "远程任务"
           }
         }
       }

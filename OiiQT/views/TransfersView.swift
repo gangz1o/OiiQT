@@ -84,6 +84,10 @@ struct TransfersView: View {
         }
     }
 
+    private var shouldShowAddButton: Bool {
+        !isEditing && !emptyStatesView.shouldShowServerEmptyState
+    }
+
 
 
     var body: some View {
@@ -338,7 +342,7 @@ struct TransfersView: View {
                 tasksListSection
             }
 
-            if !isEditing {
+            if shouldShowAddButton {
                 Button {
                     viewModel.showingAddMagnet = true
                 } label: {
