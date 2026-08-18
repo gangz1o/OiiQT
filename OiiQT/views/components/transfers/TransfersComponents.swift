@@ -49,7 +49,7 @@ struct TorrentFilterMenuBar: View {
     }
 
     private var trackerTitle: String {
-        let base = LanguageManager.shared.localized("Source")
+        let base = LanguageManager.shared.localized("Tracker")
         if selectedTrackers.count > 1 {
             return "\(base)(\(selectedTrackers.count))"
         }

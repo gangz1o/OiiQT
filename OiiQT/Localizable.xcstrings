@@ -853,13 +853,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "All Trackers"
+            "value" : "All"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部 Tracker"
+            "value" : "全部"
           }
         }
       }
