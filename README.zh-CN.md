@@ -66,13 +66,23 @@ OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RS
 
 需要 **iOS / iPadOS 18.0 或更高版本**。
 
-1. 打开 [Releases](https://github.com/gangz1o/OiiQT/releases)。
-2. 在版本的 **Assets** 中下载 `OiiQT-unsigned.ipa`。
-3. 使用自己的签名工具和账号签名后安装。
+### 方式一：自签 IPA 安装
+
+1. 打开 [Releases](https://github.com/gangz1o/OiiQT/releases)，在 **Assets** 中下载 `OiiQT-unsigned.ipa`。如果需要手动构建的版本，请登录 GitHub，打开成功的 [工作流运行记录](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml)，下载 **OiiQT-unsigned** Artifact，解压 ZIP 后得到 IPA。
+2. 在 Mac 或 Windows 电脑上安装 [Sideloadly](https://sideloadly.io/)，按官网说明完成环境配置。
+3. 连接并解锁 iPhone / iPad，信任电脑，在 Sideloadly 中选择设备并拖入 IPA。
+4. 使用 Apple ID 自签模式，填写自己的 Apple 账号，点击 **Start**，按提示完成账号验证。
+5. 如有提示，在「设置 → 通用 → VPN 与设备管理」中信任开发者；开启「设置 → 隐私与安全性 → 开发者模式」，按提示重启并确认后打开 OiiQT。
+
+免费账号签名通常 **7 天**到期，请在到期前刷新签名，或重新签名安装。最新限制及故障处理见 [Sideloadly FAQ](https://sideloadly.io/faq)。更新时使用相同账号和 Bundle Identifier，覆盖安装以保留应用数据；更换签名团队后可能需要重新输入已保存的凭据。
 
 发布附件是未签名 IPA，不包含分发证书或描述文件，不能直接安装。iCloud 等系统能力取决于重新签名时使用的账号、描述文件与权限配置。
 
-也可以通过 Xcode 从源码构建并安装到自己的设备。
+仓库没有预设开发者 Team ID，签名工具会使用你自己的签名身份，无需作者的开发者账号。
+
+### 方式二：通过 Xcode 从源码安装
+
+按下方「[从源码安装到 iPhone 或 iPad](#从源码安装到-iphone-或-ipad)」操作，需要 Mac 和 Xcode。
 
 ## 🚀 开始使用
 
@@ -114,7 +124,18 @@ cd OiiQT
 open OiiQT.xcodeproj
 ```
 
-等待依赖解析完成，选择 `OiiQT` Scheme 和设备后运行。真机安装需在 **Signing & Capabilities** 中选择自己的 Team、设置自己的 Bundle Identifier，并按账号支持情况配置项目中的 iCloud Key-value Storage 和 Push Notifications 权限。
+等待 Swift Package Manager 完成依赖解析。
+
+### 从源码安装到 iPhone 或 iPad
+
+1. 在 **Xcode → Settings → Accounts** 中添加自己的 Apple 账号。
+2. 连接并解锁设备，信任 Mac，按提示在设备的「设置 → 隐私与安全性 → 开发者模式」中开启开发者模式。
+3. 选中项目，进入 **TARGETS → OiiQT → Signing & Capabilities**，勾选 **Automatically manage signing**，在 **Team** 中选择自己的团队。
+4. 设置唯一的 **Bundle Identifier**，例如 `com.yourname.oiiqt`。后续更新请保持标识和签名团队一致。
+5. 如果签名报错提示团队不支持 iCloud 或 Push Notifications，请在本地副本中移除相应能力。检查 `OiiQT/OiiQT.entitlements`，若仍有对应的 `com.apple.developer.ubiquity-kvstore-identifier` 和 `aps-environment` 条目，也一并移除。不带 iCloud 能力构建时，请保持应用内 iCloud 同步关闭；支持这些能力的团队可使用匹配的描述文件保留它们。
+6. 选择 **OiiQT** Scheme 和已连接的真机，按 **⌘R**。如有提示，允许 Xcode 注册设备，随后会自动构建、签名、安装并启动应用。
+
+签名配置可参考 Apple 的 [Run an app on a device](https://help.apple.com/xcode/mac/current/en.lproj/dev5a825a1ca.html) 和 [Signing & Capabilities workflow](https://help.apple.com/xcode/mac/current/en.lproj/dev60b6fbbc7.html)。账号凭据、证书与描述文件不要提交到 Git。
 
 ### 命令行构建模拟器版本
 

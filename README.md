@@ -66,13 +66,23 @@ Available actions vary by downloader type.
 
 Requires **iOS / iPadOS 18.0 or later**.
 
-1. Open [Releases](https://github.com/gangz1o/OiiQT/releases).
-2. Download `OiiQT-unsigned.ipa` from the release's **Assets**.
-3. Sign it with your own signing tool and account, then install it.
+### Option 1: Sign and install an IPA
+
+1. Open [Releases](https://github.com/gangz1o/OiiQT/releases) and download `OiiQT-unsigned.ipa` from **Assets**. For a manual build, open a successful [workflow run](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml), download the **OiiQT-unsigned** artifact while signed in to GitHub, and extract the ZIP to get the IPA.
+2. Install [Sideloadly](https://sideloadly.io/) on your Mac or Windows PC, following its setup instructions.
+3. Connect and unlock your iPhone/iPad, trust the computer, then select the device and drag the IPA into Sideloadly.
+4. Use your own Apple Account in Apple ID sideload mode, click **Start**, and complete the authentication prompts.
+5. If prompted, trust the developer under **Settings → General → VPN & Device Management**. Enable **Settings → Privacy & Security → Developer Mode**, follow the restart prompts, and open OiiQT.
+
+Free-account signing normally expires after **7 days**; refresh the app before expiry or sign it again. See the [Sideloadly FAQ](https://sideloadly.io/faq) for current limits and troubleshooting. For updates, use the same account and Bundle Identifier and install over the existing app to retain its data; changing the signing team may require entering saved credentials again.
 
 The release IPA is unsigned and contains no distribution certificate or provisioning profile. It must be signed before installation. Capabilities such as iCloud depend on the account, profile, and entitlements used when signing.
 
-You can also build and install the app from source using Xcode.
+The repository does not preset a developer Team ID. Your signing tool supplies your own signing identity; the author's developer account is not required.
+
+### Option 2: Build and install with Xcode
+
+Follow [Install from source on an iPhone or iPad](#install-from-source-on-an-iphone-or-ipad) below. This requires a Mac and Xcode.
 
 ## 🚀 Getting Started
 
@@ -112,7 +122,18 @@ cd OiiQT
 open OiiQT.xcodeproj
 ```
 
-Wait for package resolution, select the `OiiQT` scheme and your device, then run. For physical devices, select your own Team and Bundle Identifier in **Signing & Capabilities**, and configure iCloud Key-value Storage and Push Notifications according to your account's capabilities.
+Wait for Swift Package Manager to finish resolving dependencies.
+
+### Install from source on an iPhone or iPad
+
+1. Add your Apple Account in **Xcode → Settings → Accounts**.
+2. Connect and unlock your device, trust the Mac, and enable **Settings → Privacy & Security → Developer Mode** on the device when prompted.
+3. Select the project, then **TARGETS → OiiQT → Signing & Capabilities**. Enable **Automatically manage signing** and select your own **Team**.
+4. Set a unique **Bundle Identifier**, for example `com.yourname.oiiqt`. Keep this identifier and team consistent for later updates.
+5. If signing reports that your team does not support iCloud or Push Notifications, remove those capabilities in your local copy. Check `OiiQT/OiiQT.entitlements` and remove the corresponding `com.apple.developer.ubiquity-kvstore-identifier` and `aps-environment` entries if they remain. Leave iCloud sync disabled in the app when building without iCloud. Teams that support these capabilities can retain them with a matching provisioning profile.
+6. Select the **OiiQT** scheme and your connected device as the run destination, then press **⌘R**. Allow Xcode to register the device if prompted; it will build, sign, install, and launch the app.
+
+See Apple's [Run an app on a device](https://help.apple.com/xcode/mac/current/en.lproj/dev5a825a1ca.html) and [Signing & Capabilities workflow](https://help.apple.com/xcode/mac/current/en.lproj/dev60b6fbbc7.html) for signing setup. Keep your account credentials, certificates, and provisioning profiles out of Git.
 
 ### Build for an existing simulator
 
