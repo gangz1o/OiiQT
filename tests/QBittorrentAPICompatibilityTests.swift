@@ -8,7 +8,7 @@ struct QBittorrentAPICompatibilityTests {
         var passed = 0
 
         for scenario in ["legacy", "modern", "empty200", "custom-cookie"] {
-            let session = URLSession(configuration: .ephemeral)
+            let session = URLSession(configuration: .ephemeral, delegate: NetworkManager(preservesBearerAuthorization: true), delegateQueue: nil)
             defer { session.invalidateAndCancel() }
             let url = baseURL.appendingPathComponent("\(scenario)/api/v2/auth/login")
             try await QBittorrentAPI.login(session: session, url: url, username: "tester", secret: secret, usesAPIKey: false)
@@ -19,7 +19,7 @@ struct QBittorrentAPICompatibilityTests {
         }
 
         for scenario in ["wrong-password", "legacy-failure", "proxy-html", "missing-session", "banned", "wrong-path"] {
-            let session = URLSession(configuration: .ephemeral)
+            let session = URLSession(configuration: .ephemeral, delegate: NetworkManager(preservesBearerAuthorization: true), delegateQueue: nil)
             defer { session.invalidateAndCancel() }
             do {
                 try await QBittorrentAPI.login(
@@ -33,7 +33,7 @@ struct QBittorrentAPICompatibilityTests {
         }
 
         for valid in [true, false] {
-            let session = URLSession(configuration: .ephemeral)
+            let session = URLSession(configuration: .ephemeral, delegate: NetworkManager(preservesBearerAuthorization: true), delegateQueue: nil)
             defer { session.invalidateAndCancel() }
             do {
                 try await QBittorrentAPI.login(
@@ -43,6 +43,22 @@ struct QBittorrentAPICompatibilityTests {
                 precondition(valid, "An invalid API key must fail")
             } catch is QBittorrentAPI.Failure {
                 precondition(!valid, "The valid API key must succeed without calling auth/login")
+            }
+            passed += 1
+        }
+
+        for mode in ["301", "302", "303", "307", "308", "chain", "host", "port"] {
+            let session = URLSession(configuration: .ephemeral, delegate: NetworkManager(preservesBearerAuthorization: true), delegateQueue: nil)
+            defer { session.invalidateAndCancel() }
+            let sameOrigin = mode != "host" && mode != "port"
+            do {
+                let version = try await QBittorrentAPI.version(
+                    session: session, url: baseURL.appendingPathComponent("redirect-\(mode)/api/v2/app/version"),
+                    apiKey: "qbt_test_key"
+                )
+                precondition(sameOrigin && version == "v5.2.3", "API keys must not be forwarded to another origin")
+            } catch QBittorrentAPI.Failure.forbidden {
+                precondition(!sameOrigin, "Same-origin redirects must retain the API key")
             }
             passed += 1
         }

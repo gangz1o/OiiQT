@@ -53,6 +53,23 @@ class FixtureServer(BaseHTTPRequestHandler):
 
     def do_GET(self):
         scenario = self.path.split("/")[1]
+        if scenario.startswith("redirect-"):
+            mode = scenario.removeprefix("redirect-")
+            destination = f"http://127.0.0.1:{self.server.server_port}/bearer/api/v2/app/version"
+            status = 302
+            if mode == "host":
+                destination = destination.replace("127.0.0.1", "localhost")
+            elif mode == "port":
+                destination = f"http://127.0.0.1:{other_server.server_port}/bearer/api/v2/app/version"
+            elif mode == "chain":
+                destination = destination.replace("/bearer/", "/redirect-307/")
+            else:
+                status = int(mode)
+            self.send_response(status)
+            self.send_header("Location", destination)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if not self.path.endswith("/api/v2/app/version"):
             self.respond(404)
             return
@@ -67,16 +84,21 @@ class FixtureServer(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     root = Path(__file__).resolve().parents[1]
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureServer)
+    other_server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureServer)
     Thread(target=server.serve_forever, daemon=True).start()
+    Thread(target=other_server.serve_forever, daemon=True).start()
     try:
         with TemporaryDirectory(prefix="oiiqt-qb-tests-") as output:
             binary = str(Path(output) / "compatibility-tests")
             subprocess.run([
                 "xcrun", "swiftc", "-swift-version", "5", "-default-isolation", "MainActor",
                 str(root / "OiiQT/services/QBittorrentAPI.swift"),
+                str(root / "OiiQT/utils/NetworkManager.swift"),
                 str(root / "tests/QBittorrentAPICompatibilityTests.swift"), "-o", binary,
             ], check=True)
             subprocess.run([binary, f"http://127.0.0.1:{server.server_port}"], check=True)
     finally:
         server.shutdown()
         server.server_close()
+        other_server.shutdown()
+        other_server.server_close()

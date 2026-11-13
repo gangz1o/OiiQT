@@ -696,7 +696,7 @@ private enum GlobalStatsFetcher {
         config.httpCookieAcceptPolicy = .always
         config.timeoutIntervalForRequest = standardRequestTimeout
         config.timeoutIntervalForResource = heavyPayloadTimeout
-        let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL)
+        let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL, preservesBearerAuthorization: true)
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }
 

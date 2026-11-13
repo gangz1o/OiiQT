@@ -396,7 +396,7 @@ final class ServerRateLimitManager {
     private func makeSession(allowInsecureSSL: Bool) -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy = .always
-        let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL)
+        let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL, preservesBearerAuthorization: true)
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
     }
 

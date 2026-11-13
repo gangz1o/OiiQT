@@ -19,7 +19,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         sessionConfig.timeoutIntervalForRequest = Self.standardRequestTimeout
         sessionConfig.timeoutIntervalForResource = Self.heavyPayloadTimeout
         // Use NetworkManager instance with specific SSL setting
-        let delegate = NetworkManager(allowInsecureSSL: config.allowInsecureSSL)
+        let delegate = NetworkManager(allowInsecureSSL: config.allowInsecureSSL, preservesBearerAuthorization: true)
         return URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     }()
 
