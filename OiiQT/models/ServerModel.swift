@@ -292,8 +292,8 @@ extension ServerConfig {
         return securePassword.isEmpty ? password : securePassword
     }
 
-    func setResolvedPassword(_ newPassword: String) {
-        ServerCredentialStore.shared.setPassword(newPassword, for: id)
+    func setResolvedPassword(_ newPassword: String) throws {
+        try ServerCredentialStore.shared.setPassword(newPassword, for: id)
         if !password.isEmpty {
             password = ""
         }

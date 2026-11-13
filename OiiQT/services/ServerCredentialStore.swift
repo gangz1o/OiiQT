@@ -27,32 +27,35 @@ final class ServerCredentialStore {
         return String(data: data, encoding: .utf8)
     }
 
-    func setPassword(_ password: String, for serverID: UUID) {
+    func setPassword(_ password: String, for serverID: UUID) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account(for: serverID),
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+        ]
+
         if password.isEmpty {
-            deletePassword(for: serverID)
+            let status = SecItemDelete(query as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            }
             return
         }
 
-        let account = account(for: serverID)
-        let data = Data(password.utf8)
-
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: kCFBooleanTrue as Any,
+        let attributes: [String: Any] = [
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-            kSecValueData as String: data
+            kSecValueData as String: Data(password.utf8)
         ]
-        SecItemAdd(addQuery as CFDictionary, nil)
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query.merging(attributes) { _, new in new }
+            item[kSecAttrSynchronizable as String] = kCFBooleanTrue
+            status = SecItemAdd(item as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
     }
 
     func deletePassword(for serverID: UUID) {
@@ -75,7 +78,12 @@ final class ServerCredentialStore {
             guard !server.password.isEmpty else { continue }
 
             if (password(for: server.id) ?? "").isEmpty {
-                setPassword(server.password, for: server.id)
+                do {
+                    try setPassword(server.password, for: server.id)
+                } catch {
+                    // Keep the legacy password until Keychain has accepted it.
+                    continue
+                }
             }
 
             server.password = ""

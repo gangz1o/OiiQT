@@ -25,6 +25,8 @@ struct EditServerView: View {
     @State private var rpcPath = "/transmission/rpc"
     @State private var isPasswordVisible = false
     @State private var showingDeleteConfirmation = false
+    @State private var showingSaveError = false
+    @State private var saveErrorMessage = ""
     @FocusState private var focusedField: InputField?
 
     // Test Connection State
@@ -283,7 +285,15 @@ struct EditServerView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button(LanguageManager.shared.localized("Save")) {
-                        saveServer()
+                        do {
+                            try saveServer()
+                        } catch {
+                            saveErrorMessage = String(
+                                format: LanguageManager.shared.localized("Could not save the password securely. Check app signing and Keychain permissions. %@"),
+                                error.localizedDescription
+                            )
+                            showingSaveError = true
+                        }
                     }
                     .disabled(!isFormValid)
                 }
@@ -302,6 +312,11 @@ struct EditServerView: View {
                 } else {
                     rpcPath = defaultPath(for: type)
                 }
+            }
+            .alert(LanguageManager.shared.localized("Error"), isPresented: $showingSaveError) {
+                Button(LanguageManager.shared.localized("OK"), role: .cancel) { }
+            } message: {
+                Text(saveErrorMessage)
             }
             .onChange(of: address) { _, newValue in
                 handleAddressChanged(newValue)
@@ -355,18 +370,18 @@ struct EditServerView: View {
         .contentShape(Rectangle())
     }
 
-    private func saveServer() {
+    private func saveServer() throws {
         let formattedAddress = sanitizeAddressInput(address)
         let normalizedPath = effectivePathForCurrentType()
 
         if let server = serverToEdit {
+            try server.setResolvedPassword(password)
             // Update
             server.name = name.trimmingCharacters(in: .whitespaces)
             server.type = type
             server.address = formattedAddress
             server.port = Int(port) ?? 8080
             server.username = username.trimmingCharacters(in: .whitespaces)
-            server.setResolvedPassword(password)
             server.useHTTPS = isHttps
             server.allowInsecureSSL = allowInsecureSSL
             server.rpcPath = normalizedPath
@@ -383,7 +398,7 @@ struct EditServerView: View {
                 allowInsecureSSL: allowInsecureSSL,
                 rpcPath: normalizedPath
             )
-            config.setResolvedPassword(password)
+            try config.setResolvedPassword(password)
             modelContext.insert(config)
         }
         syncServerConfigsToCloud()
@@ -430,7 +445,12 @@ struct EditServerView: View {
                     String(format: LanguageManager.shared.localized("Connection succeeded: %@ (v%@)"), type.rawValue, version)
                 )
             } catch {
-                if let urlError = error as? URLError,
+                if let clientError = error as? TorrentClientError,
+                   case .authenticationFailed = clientError {
+                    testResult = .failure(
+                        LanguageManager.shared.localized("Authentication failed. Check the username and password for this server's Web UI.")
+                    )
+                } else if let urlError = error as? URLError,
                    urlError.code == .serverCertificateUntrusted || urlError.code == .secureConnectionFailed,
                    !allowInsecureSSL {
                     testResult = .failure(

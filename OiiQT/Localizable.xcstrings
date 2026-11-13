@@ -1,6 +1,40 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+  "Authentication failed. Check the username and password for this server's Web UI.": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Authentication failed. Check the username and password for this server's Web UI."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "认证失败，请核对该服务器 Web UI 的用户名和密码。"
+        }
+      }
+    }
+  },
+    "Could not save the password securely. Check app signing and Keychain permissions. %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not save the password securely. Check app signing and Keychain permissions. %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法安全保存密码，请检查应用签名和钥匙串权限。%@"
+          }
+        }
+      }
+    },
     "" : {
 
     },
