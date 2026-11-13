@@ -12,14 +12,31 @@ Built with SwiftUI, OiiQT brings server management, torrent tasks, traffic dashb
 
 ## 📸 Screenshots
 
+**Download management**
+
 <table>
   <tr>
     <th>Dashboard</th>
     <th>Torrent tasks</th>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/dashboard.png" alt="Dashboard" width="360" /></td>
-    <td><img src="docs/screenshots/tasks.png" alt="Torrent tasks" width="360" /></td>
+    <td align="center"><a href="docs/screenshots/dashboard.webp"><img src="docs/screenshots/dashboard.webp" alt="Dashboard" width="360" /></a></td>
+    <td align="center"><a href="docs/screenshots/tasks.webp"><img src="docs/screenshots/tasks.webp" alt="Torrent tasks" width="360" /></a></td>
+  </tr>
+</table>
+
+**MoviePilot**
+
+<table>
+  <tr>
+    <th>Discover</th>
+    <th>Media search</th>
+    <th>Media details & resource results</th>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/screenshots/moviepilot-discover.webp"><img src="docs/screenshots/moviepilot-discover.webp" alt="Discover" width="240" /></a></td>
+    <td align="center"><a href="docs/screenshots/moviepilot-search.webp"><img src="docs/screenshots/moviepilot-search.webp" alt="Media search" width="240" /></a></td>
+    <td align="center"><a href="docs/screenshots/moviepilot-details.webp"><img src="docs/screenshots/moviepilot-details.webp" alt="Media details &amp; resource results" width="240" /></a></td>
   </tr>
 </table>
 

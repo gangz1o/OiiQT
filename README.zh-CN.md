@@ -12,14 +12,31 @@ OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RS
 
 ## 📸 界面预览
 
+**下载管理**
+
 <table>
   <tr>
     <th>仪表盘</th>
     <th>下载任务</th>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/dashboard.png" alt="仪表盘" width="360" /></td>
-    <td><img src="docs/screenshots/tasks.png" alt="下载任务" width="360" /></td>
+    <td align="center"><a href="docs/screenshots/dashboard.webp"><img src="docs/screenshots/dashboard.webp" alt="仪表盘" width="360" /></a></td>
+    <td align="center"><a href="docs/screenshots/tasks.webp"><img src="docs/screenshots/tasks.webp" alt="下载任务" width="360" /></a></td>
+  </tr>
+</table>
+
+**MoviePilot**
+
+<table>
+  <tr>
+    <th>影视发现</th>
+    <th>媒体搜索</th>
+    <th>媒体详情与资源结果</th>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/screenshots/moviepilot-discover.webp"><img src="docs/screenshots/moviepilot-discover.webp" alt="影视发现" width="240" /></a></td>
+    <td align="center"><a href="docs/screenshots/moviepilot-search.webp"><img src="docs/screenshots/moviepilot-search.webp" alt="媒体搜索" width="240" /></a></td>
+    <td align="center"><a href="docs/screenshots/moviepilot-details.webp"><img src="docs/screenshots/moviepilot-details.webp" alt="媒体详情与资源结果" width="240" /></a></td>
   </tr>
 </table>
 
