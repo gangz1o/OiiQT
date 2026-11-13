@@ -7,16 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		319DE3E12F49F3E100F45C11 /* OiiQTPro.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 319DE3E02F49F3E100F45C11 /* OiiQTPro.storekit */; };
-		5FC9981A2F4F3C8F00D1813D /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC998192F4F3C8F00D1813D /* StoreKit.framework */; };
 		A0BE00042F42000000000004 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = A0BE00022F42000000000002 /* Nuke */; };
 		A0BE00052F42000000000005 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = A0BE00032F42000000000003 /* NukeUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		319DE3E02F49F3E100F45C11 /* OiiQTPro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = OiiQTPro.storekit; sourceTree = "<group>"; };
 		5F3638F42F3F5F1B00896C60 /* OiiQT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OiiQT.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		5FC998192F4F3C8F00D1813D /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,7 +30,6 @@
 			files = (
 				A0BE00042F42000000000004 /* Nuke in Frameworks */,
 				A0BE00052F42000000000005 /* NukeUI in Frameworks */,
-				5FC9981A2F4F3C8F00D1813D /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -44,9 +39,7 @@
 		5F3638EB2F3F5F1B00896C60 = {
 			isa = PBXGroup;
 			children = (
-				319DE3E02F49F3E100F45C11 /* OiiQTPro.storekit */,
 				5F3638F62F3F5F1B00896C60 /* OiiQT */,
-				5FC998182F4F3C8F00D1813D /* Frameworks */,
 				5F3638F52F3F5F1B00896C60 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -57,14 +50,6 @@
 				5F3638F42F3F5F1B00896C60 /* OiiQT.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		5FC998182F4F3C8F00D1813D /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				5FC998192F4F3C8F00D1813D /* StoreKit.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -137,7 +122,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				319DE3E12F49F3E100F45C11 /* OiiQTPro.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -435,7 +435,7 @@ struct TorrentTask: Identifiable, Hashable, Sendable {
     let isFirstLastPiecePriority: Bool? // 首尾优先
     let completionDate: Date? // 完成时间
 
-    // New Fields for Pro Display
+    // Task display fields
     let seedingTime: TimeInterval // 做种时间 (秒)
     let addedTime: Date           // 添加时间
     let resolutionBadge: ResolutionBadge?

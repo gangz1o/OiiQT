@@ -19,7 +19,7 @@ struct DashboardView: View {
     }
 
     @AppStorage("refreshRate") private var refreshRate: Int = 5
-    @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
+    @AppStorage("proDashboardBackgroundEnabled") private var dashboardBackgroundEnabled: Bool = false
     @AppStorage(DashboardConfig.Keys.showTodayTransfer) private var showTodayTransfer: Bool = false
     @AppStorage(DashboardConfig.Keys.showRecentFinished) private var showRecentFinished: Bool = false
     @AppStorage(DashboardConfig.Keys.showLiveTraffic) private var showLiveTraffic: Bool = true
@@ -33,7 +33,7 @@ struct DashboardView: View {
     @State private var hasActivatedStorageAudit = false
 
     private var isProCinemaEnabled: Bool {
-        proDashboardBackgroundEnabled || UserDefaults.standard.bool(forKey: "proDashboardBackgroundEnabled")
+        dashboardBackgroundEnabled || UserDefaults.standard.bool(forKey: "proDashboardBackgroundEnabled")
     }
 
     private var shouldStartGlobalStatsRefresh: Bool {

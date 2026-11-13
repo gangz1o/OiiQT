@@ -25,12 +25,11 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance: String = "system"
     @AppStorage("fontSize") private var fontSize: Double = 1.0
 
-    // Pro 功能
-    @AppStorage("isProUser") private var isProUser: Bool = false
+    // 扩展功能
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
     @AppStorage("customTMDBApiKey") private var customTMDBApiKey: String = ""
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
-    @AppStorage("proDashboardBackgroundEnabled") private var proDashboardBackgroundEnabled: Bool = false
+    @AppStorage("proDashboardBackgroundEnabled") private var dashboardBackgroundEnabled: Bool = false
     @AppStorage("hideDataNodeName") private var hideDataNodeName: Bool = false
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
 
@@ -38,7 +37,6 @@ struct SettingsView: View {
     @State private var showingClearCacheAlert = false
     @State private var showingPrivacyPolicySheet = false
     @State private var showingTermsSheet = false
-    @State private var showingProPaywallSheet = false
     @State private var cacheSizeString = LanguageManager.shared.localized("Calculating...")
     @State private var settingsPath: [SettingsRoute] = []
     @State private var iCloudSyncStatus = iCloudSyncManager.shared.currentStatus()
@@ -52,64 +50,18 @@ struct SettingsView: View {
     }()
 
     private var tmdbAPIKeyStatusText: String {
-        guard isProUser else { return "" }
         return customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? LanguageManager.shared.localized("Recommended")
             : LanguageManager.shared.localized("Configured")
     }
 
     private var tmdbAPIKeyStatusColor: Color {
-        guard isProUser else { return .secondary }
         return customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .orange : .secondary
     }
 
     var body: some View {
         NavigationStack(path: $settingsPath) {
             Form {
-                // MARK: - Pro 升级
-                Section {
-                    NavigationLink {
-                        ProView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: isProUser ? "checkmark.seal.fill" : "sparkles")
-                                .font(.title2)
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: isProUser ? [.green, .mint] : [.purple, .orange],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 32)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(
-                                    isProUser
-                                    ? LanguageManager.shared.localized("OiiQT Pro Active")
-                                    : LanguageManager.shared.localized("Upgrade to OiiQT Pro")
-                                )
-                                    .font(.headline)
-                                Text(
-                                    isProUser
-                                    ? LanguageManager.shared.localized("All Pro features unlocked")
-                                    : LanguageManager.shared.localized("Unlock TMDB poster wall and dynamic dashboard")
-                                )
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Text(LanguageManager.shared.localized("View"))
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.blue)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-
                 // MARK: - 资源管理
                 Section {
                     NavigationLink(value: SettingsRoute.serverSettings) {
@@ -190,11 +142,11 @@ struct SettingsView: View {
                     }
                 }
 
-                // MARK: - Pro 功能
-                Section(LanguageManager.shared.localized("Pro Features")) {
-                    NavigationLink(value: SettingsRoute.proFeatures) {
+                // MARK: - 扩展功能
+                Section(LanguageManager.shared.localized("Additional Features")) {
+                    NavigationLink(value: SettingsRoute.additionalFeatures) {
                         SettingsRowLabel(
-                            title: LanguageManager.shared.localized("Beta Features"),
+                            title: LanguageManager.shared.localized("Additional Features"),
                             systemName: "sparkles",
                             tint: .purple
                         )
@@ -245,8 +197,8 @@ struct SettingsView: View {
                     ServerListView()
                 case .dashboardCustomization:
                     DashboardCustomizationView()
-                case .proFeatures:
-                    proFeaturesSettingsView
+                case .additionalFeatures:
+                    additionalFeaturesSettingsView
                 case .tmdbAPIKey:
                     TMDBAPIKeySettingsView()
                 case .moviePilotSettings:
@@ -291,57 +243,41 @@ struct SettingsView: View {
                 TermsOfServiceSheetView()
             }
         }
-        .sheet(isPresented: $showingProPaywallSheet) {
-            ProView(isPresentedAsSheet: true)
-                .ignoresSafeArea()
-                .presentationDetents([.fraction(0.9), .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(32)
-        }
         .preferredColorScheme(appearance == "dark" ? .dark : (appearance == "light" ? .light : nil))
     }
 
-    private var proFeaturesSettingsView: some View {
+    private var additionalFeaturesSettingsView: some View {
         Form {
             Section {
-                proFeaturesSettingsRows
+                additionalFeaturesSettingsRows
             }
         }
-        .navigationTitle(LanguageManager.shared.localized("Pro Features"))
+        .navigationTitle(LanguageManager.shared.localized("Additional Features"))
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: appStateManager.shouldPresentMoviePilotUpgradeSheet) { _, shouldPresent in
-            guard shouldPresent else { return }
-            showingProPaywallSheet = true
-            appStateManager.consumeMoviePilotUpgradeSheetIntent()
-        }
     }
 
     @ViewBuilder
-    private var proFeaturesSettingsRows: some View {
-        Toggle(isOn: tmdbProBinding) {
+    private var additionalFeaturesSettingsRows: some View {
+        Toggle(isOn: $showTMDBData) {
             SettingsRowLabel(title: LanguageManager.shared.localized("TMDB Poster Data"), systemName: "film", tint: .purple)
         }
 
         Button {
-            guardProAccess {
-                settingsPath.append(.tmdbAPIKey)
-            }
+            settingsPath.append(.tmdbAPIKey)
         } label: {
             HStack {
                 SettingsRowLabel(title: LanguageManager.shared.localized("TMDB API Key"), systemName: "key.fill", tint: .indigo)
                 Spacer()
-                if isProUser {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Image(systemName: "hand.thumbsup.fill")
-                        }
-                        Text(tmdbAPIKeyStatusText)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    if customTMDBApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Image(systemName: "hand.thumbsup.fill")
                     }
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(tmdbAPIKeyStatusColor)
-                    .lineLimit(1)
+                    Text(tmdbAPIKeyStatusText)
                 }
-                Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(tmdbAPIKeyStatusColor)
+                .lineLimit(1)
+                Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
@@ -355,7 +291,7 @@ struct SettingsView: View {
             HStack {
                 SettingsRowLabel(title: LanguageManager.shared.localized("MoviePilot Settings"), systemName: "film.stack.fill", tint: .pink)
                 Spacer()
-                Image(systemName: appStateManager.moviePilotSettingsEntryTrailingSymbolName)
+                Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
@@ -363,27 +299,25 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
 
-        Toggle(isOn: globalTaskAggregationProBinding) {
+        Toggle(isOn: $enableGlobalTaskAggregation) {
             SettingsRowLabel(title: LanguageManager.shared.localized("全局任务聚合"), systemName: "rectangle.stack.fill", tint: .teal)
         }
 
-        Toggle(isOn: proDashboardProBinding) {
-            SettingsRowLabel(title: LanguageManager.shared.localized("Pro Dashboard Background"), systemName: "photo.artframe", tint: .orange)
+        Toggle(isOn: $dashboardBackgroundEnabled) {
+            SettingsRowLabel(title: LanguageManager.shared.localized("Dashboard Background"), systemName: "photo.artframe", tint: .orange)
         }
 
-        Toggle(isOn: hideDataNodeNameProBinding) {
+        Toggle(isOn: $hideDataNodeName) {
             SettingsRowLabel(title: LanguageManager.shared.localized("Hide Data Node Name"), systemName: "eye.slash", tint: .gray)
         }
 
         Button {
-            guardProAccess {
-                settingsPath.append(.trackerAliases)
-            }
+            settingsPath.append(.trackerAliases)
         } label: {
             HStack {
                 SettingsRowLabel(title: LanguageManager.shared.localized("Tracker Aliases"), systemName: "tag.fill", tint: .purple)
                 Spacer()
-                Image(systemName: isProUser ? "chevron.right" : "lock.fill")
+                Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
@@ -391,7 +325,7 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
 
-        Toggle(isOn: iCloudProBinding) {
+        Toggle(isOn: $iCloudSyncEnabled) {
             HStack(spacing: 12) {
                 AppleStyleIcon(backgroundColor: .cyan, systemName: "icloud.fill")
                 Text(LanguageManager.shared.localized("iCloud Sync"))
@@ -415,91 +349,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Actions
-
-    private var tmdbProBinding: Binding<Bool> {
-        Binding(
-            get: { showTMDBData },
-            set: { newValue in
-                if !newValue {
-                    showTMDBData = false
-                    return
-                }
-                guardProAccess {
-                    showTMDBData = true
-                }
-            }
-        )
-    }
-
-    private var proDashboardProBinding: Binding<Bool> {
-        Binding(
-            get: { proDashboardBackgroundEnabled },
-            set: { newValue in
-                if !newValue {
-                    proDashboardBackgroundEnabled = false
-                    return
-                }
-                guardProAccess {
-                    proDashboardBackgroundEnabled = true
-                }
-            }
-        )
-    }
-
-    private var globalTaskAggregationProBinding: Binding<Bool> {
-        Binding(
-            get: { enableGlobalTaskAggregation },
-            set: { newValue in
-                if !newValue {
-                    enableGlobalTaskAggregation = false
-                    return
-                }
-                guardProAccess {
-                    enableGlobalTaskAggregation = true
-                }
-            }
-        )
-    }
-
-    private var hideDataNodeNameProBinding: Binding<Bool> {
-        Binding(
-            get: { hideDataNodeName },
-            set: { newValue in
-                if !newValue {
-                    hideDataNodeName = false
-                    return
-                }
-                guardProAccess {
-                    hideDataNodeName = true
-                }
-            }
-        )
-    }
-
-    private var iCloudProBinding: Binding<Bool> {
-        Binding(
-            get: { iCloudSyncEnabled },
-            set: { newValue in
-                if !newValue {
-                    iCloudSyncEnabled = false
-                    return
-                }
-                guardProAccess {
-                    iCloudSyncEnabled = true
-                }
-            }
-        )
-    }
-
-    private func guardProAccess(_ action: () -> Void) {
-        if isProUser {
-            action()
-            return
-        }
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.warning)
-        showingProPaywallSheet = true
-    }
 
     private func updateCacheSize() {
         Task.detached(priority: .utility) {

@@ -20,7 +20,6 @@ enum ActiveFilterSheet: String, Identifiable {
 struct TransfersView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
-    @ObservedObject private var storeManager = StoreManager.shared
     @ObservedObject private var trackerAliasManager = TrackerAliasManager.shared
     @AppStorage("enableGlobalTaskAggregation") private var enableGlobalTaskAggregation: Bool = false
     @AppStorage("showTMDBData") private var showTMDBData: Bool = false
@@ -39,10 +38,6 @@ struct TransfersView: View {
 
     private var isCategoryFilterSupported: Bool {
         appStateManager.activeServerType != .transmission
-    }
-
-    private var canUseGlobalTaskAggregation: Bool {
-        storeManager.isProUser && enableGlobalTaskAggregation
     }
 
     private var isTransfersTabActive: Bool {
@@ -64,7 +59,6 @@ struct TransfersView: View {
 
     private var rowDisplayOptions: TransfersRowDisplayOptions {
         TransfersRowDisplayOptions(
-            isProUser: storeManager.isProUser,
             hideTracker: hideDataNodeName,
             serverTypeByID: rowServerTypeMap
         )
@@ -166,10 +160,6 @@ struct TransfersView: View {
             }
             .onChange(of: enableGlobalTaskAggregation) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
-            }
-            .onChange(of: storeManager.isProUser) { _, _ in
-                applyGlobalAggregationSafetyFallbackIfNeeded()
-                scheduleFilteredTasksRecompute(showOverlayHint: true)
             }
             .onChange(of: appStateManager.servers.count) { _, _ in
                 applyGlobalAggregationSafetyFallbackIfNeeded()
@@ -286,7 +276,7 @@ struct TransfersView: View {
     }
 
     private func applyGlobalAggregationSafetyFallbackIfNeeded() {
-        guard !canUseGlobalTaskAggregation else { return }
+        guard !enableGlobalTaskAggregation else { return }
         guard appStateManager.activeServerId == nil else { return }
         guard let firstServerID = appStateManager.servers.first?.id else { return }
         appStateManager.activeServerId = firstServerID
@@ -379,7 +369,7 @@ struct TransfersView: View {
                     activeServerType: appStateManager.activeServerType,
                     activeServerID: appStateManager.activeServerId,
                     serverMenuSnapshots: serverMenuSnapshots,
-                    canUseGlobalTaskAggregation: canUseGlobalTaskAggregation,
+                    canUseGlobalTaskAggregation: enableGlobalTaskAggregation,
                     isDisabled: appStateManager.servers.isEmpty || emptyStatesView.shouldShowServerEmptyState,
                     onSelectServer: { serverID in
                         appStateManager.activeServerId = serverID

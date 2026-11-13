@@ -2,7 +2,6 @@ import CoreGraphics
 import Foundation
 
 struct TransfersRowDisplayOptions: Equatable, Sendable {
-    let isProUser: Bool
     let hideTracker: Bool
     let serverTypeByID: [UUID: ServerType]
 }
@@ -41,8 +40,7 @@ struct TransfersRowDisplayModel: Identifiable, Equatable, Sendable {
         let trackerText: String?
         if options.hideTracker {
             trackerText = nil
-        } else if options.isProUser,
-                  let alias = aliasMap[task.trackerHost.lowercased()]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        } else if let alias = aliasMap[task.trackerHost.lowercased()]?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !alias.isEmpty {
             trackerText = alias
         } else {

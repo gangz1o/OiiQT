@@ -20,7 +20,6 @@ class TMDBService {
     static let shared = TMDBService()
 
     // MARK: - Configuration
-    // 此功能仅供 Pro 付费用户开启
     private let builtInAPIKey = "24c4e7a516af276925d44ac5cc90a59f"
     private let baseURL = "https://api.themoviedb.org/3"
     private let imageBaseURL = "https://image.tmdb.org/t/p/w300"
@@ -43,7 +42,6 @@ class TMDBService {
     }
 
     private var customAPIKey: String? {
-        guard UserDefaults.standard.bool(forKey: "isProUser") else { return nil }
         let customKey = (UserDefaults.standard.string(forKey: "customTMDBApiKey") ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return customKey.isEmpty ? nil : customKey

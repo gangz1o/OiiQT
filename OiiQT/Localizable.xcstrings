@@ -762,40 +762,6 @@
         }
       }
     },
-    "All premium features are permanently unlocked" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All premium features are permanently unlocked"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已永久解锁全部高级功能"
-          }
-        }
-      }
-    },
-    "All Pro features unlocked" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All Pro features unlocked"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已解锁全部 Pro 功能"
-          }
-        }
-      }
-    },
     "All Servers" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1217,39 +1183,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批量修改保存路径"
-          }
-        }
-      }
-    },
-    "Benefits expire on %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Benefits expire on %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "权益将于 %@ 到期"
-          }
-        }
-      }
-    },
-    "Beta Features" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beta"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "实验室"
           }
         }
       }
@@ -2492,51 +2425,6 @@
         }
       }
     },
-    "OiiQT Pro" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro"
-          }
-        }
-      }
-    },
-    "OiiQT Pro Active" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro Active"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro 已激活"
-          }
-        }
-      }
-    },
-    "OiiQT Pro has been activated." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro has been activated."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OiiQT Pro 已激活。"
-          }
-        }
-      }
-    },
     "OiiQT Terms of Service" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2720,23 +2608,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "例如: 01-12 或 S01E01-E10"
-          }
-        }
-      }
-    },
-    "Early bird special, pay once and unlock forever" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Early bird special, pay once and unlock forever"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "早鸟特惠，一次付费永久解锁"
           }
         }
       }
@@ -4052,40 +3923,6 @@
         }
       }
     },
-    "Lifetime Pro Benefits" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lifetime Pro Benefits"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "终身 Pro 权益"
-          }
-        }
-      }
-    },
-    "Lifetime Purchase" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lifetime Purchase"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "终身买断"
-          }
-        }
-      }
-    },
     "Light" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4116,23 +3953,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前 qB 权限受限，仅支持全局上传/下载限速。"
-          }
-        }
-      }
-    },
-    "Limited Early Bird" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Limited Early Bird"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "限时早鸟"
           }
         }
       }
@@ -4252,23 +4072,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "M-Team 存取令牌 (API Key)"
-          }
-        }
-      }
-    },
-    "Manage Subscription" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manage Subscription"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "管理订阅"
           }
         }
       }
@@ -4562,23 +4365,6 @@
         }
       }
     },
-    "Monthly Subscription" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Monthly Subscription"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按月订阅"
-          }
-        }
-      }
-    },
     "More Actions" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4677,22 +4463,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "MoviePilot 设置"
-          }
-        }
-      }
-    },
-    "MoviePilot 联动" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MoviePilot Integration"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MoviePilot 联动"
           }
         }
       }
@@ -5291,23 +5061,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂停"
-          }
-        }
-      }
-    },
-    "Payment will be charged to your Apple ID upon confirmation. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Payment will be charged to your Apple ID upon confirmation. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "确认购买后，将向您的 Apple ID 账户收款。订阅会自动续期，除非在当前订阅期结束前至少 24 小时取消。"
           }
         }
       }
@@ -6094,104 +5847,36 @@
         }
       }
     },
-    "Pro Benefits" : {
+    "Dashboard Background" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pro Benefits"
+            "value" : "Dashboard Background"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pro 权益"
+            "value" : "仪表盘背景"
           }
         }
       }
     },
-    "Pro Dashboard Background" : {
+    "Additional Features" : {
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pro Dashboard Background"
+            "value" : "Additional Features"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pro 仪表盘背景"
-          }
-        }
-      }
-    },
-    "Pro Dynamic Dashboard" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro Dynamic Dashboard"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro 动态仪表盘"
-          }
-        }
-      }
-    },
-    "Pro Features" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro Features"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro 功能"
-          }
-        }
-      }
-    },
-    "Pro Required" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro Required"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需要 Pro"
-          }
-        }
-      }
-    },
-    "Pro Subscription Active" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro Subscription Active"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pro 订阅生效中"
+            "value" : "扩展功能"
           }
         }
       }
@@ -6583,23 +6268,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "资源管理"
-          }
-        }
-      }
-    },
-    "Restore Purchases" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Restore Purchases"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "恢复购买"
           }
         }
       }
@@ -7533,23 +7201,6 @@
         }
       }
     },
-    "Subscribe Now (%@)" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Subscribe Now (%@)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即订阅 (%@)"
-          }
-        }
-      }
-    },
     "Sun" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8445,57 +8096,6 @@
         }
       }
     },
-    "Thank you for your long-term support" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thank you for your long-term support"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "感谢您的长期支持"
-          }
-        }
-      }
-    },
-    "Thank you for your subscription" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thank you for your subscription"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "感谢您的订阅"
-          }
-        }
-      }
-    },
-    "Thank You!" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thank You!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "感谢支持！"
-          }
-        }
-      }
-    },
     "The URL must include http:// or https://." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8509,23 +8109,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "地址必须包含 http:// 或 https://。"
-          }
-        }
-      }
-    },
-    "This feature requires OiiQT Pro." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This feature requires OiiQT Pro."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此功能需要 OiiQT Pro。"
           }
         }
       }
@@ -8852,22 +8435,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tracker URL"
-          }
-        }
-      }
-    },
-    "Tracker 别名" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Data Node Aliases"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "数据节点别名"
           }
         }
       }
@@ -9212,57 +8779,6 @@
         }
       }
     },
-    "Unlock a premium visual experience and take control of your media world." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock advanced management features to build your exclusive private data hub."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁高阶管理特性，打造专属的私有数据中枢。"
-          }
-        }
-      }
-    },
-    "Unlock Now" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock Now"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "立即解锁"
-          }
-        }
-      }
-    },
-    "Unlock TMDB poster wall and dynamic dashboard" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock advanced features"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁高级功能"
-          }
-        }
-      }
-    },
     "Updated %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9293,23 +8809,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新中"
-          }
-        }
-      }
-    },
-    "Upgrade to OiiQT Pro" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Upgrade to OiiQT Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "升级到 OiiQT Pro"
           }
         }
       }
@@ -9484,40 +8983,6 @@
         }
       }
     },
-    "Verifying subscription status..." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Verifying subscription status..."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在验证订阅状态..."
-          }
-        }
-      }
-    },
-    "View" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看"
-          }
-        }
-      }
-    },
     "View All" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9640,23 +9105,6 @@
         }
       }
     },
-    "Yearly Subscription" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yearly Subscription"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "按年订阅"
-          }
-        }
-      }
-    },
     "μTP" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9670,22 +9118,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "μTP"
-          }
-        }
-      }
-    },
-    "为冗长的 Tracker 域名设置个性化短名称，告别排版杂乱。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set personalized short names for lengthy server node domains, eliminating layout clutter."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "为冗长的服务器节点域名设置个性化短名称，告别排版杂乱。"
           }
         }
       }
@@ -9808,86 +9240,6 @@
         }
       }
     },
-    "动态海报墙" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dynamic Data Overview"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "动态数据概览"
-          }
-        }
-      }
-    },
-    "助力 OiiQT 持续迭代更新，解锁未来所有专属功能。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Support OiiQT's continuous evolution and unlock future exclusive features."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "助力 OiiQT 持续迭代更新，解锁未来所有专属功能。"
-          }
-        }
-      }
-    },
-    "在仪表盘以精美轮播图展示您最近添加的影视收藏。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Intuitively display your recently added server assets in a dashboard carousel."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在仪表盘以直观的轮播图形式展示您最近新增的服务器资产。"
-          }
-        }
-      }
-    },
-    "在同一列表中集中展示并管理所有服务器的种子任务。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Centrally display and manage remote transfer tasks across all servers in a unified list."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在同一列表中集中展示并实时管理所有服务器的远程传输任务。"
-          }
-        }
-      }
-    },
-    "影视海报与元数据" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart Metadata Matching"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "智能元数据匹配"
-          }
-        }
-      }
-    },
     "总计" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9901,38 +9253,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总计"
-          }
-        }
-      }
-    },
-    "支持独立开发" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Support Independent Development"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "支持独立开发"
-          }
-        }
-      }
-    },
-    "无限添加服务器" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlimited Server Slots"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无限添加服务器"
           }
         }
       }
@@ -10008,22 +9328,6 @@
     "欢迎使用OiiQT" : {
 
     },
-    "突破免费版上限，自由添加并管理任意数量的服务器节点。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bypass the free-tier limit and add or manage any number of server nodes."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "突破免费版上限，自由添加并管理任意数量的服务器节点。"
-          }
-        }
-      }
-    },
     "自上次重置时间格式" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10037,22 +9341,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(自 %@ 起)"
-          }
-        }
-      }
-    },
-    "自动匹配高清海报与剧情简介，无缝适配您的系统语言。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatically fetch detailed descriptions and display images for remote files, optimizing the visual experience of data assets."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动拉取远端文件的详细描述与展示图，优化数据资产的可视化体验。"
           }
         }
       }
@@ -10090,9 +9378,6 @@
           }
         }
       }
-    },
-    "连接 MoviePilot 服务实例，支持媒体检索与详情联动。" : {
-
     },
     "连接 MoviePilot 服务实例，预留媒体检索、订阅与自动化联动能力。" : {
       "extractionState" : "stale",

@@ -54,7 +54,6 @@ final class TransfersViewModel {
 
     @ObservationIgnored
     private var currentDisplayOptions = TransfersRowDisplayOptions(
-        isProUser: false,
         hideTracker: false,
         serverTypeByID: [:]
     )
@@ -281,7 +280,7 @@ final class TransfersViewModel {
         let sort = sortOption
         let ascending = sortAscending
         let categoryFilterSupported = appStateManager.activeServerType != .transmission
-        let aliasMapSnapshot = displayOptions.isProUser ? TrackerAliasManager.shared.aliasMap : [:]
+        let aliasMapSnapshot = TrackerAliasManager.shared.aliasMap
         let startUptime = DispatchTime.now().uptimeNanoseconds
         let computationPriority: TaskPriority = showOverlayHint ? .userInitiated : .utility
 

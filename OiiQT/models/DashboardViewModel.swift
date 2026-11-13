@@ -474,9 +474,7 @@ final class DashboardViewModel: ObservableObject {
         let baselineSnapshot = trackerTransferBaselineSnapshotCache
             ?? Self.decodeTrackerBaselineSnapshot(from: trackerTransferBaselineSnapshotData)
         trackerTransferBaselineSnapshotCache = baselineSnapshot
-        let trackerAliasMapSnapshot: [String: String] = UserDefaults.standard.bool(forKey: "isProUser")
-            ? TrackerAliasManager.shared.aliasMap
-            : [:]
+        let trackerAliasMapSnapshot: [String: String] = TrackerAliasManager.shared.aliasMap
 
         let result = await Task.detached(priority: .utility) {
             DashboardViewModel.computeTrackerBreakdown(

@@ -18,7 +18,7 @@ enum AppTab: Int {
 enum SettingsRoute: Hashable {
     case serverSettings
     case dashboardCustomization
-    case proFeatures
+    case additionalFeatures
     case tmdbAPIKey
     case moviePilotSettings
     case trackerAliases
@@ -71,12 +71,11 @@ private struct ProcessedServerTasks: Sendable {
 }
 
 private struct MoviePilotRouteSnapshot: Equatable {
-    let isProUser: Bool
     let isMoviePilotConfigured: Bool
     let isDebugTabOverrideEnabled: Bool
 
     var shouldMountTab: Bool {
-        (isProUser && isMoviePilotConfigured) || isDebugTabOverrideEnabled
+        isMoviePilotConfigured || isDebugTabOverrideEnabled
     }
 }
 
@@ -144,9 +143,7 @@ class AppStateManager: ExternalTaskSubmissionRefreshing {
     var selectedTab: AppTab = .dashboard
     var settingsRoute: SettingsRoute?
     private(set) var shouldMountMoviePilotTab = false
-    private(set) var isMoviePilotFeatureUnlocked = false
     private(set) var isMoviePilotConfigured = false
-    var shouldPresentMoviePilotUpgradeSheet = false
 
     // Analytics
     var speedHistory: [SpeedPoint] = []
@@ -330,10 +327,6 @@ class AppStateManager: ExternalTaskSubmissionRefreshing {
         return servers.first(where: { $0.id == id })?.type
     }
 
-    var moviePilotSettingsEntryTrailingSymbolName: String {
-        isMoviePilotFeatureUnlocked ? "chevron.right" : "lock.fill"
-    }
-
     @MainActor
     func refreshAfterExternalTaskSubmission() async {
         let baselineHash = lastPublishedTasksHash
@@ -367,18 +360,12 @@ class AppStateManager: ExternalTaskSubmissionRefreshing {
     }
 
     private func configureRouteStateEngine() {
-        StoreManager.shared.$isProUser
-            .prepend(StoreManager.shared.isProUser)
+        MoviePilotServerStore.shared.configuredStatePublisher
+            .prepend(MoviePilotServerStore.shared.isMoviePilotConfigured)
             .removeDuplicates()
-            .combineLatest(
-                MoviePilotServerStore.shared.configuredStatePublisher
-                    .prepend(MoviePilotServerStore.shared.isMoviePilotConfigured)
-                    .removeDuplicates()
-            )
             .receive(on: moviePilotRouteQueue)
-            .map { isProUser, isMoviePilotConfigured in
+            .map { isMoviePilotConfigured in
                 MoviePilotRouteSnapshot(
-                    isProUser: isProUser,
                     isMoviePilotConfigured: isMoviePilotConfigured,
                     isDebugTabOverrideEnabled: Self.debugForceMoviePilotTab
                 )
@@ -387,7 +374,6 @@ class AppStateManager: ExternalTaskSubmissionRefreshing {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] snapshot in
                 guard let self else { return }
-                self.isMoviePilotFeatureUnlocked = snapshot.isProUser
                 self.isMoviePilotConfigured = snapshot.isMoviePilotConfigured
                 self.shouldMountMoviePilotTab = snapshot.shouldMountTab
 
@@ -416,18 +402,8 @@ class AppStateManager: ExternalTaskSubmissionRefreshing {
 
     @MainActor
     func handleMoviePilotSettingsEntryTap() {
-        if !isMoviePilotFeatureUnlocked {
-            shouldPresentMoviePilotUpgradeSheet = true
-            return
-        }
-
         selectedTab = .settings
         settingsRoute = .moviePilotSettings
-    }
-
-    @MainActor
-    func consumeMoviePilotUpgradeSheetIntent() {
-        shouldPresentMoviePilotUpgradeSheet = false
     }
 
     /// 显示的任务总下载速度 (Bytes/s)

@@ -45,9 +45,6 @@ struct OiiQTApp: App {
 
         ImagePipeline.shared = ImagePipeline(configuration: config)
 
-        // Start StoreKit transaction listener as early as possible to avoid
-        // missing transactions or triggering runtime warnings on first purchase.
-        _ = StoreManager.shared
         iCloudSyncManager.shared.start()
     }
 
@@ -88,9 +85,6 @@ struct OiiQTApp: App {
                     case .active:
                         // Pull any changes made on other devices while this device was backgrounded
                         iCloudSyncManager.shared.refreshFromCloudIfNeeded()
-                        Task {
-                            await StoreManager.shared.updateCustomerProductStatus()
-                        }
                     case .background:
                         // Safety-net push: flush all pending local changes to iCloud
                         // before the OS may suspend the process.
