@@ -21,6 +21,10 @@ xcuserdata/
 build/
 DerivedData/
 
+## Python caches
+__pycache__/
+*.py[cod]
+
 ## Misc
 .DS_Store
 .llb/

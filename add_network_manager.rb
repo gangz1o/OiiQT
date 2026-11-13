@@ -1,6 +1,6 @@
 require 'xcodeproj'
 
-project_path = '/Users/gangz1o/ios-app/OiiQT/OiiQT.xcodeproj'
+project_path = File.expand_path('OiiQT.xcodeproj', __dir__)
 file_path = 'OiiQT/utils/NetworkManager.swift'
 group_path = 'OiiQT/utils'
 
