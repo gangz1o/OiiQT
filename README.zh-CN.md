@@ -1,6 +1,12 @@
-# OiiQT 🌊
+<p align="center">
+  <img src="OiiQT/Assets.xcassets/AppIcon.appiconset/OiiQT_APPIcon.png" alt="OiiQT app icon" width="160" height="160" />
+</p>
 
-[English](README.md) | **简体中文**
+<h1 align="center">OiiQT 🌊</h1>
+
+<p align="center">
+  <a href="README.md">English</a> | <strong>简体中文</strong>
+</p>
 
 用 iPhone 和 iPad 管理你的 qBittorrent、Transmission 和 MoviePilot。
 
