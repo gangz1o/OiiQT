@@ -26,3 +26,4 @@ DerivedData/
 .llb/
 .gemini/
 .agent/
+.claude/worktrees/
