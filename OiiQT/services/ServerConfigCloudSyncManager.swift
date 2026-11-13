@@ -15,7 +15,7 @@ final class ServerConfigCloudSyncManager {
     }
 
     private enum Constants {
-        static let payloadVersion = 2
+        static let payloadVersion = 3
     }
 
     private struct CloudServerPayload: Codable {
@@ -34,6 +34,7 @@ final class ServerConfigCloudSyncManager {
         let useHTTPS: Bool
         let allowInsecureSSL: Bool
         let rpcPath: String
+        let qbUsesAPIKey: Bool?
     }
 
     private let defaults: UserDefaults
@@ -193,7 +194,8 @@ final class ServerConfigCloudSyncManager {
                     username: server.username,
                     useHTTPS: server.useHTTPS,
                     allowInsecureSSL: server.allowInsecureSSL,
-                    rpcPath: server.rpcPath
+                    rpcPath: server.rpcPath,
+                    qbUsesAPIKey: server.qbUsesAPIKey
                 )
             }
     }
@@ -228,6 +230,7 @@ final class ServerConfigCloudSyncManager {
         server.useHTTPS = record.useHTTPS
         server.allowInsecureSSL = record.allowInsecureSSL
         server.rpcPath = record.rpcPath
+        server.qbUsesAPIKey = record.qbUsesAPIKey ?? false
     }
 
     private func makeServerConfig(from record: CloudServerRecord) -> ServerConfig {
@@ -242,6 +245,7 @@ final class ServerConfigCloudSyncManager {
             allowInsecureSSL: record.allowInsecureSSL,
             rpcPath: record.rpcPath
         )
+        config.qbUsesAPIKey = record.qbUsesAPIKey ?? false
         config.id = record.id
         return config
     }

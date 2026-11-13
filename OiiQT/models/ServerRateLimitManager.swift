@@ -230,37 +230,13 @@ final class ServerRateLimitManager {
     }
 
     private func qbLogin(server: ServerConfig, baseURL: String, session: URLSession) async throws {
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "username", value: server.username),
-            URLQueryItem(name: "password", value: server.resolvedPassword)
-        ]
-        let data = components.percentEncodedQuery?.data(using: .utf8)
-
         guard let url = URL(string: qbAPIURL(server: server, baseURL: baseURL, path: "auth/login")) else {
             throw TorrentClientError.invalidURL
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = data
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.setValue(normalizedBaseURL(server: server), forHTTPHeaderField: "Referer")
-        request.setValue(browserUA, forHTTPHeaderField: "User-Agent")
-
-        let (responseData, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw TorrentClientError.authenticationFailed
-        }
-
-        let text = String(decoding: responseData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard text == "Ok." else {
-            throw TorrentClientError.authenticationFailed
-        }
+        try await QBittorrentAPI.login(
+            session: session, url: url, username: server.username,
+            secret: server.resolvedPassword, usesAPIKey: server.qbUsesAPIKey
+        )
     }
 
     private func qbRequest(
@@ -283,38 +259,15 @@ final class ServerRateLimitManager {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
 
-        request.setValue(browserUA, forHTTPHeaderField: "User-Agent")
-        request.setValue(normalizedBaseURL(server: server), forHTTPHeaderField: "Referer")
+        QBittorrentAPI.configure(&request, apiKey: server.qbUsesAPIKey ? server.resolvedPassword : nil)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0))
         }
 
-        if httpResponse.statusCode == 403, endpoint.path.contains("/app/") {
-            // Some reverse proxies/qB builds are stricter on Referer for app/*.
-            // Retry once with a minimal header set before treating it as permission failure.
-            var relaxed = request
-            relaxed.setValue(nil, forHTTPHeaderField: "Referer")
-
-            let (retryData, retryResponse) = try await session.data(for: relaxed)
-            if let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 {
-                return retryData
-            }
-        }
-
-        switch httpResponse.statusCode {
-        case 200:
-            return data
-        case 401:
-            throw TorrentClientError.authenticationFailed
-        case 403:
-            let path = endpoint.path.isEmpty ? url : endpoint.path
-            throw TorrentClientError.apiError("qB API denied (403): \(path). Even with admin rights, reverse proxy/cookie policy may block app/* endpoints")
-        default:
-            let bodyText = String(decoding: data, as: UTF8.self)
-            throw TorrentClientError.apiError("qB API failed (\(httpResponse.statusCode)): \(bodyText)")
-        }
+        try QBittorrentAPI.validate(httpResponse)
+        return data
     }
 
     // MARK: - Transmission
@@ -441,8 +394,7 @@ final class ServerRateLimitManager {
     // MARK: - Shared Helpers
 
     private func makeSession(allowInsecureSSL: Bool) -> URLSession {
-        let config = URLSessionConfiguration.default
-        config.httpCookieStorage = HTTPCookieStorage.shared
+        let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy = .always
         let delegate = NetworkManager(allowInsecureSSL: allowInsecureSSL)
         return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
@@ -458,7 +410,7 @@ final class ServerRateLimitManager {
     }
 
     private func qbAPIPathPrefix(server: ServerConfig) -> String {
-        let trimmed = server.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = server.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard !trimmed.isEmpty else { return "/api/v2" }
         let normalized = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
         return normalized == "/transmission/rpc" ? "/api/v2" : normalized

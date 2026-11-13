@@ -177,6 +177,7 @@ final class ServerConfig {
     var port: Int = 8080
     var username: String = ""
     var password: String = ""
+    var qbUsesAPIKey: Bool = false
     var useHTTPS: Bool = false
     var allowInsecureSSL: Bool = false
     var rpcPath: String = "/transmission/rpc"

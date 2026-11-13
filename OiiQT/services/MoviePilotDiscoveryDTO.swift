@@ -3,12 +3,6 @@ import Foundation
 typealias MPMediaListDTO = [MPMediaItemDTO]
 typealias MPRecommendSourceListDTO = [MPRecommendSourceDTO]
 
-nonisolated struct MoviePilotResponseEnvelope<Payload: Decodable & Sendable>: Decodable, Sendable {
-    let success: Bool?
-    let message: String?
-    let data: Payload?
-}
-
 nonisolated struct MPRecommendSourceDTO: Decodable, Sendable, Equatable {
     let name: String
     let apiPath: String
@@ -58,6 +52,7 @@ nonisolated struct MPMediaItemDTO: Decodable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case source
+        case mediaSource = "media_source"
         case type
         case title
         case name
@@ -93,7 +88,8 @@ nonisolated struct MPMediaItemDTO: Decodable, Sendable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let anyContainer = try decoder.container(keyedBy: AnyCodingKey.self)
 
-        source = container.decodeLossyString(forKey: .source)
+        let rawSource = container.decodeLossyString(forKey: .mediaSource) ?? container.decodeLossyString(forKey: .source)
+        source = rawSource == "themoviedb" ? "tmdb" : rawSource
         type = container.decodeLossyString(forKey: .type)
         title = container.decodeLossyString(forKey: .title)
         name = container.decodeLossyString(forKey: .name)

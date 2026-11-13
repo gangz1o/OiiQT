@@ -64,19 +64,16 @@ actor MoviePilotMediaDetailAPIClient {
         title: String?,
         year: String?
     ) async throws -> MPMediaDetailDTO {
-        try await requestDecodable(
-            MPMediaDetailDTO.self,
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(
-                path: "api/v1/media/\(mediaID)",
-                queryItems: Self.compactQueryItems([
-                    URLQueryItem(name: "type_name", value: typeName),
-                    URLQueryItem(name: "title", value: title),
-                    URLQueryItem(name: "year", value: year)
-                ])
-            )
+        let data = try await requestMediaData(
+            baseURLString: baseURLString, token: token, mediaID: mediaID,
+            pathPrefix: "api/v1/media/",
+            queryItems: Self.compactQueryItems([
+                URLQueryItem(name: "type_name", value: typeName),
+                URLQueryItem(name: "title", value: title),
+                URLQueryItem(name: "year", value: year)
+            ])
         )
+        return try decodeDirectResponse(MPMediaDetailDTO.self, from: data)
     }
 
     func requestCredits(
@@ -119,50 +116,20 @@ actor MoviePilotMediaDetailAPIClient {
         year: String?,
         season: String?
     ) async throws -> [MPSearchResultWithRawDTO] {
-        // 1. 获取原始 Data
-        let data = try await requestData(
-            baseURLString: baseURLString,
-            token: token,
-            route: Route(
-                path: "api/v1/search/media/\(mediaID)",
-                queryItems: Self.compactQueryItems([
-                    URLQueryItem(name: "mtype", value: mediaType),
-                    URLQueryItem(name: "area", value: "title"),
-                    URLQueryItem(name: "title", value: title),
-                    URLQueryItem(name: "year", value: year),
-                    URLQueryItem(name: "season", value: season)
-                ])
-            ),
+        let data = try await requestMediaData(
+            baseURLString: baseURLString, token: token, mediaID: mediaID,
+            pathPrefix: "api/v1/search/media/",
+            queryItems: Self.compactQueryItems([
+                URLQueryItem(name: "mtype", value: mediaType),
+                URLQueryItem(name: "area", value: "title"),
+                URLQueryItem(name: "title", value: title),
+                URLQueryItem(name: "year", value: year),
+                URLQueryItem(name: "season", value: season)
+            ]),
             sessionOverride: searchSession
         )
-
-        // 2. 手动解析 JSON — 处理 Response 信封 {success, data: [...]} 或直接数组 [...]
-        let topArray: [[String: Any]]
-
-        if let parsed = try? JSONSerialization.jsonObject(with: data) {
-            if let array = parsed as? [[String: Any]] {
-                // 直接数组格式
-                topArray = array
-            } else if let envelope = parsed as? [String: Any],
-                      let dataArray = envelope["data"] as? [[String: Any]] {
-                // Response 信封格式: {success: true, data: [...]}
-                topArray = dataArray
-            } else {
-                // 降级：尝试用 Codable 解码
-                let contexts = try JSONDecoder().decode(MPSearchContextListDTO.self, from: data)
-                return contexts.compactMap { ctx in
-                    guard let dto = ctx.torrentInfo else { return nil }
-                    let fallbackData = try? JSONEncoder().encode(dto)
-                    return MPSearchResultWithRawDTO(torrentInfo: dto, rawTorrentInfoJSON: fallbackData ?? Data())
-                }
-            }
-        } else {
-            let contexts = try JSONDecoder().decode(MPSearchContextListDTO.self, from: data)
-            return contexts.compactMap { ctx in
-                guard let dto = ctx.torrentInfo else { return nil }
-                let fallbackData = try? JSONEncoder().encode(dto)
-                return MPSearchResultWithRawDTO(torrentInfo: dto, rawTorrentInfoJSON: fallbackData ?? Data())
-            }
+        guard let topArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw URLError(.cannotDecodeContentData)
         }
 
         let decoder = JSONDecoder()
@@ -232,6 +199,37 @@ actor MoviePilotMediaDetailAPIClient {
         )
     }
 
+    private func requestMediaData(
+        baseURLString: String,
+        token: String,
+        mediaID: String,
+        pathPrefix: String,
+        queryItems: [URLQueryItem],
+        sessionOverride: URLSession? = nil
+    ) async throws -> Data {
+        do {
+            return try await requestData(
+                baseURLString: baseURLString, token: token,
+                route: Route(path: pathPrefix + mediaID, queryItems: queryItems),
+                sessionOverride: sessionOverride
+            )
+        } catch {
+            let responseError = error as NSError
+            guard responseError.domain == "MoviePilotAPI", responseError.code == 422,
+                  let identity = Self.parseMediaIdentifier(mediaID) else { throw error }
+            // V3 requires a native ID and media_source; V2 uses the prefixed ID.
+            let source = identity.prefix == "tmdb" ? "themoviedb" : identity.prefix
+            return try await requestData(
+                baseURLString: baseURLString, token: token,
+                route: Route(
+                    path: pathPrefix + identity.value,
+                    queryItems: queryItems + [URLQueryItem(name: "media_source", value: source)]
+                ),
+                sessionOverride: sessionOverride
+            )
+        }
+    }
+
     private func requestDecodable<Response: Decodable & Sendable>(
         _ responseType: Response.Type,
         baseURLString: String,
@@ -289,6 +287,7 @@ actor MoviePilotMediaDetailAPIClient {
                     sessionOverride: sessionOverride
                 )
             } catch {
+                guard MoviePilotResponseDecoder.shouldRetryAuthentication(error) else { throw error }
                 lastError = error
             }
         }
@@ -346,78 +345,18 @@ actor MoviePilotMediaDetailAPIClient {
             throw URLError(.badServerResponse)
         }
 
-        guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            if let apiError = try? JSONDecoder().decode(MoviePilotAPIErrorPayload.self, from: data),
-               let detail = apiError.detail,
-               !detail.isEmpty {
-                throw NSError(
-                    domain: "MoviePilotMediaDetailAPIClient",
-                    code: httpResponse.statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: detail]
-                )
-            }
-
-            if let message = Self.extractResponseMessage(from: data) {
-                throw NSError(
-                    domain: "MoviePilotMediaDetailAPIClient",
-                    code: httpResponse.statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: message]
-                )
-            }
-
-            throw NSError(
-                domain: "MoviePilotMediaDetailAPIClient",
-                code: httpResponse.statusCode,
-                userInfo: [NSLocalizedDescriptionKey: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)]
-            )
-        }
-
-        return data
+        return try MoviePilotResponseDecoder.responseData(data, response: httpResponse, unwrap: route.method == .get)
     }
 
     private func decodeDirectResponse<Response: Decodable & Sendable>(
         _ responseType: Response.Type,
         from data: Data
     ) throws -> Response {
-        let decoder = JSONDecoder()
-
-        if let direct = try? decoder.decode(Response.self, from: data) {
-            return direct
-        }
-
-        if let envelope = try? decoder.decode(MoviePilotResponseEnvelope<Response>.self, from: data),
-           let payload = envelope.data {
-            return payload
-        }
-
-        if let message = Self.extractFailureMessage(from: data) {
-            throw NSError(
-                domain: "MoviePilotMediaDetailAPIClient",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: message]
-            )
-        }
-
-        return try decoder.decode(Response.self, from: data)
+        try MoviePilotResponseDecoder.decode(responseType, from: data)
     }
 
     private func decodeActionResponse(from data: Data) throws -> MoviePilotActionResponseDTO {
-        let decoder = JSONDecoder()
-
-        if let direct = try? decoder.decode(MoviePilotActionResponseDTO.self, from: data) {
-            return direct
-        }
-
-        if let envelope = try? decoder.decode(MoviePilotResponseEnvelope<[String: String]>.self, from: data),
-           let success = envelope.success {
-            return MoviePilotActionResponseDTO(success: success, message: envelope.message)
-        }
-
-        if let message = Self.extractResponseMessage(from: data) {
-            return MoviePilotActionResponseDTO(success: false, message: message)
-        }
-
-        return try decoder.decode(MoviePilotActionResponseDTO.self, from: data)
+        try JSONDecoder().decode(MoviePilotActionResponseDTO.self, from: data)
     }
 
     private nonisolated static func compactQueryItems(_ items: [URLQueryItem?]) -> [URLQueryItem] {
@@ -435,29 +374,4 @@ actor MoviePilotMediaDetailAPIClient {
         return (components[0].lowercased(), components[1])
     }
 
-    private nonisolated static func extractFailureMessage(from data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let success = object["success"] as? Bool,
-              success == false else {
-            return nil
-        }
-
-        return extractResponseMessage(from: data) ?? "请求失败"
-    }
-
-    private nonisolated static func extractResponseMessage(from data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        if let message = object["message"] as? String, !message.isEmpty {
-            return message
-        }
-
-        if let detail = object["detail"] as? String, !detail.isEmpty {
-            return detail
-        }
-
-        return nil
-    }
 }

@@ -94,6 +94,14 @@ OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RS
 - 使用反向代理时，按实际部署填写 HTTPS 和访问路径。
 - 应用不会提供或托管下载服务器。
 
+### qBittorrent 5.2 认证
+
+在服务器编辑页的「认证方式」中选择「用户名和密码」或 **API Key (qBittorrent 5.2+)**。API Key 可在 qBittorrent 的「选项 → Web UI → API Key」中生成，再粘贴到 API Key 输入框；此模式不需要用户名。API Key 使用 Bearer 认证，不应填入密码框。详见 [官方 API Key 文档](https://github.com/qbittorrent/wiki/blob/master/API-Key-Authentication-%28%E2%89%A5v5.2.0%29.md)。
+
+OiiQT 同时支持旧版 `200 / Ok.` 和新版 `204` 登录响应，使用服务器返回的会话 Cookie，并接受操作成功时的 `202/204` 响应。已有服务器默认保持密码认证。密码和 API Key 存入设备钥匙串；配置同步只包含认证方式，不包含凭据。
+
+使用反向代理时，默认 API 路径为 `/api/v2`；如果部署在子路径下，请填写完整路径，例如 `/qb/api/v2`。升级后若出现 HTTP 401，请检查凭据以及 Host/Origin 转发：qBittorrent 5.2.2 调整了未开启反向代理支持时对 `X-Forwarded-Host` 的处理。HTTP 403 可能是会话/密钥无效或 IP 被临时封禁。详见 [官方更新记录](https://www.qbittorrent.org/news)；代理配置错误仍需在服务端修正。
+
 ### 开启扩展功能
 
 在「设置 → 扩展功能」中开启 TMDB 海报数据、全局任务聚合、仪表盘背景、隐藏节点名称或 iCloud 同步，也可以配置 Tracker 别名。
@@ -103,6 +111,10 @@ TMDB API Key 可在同一页面配置。当前版本保留内置服务配置，�
 ### 连接 MoviePilot
 
 在「设置 → 扩展功能 → MoviePilot 设置」中添加实例并配置访问令牌。配置完成后，底部会显示 MoviePilot 页面。
+
+MoviePilot V2 与 V3 的接口前缀均为 `/api/v1`，不要改成 `/api/v3`。填写实例地址（如有反向代理子路径，也需要包含）及 API Key 或登录后的 access token。全新安装的 V3 需先在网页完成初始化。
+
+客户端同时支持 V2 响应和 V3 的 `success / message / data` 包装；媒体详情与资源搜索也兼容 V3 单独传递 `media_source` 和原生 `media_id` 的方式。兼容检查依据 [官方 OpenAPI 文档](https://api.movie-pilot.org/)（本次更新时为 V3.1.9）。
 
 ### 使用 RSS
 
@@ -158,6 +170,14 @@ xcodebuild \
 ```
 
 模拟器构建也请保留默认签名；禁用签名会导致钥匙串权限缺失，出现测试连接成功但无法保存密码的问题。Release 工作流中的未签名 IPA 需由安装者重新签名后使用。
+
+### qBittorrent 兼容性检查
+
+在安装了 Xcode 和 Python 3 的 Mac 上运行 `python3 tests/run-qbittorrent-compatibility.py`。它会编译实际使用的认证代码，通过临时本地 HTTP 服务检查新旧登录响应、Cookie 保存与发送、Bearer 认证、特殊字符密码及错误响应。这些接口测试不能替代对你自己的 qBittorrent 实例和反向代理进行实测。
+
+### MoviePilot 兼容性检查
+
+运行 `python3 tests/run-moviepilot-compatibility.py`，通过本地 V2/V3 HTTP 响应测试实际的连接、发现、详情、资源搜索和下载客户端。检查覆盖 API Key/access token 认证、响应包装、媒体标识和错误处理；真实部署及反向代理仍需针对实例验证。
 
 ## 🤖 自动发布 IPA
 

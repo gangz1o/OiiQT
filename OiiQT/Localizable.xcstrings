@@ -1,6 +1,159 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+  "MoviePilot request failed.": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "MoviePilot request failed."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "MoviePilot 接口返回失败。"
+        }
+      }
+    }
+  },
+  "Authentication Method": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Authentication Method"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "认证方式"
+        }
+      }
+    }
+  },
+  "Username and Password": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Username and Password"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "用户名和密码"
+        }
+      }
+    }
+  },
+  "API Key": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "API Key"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "API Key"
+        }
+      }
+    }
+  },
+  "qBittorrent rejected authentication (HTTP 401). Check your credentials and authentication mode, or the reverse proxy's Host/Origin settings.": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent rejected authentication (HTTP 401). Check your credentials and authentication mode, or the reverse proxy's Host/Origin settings."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent 拒绝认证（HTTP 401）。请核对凭据和认证方式，或检查反向代理的 Host/Origin 配置。"
+        }
+      }
+    }
+  },
+  "qBittorrent denied access (HTTP 403). Check the session/API key and whether your IP was banned after failed logins.": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent denied access (HTTP 403). Check the session/API key and whether your IP was banned after failed logins."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent 拒绝访问（HTTP 403）。请检查会话/API Key，以及 IP 是否因多次登录失败被封禁。"
+        }
+      }
+    }
+  },
+  "qBittorrent API not found (HTTP 404). Check the API path and reverse proxy configuration.": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent API not found (HTTP 404). Check the API path and reverse proxy configuration."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "未找到 qBittorrent API（HTTP 404）。请检查 API 路径和反向代理配置。"
+        }
+      }
+    }
+  },
+  "Unexpected qBittorrent response. Check that the address points to the Web API rather than a proxy login page.": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Unexpected qBittorrent response. Check that the address points to the Web API rather than a proxy login page."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent 返回内容异常。请确认地址指向 Web API，而非代理登录页面。"
+        }
+      }
+    }
+  },
+  "qBittorrent request failed (HTTP %d).": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent request failed (HTTP %d)."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "qBittorrent 请求失败（HTTP %d）。"
+        }
+      }
+    }
+  },
   "Authentication failed. Check the username and password for this server's Web UI.": {
     "extractionState": "manual",
     "localizations": {

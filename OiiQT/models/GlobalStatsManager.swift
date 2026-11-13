@@ -278,7 +278,7 @@ final class GlobalStatsManager {
     private func serverSignature(_ servers: [ServerConfig]) -> String {
         servers
             .map {
-                "\($0.id.uuidString)|\($0.type.rawValue)|\($0.address)|\($0.port)|\($0.username)|\($0.useHTTPS)|\($0.rpcPath)|\($0.allowInsecureSSL)"
+                "\($0.id.uuidString)|\($0.type.rawValue)|\($0.address)|\($0.port)|\($0.username)|\($0.useHTTPS)|\($0.rpcPath)|\($0.allowInsecureSSL)|\($0.qbUsesAPIKey)"
             }
             .sorted()
             .joined(separator: "||")
@@ -308,6 +308,7 @@ private struct GlobalStatsServerEndpoint: Sendable {
     let port: Int
     let username: String
     let password: String
+    let qbUsesAPIKey: Bool
     let useHTTPS: Bool
     let allowInsecureSSL: Bool
     let rpcPath: String
@@ -323,6 +324,7 @@ private struct GlobalStatsServerEndpoint: Sendable {
         self.port = server.port
         self.username = server.username
         self.password = server.resolvedPassword
+        self.qbUsesAPIKey = server.qbUsesAPIKey
         self.useHTTPS = server.useHTTPS
         self.allowInsecureSSL = server.allowInsecureSSL
         self.rpcPath = server.rpcPath
@@ -454,37 +456,10 @@ private enum GlobalStatsFetcher {
             throw TorrentClientError.invalidURL
         }
 
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "username", value: endpoint.username),
-            URLQueryItem(name: "password", value: endpoint.password)
-        ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = standardRequestTimeout
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-        request.setValue(baseURL, forHTTPHeaderField: "Referer")
-        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw TorrentClientError.authenticationFailed
-        }
-
-        let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if body == "Ok." {
-            return
-        }
-
-        if let cookieStorage = session.configuration.httpCookieStorage,
-           let cookies = cookieStorage.cookies(for: url),
-           cookies.contains(where: { $0.name == "SID" }) {
-            return
-        }
-
-        throw TorrentClientError.authenticationFailed
+        try await QBittorrentAPI.login(
+            session: session, url: url, username: endpoint.username,
+            secret: endpoint.password, usesAPIKey: endpoint.qbUsesAPIKey
+        )
     }
 
     private static func qbFetchTorrents(endpoint: GlobalStatsServerEndpoint, baseURL: String, session: URLSession) async throws -> [QBTorrentLite] {
@@ -495,7 +470,7 @@ private enum GlobalStatsFetcher {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = heavyPayloadTimeout
-        configureQBRequest(&request, baseURL: baseURL)
+        QBittorrentAPI.configure(&request, apiKey: endpoint.qbUsesAPIKey ? endpoint.password : nil)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -513,7 +488,7 @@ private enum GlobalStatsFetcher {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = standardRequestTimeout
-        configureQBRequest(&request, baseURL: baseURL)
+        QBittorrentAPI.configure(&request, apiKey: endpoint.qbUsesAPIKey ? endpoint.password : nil)
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -543,7 +518,7 @@ private enum GlobalStatsFetcher {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = heavyPayloadTimeout
-        configureQBRequest(&request, baseURL: baseURL)
+        QBittorrentAPI.configure(&request, apiKey: endpoint.qbUsesAPIKey ? endpoint.password : nil)
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -579,7 +554,7 @@ private enum GlobalStatsFetcher {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = standardRequestTimeout
-        configureQBRequest(&request, baseURL: baseURL)
+        QBittorrentAPI.configure(&request, apiKey: endpoint.qbUsesAPIKey ? endpoint.password : nil)
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -717,8 +692,7 @@ private enum GlobalStatsFetcher {
     }
 
     private static func makeSession(allowInsecureSSL: Bool) -> URLSession {
-        let config = URLSessionConfiguration.default
-        config.httpCookieStorage = HTTPCookieStorage.shared
+        let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy = .always
         config.timeoutIntervalForRequest = standardRequestTimeout
         config.timeoutIntervalForResource = heavyPayloadTimeout
@@ -738,7 +712,7 @@ private enum GlobalStatsFetcher {
     }
 
     private static func qbAPIURL(endpoint: GlobalStatsServerEndpoint, baseURL: String, path: String) -> URL? {
-        let trimmed = endpoint.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = endpoint.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let prefix: String
         if trimmed.isEmpty {
             prefix = "/api/v2"
@@ -794,12 +768,6 @@ private enum GlobalStatsFetcher {
         let raw = "\(username):\(password)"
         let encoded = Data(raw.utf8).base64EncodedString()
         return "Basic \(encoded)"
-    }
-
-    private static func configureQBRequest(_ request: inout URLRequest, baseURL: String) {
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-        request.setValue(baseURL, forHTTPHeaderField: "Referer")
-        request.setValue(baseURL, forHTTPHeaderField: "Origin")
     }
 
     private static func intValue(_ value: Any?) -> Int? {

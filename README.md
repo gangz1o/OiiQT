@@ -94,6 +94,14 @@ Go to **Settings → Server Settings**, add a server, select qBittorrent or Tran
 - Match HTTPS and the API path to your deployment, including any reverse proxy.
 - OiiQT does not provide or host a download server.
 
+### qBittorrent 5.2 authentication
+
+In the server editor, choose **Username and Password** or **API Key (qBittorrent 5.2+)** under **Authentication Method**. Generate an API key in qBittorrent's **Options → Web UI → API Key**, then paste it into the API Key field; no username is needed in this mode. Keys use Bearer authentication, not the password login endpoint. See the [official API key guide](https://github.com/qbittorrent/wiki/blob/master/API-Key-Authentication-%28%E2%89%A5v5.2.0%29.md).
+
+OiiQT accepts legacy `200 / Ok.` logins and newer `204` responses, uses the session cookie returned by the server, and accepts successful `202/204` action responses. Existing servers keep password authentication by default. Passwords and API keys are stored in the device Keychain; configuration sync includes the authentication mode, not the secret.
+
+For reverse proxies, keep the default API path `/api/v2`, or include your published subpath, such as `/qb/api/v2`. If an upgrade produces HTTP 401, check credentials and Host/Origin forwarding: qBittorrent 5.2.2 changed how `X-Forwarded-Host` is used when reverse proxy support is disabled. HTTP 403 can indicate an invalid session/key or a temporary IP ban. See the [official changelog](https://www.qbittorrent.org/news); changing the app cannot repair an incorrect proxy configuration.
+
 ### Enable optional features
 
 Open **Settings → Extensions** to enable TMDB posters, global task aggregation, dashboard backgrounds, hidden node names, or iCloud sync. You can also configure tracker aliases and a custom TMDB API key. The current version retains a built-in service configuration; your own key takes priority when provided.
@@ -101,6 +109,10 @@ Open **Settings → Extensions** to enable TMDB posters, global task aggregation
 ### Connect MoviePilot
 
 Add an instance and its access token in **Settings → Extensions → MoviePilot Settings**. The MoviePilot tab appears once an instance is configured.
+
+MoviePilot V2 and V3 use the `/api/v1` prefix; do not change it to `/api/v3`. Enter the instance URL (including a reverse proxy subpath if applicable) and an API Key or a login access token. Fresh V3 installations must complete initialization in the Web UI first.
+
+The client accepts both V2 responses and V3's `success / message / data` envelope. Media detail and resource search also support V3's separate `media_source` and native `media_id`. The compatibility checks use the official [OpenAPI documentation](https://api.movie-pilot.org/) (V3.1.9 at the time of this update).
 
 ### Set up RSS
 
@@ -156,6 +168,14 @@ xcodebuild \
 ```
 
 Keep default code signing enabled for simulator builds. Disabling it can remove Keychain access and prevent passwords from being saved even when a connection test succeeds. The unsigned release IPA must be signed by the installer before use.
+
+### qBittorrent compatibility checks
+
+Run `python3 tests/run-qbittorrent-compatibility.py` on a Mac with Xcode and Python 3. It compiles the production authentication helper and tests it against a temporary local HTTP server, including legacy/new login responses, cookie persistence, Bearer authentication, special-character passwords, and failure responses. These contract checks do not replace testing against your own qBittorrent instance and reverse proxy.
+
+### MoviePilot compatibility checks
+
+Run `python3 tests/run-moviepilot-compatibility.py` to exercise the production connection, discovery, detail, resource search, and download clients against local V2/V3 HTTP fixtures. The checks include API Key/access-token authentication, wrapped responses, media identities, and error handling. Real deployments and reverse proxies still need instance-specific verification.
 
 ## 🤖 Automated IPA Releases
 

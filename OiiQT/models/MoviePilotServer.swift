@@ -24,10 +24,6 @@ nonisolated struct MoviePilotCurrentUser: Decodable, Sendable {
     let name: String
 }
 
-nonisolated struct MoviePilotAPIErrorPayload: Decodable, Sendable {
-    let detail: String?
-}
-
 nonisolated enum MoviePilotURLNormalizer {
     static func normalize(_ rawValue: String) -> String? {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -20,6 +20,8 @@ struct EditServerView: View {
     @State private var port = "8080"
     @State private var username = ""
     @State private var password = ""
+    @State private var apiKey = ""
+    @State private var qbUsesAPIKey = false
     @State private var isHttps = false
     @State private var allowInsecureSSL = false
     @State private var rpcPath = "/transmission/rpc"
@@ -57,6 +59,11 @@ struct EditServerView: View {
     private var pathPlaceholder: String {
         defaultPath(for: type)
     }
+
+    private var usesAPIKey: Bool { type == .qBittorrent && qbUsesAPIKey }
+    private var credentialTitle: String { usesAPIKey ? "API Key" : "Password" }
+    private var credentialBinding: Binding<String> { usesAPIKey ? $apiKey : $password }
+    private var credential: String { usesAPIKey ? apiKey.trimmingCharacters(in: .whitespacesAndNewlines) : password }
 
     var body: some View {
         NavigationStack {
@@ -166,39 +173,47 @@ struct EditServerView: View {
                 }
 
                 Section {
-                    HStack(spacing: 12) {
-                        settingsRowLabel(
-                            title: LanguageManager.shared.localized("Username"),
-                            iconName: "person.fill",
-                            color: .orange
-                        )
+                    if type == .qBittorrent {
+                        Picker(LanguageManager.shared.localized("Authentication Method"), selection: $qbUsesAPIKey) {
+                            Text(LanguageManager.shared.localized("Username and Password")).tag(false)
+                            Text("API Key (qBittorrent 5.2+)").tag(true)
+                        }
+                    }
+                    if !usesAPIKey {
+                        HStack(spacing: 12) {
+                            settingsRowLabel(
+                                title: LanguageManager.shared.localized("Username"),
+                                iconName: "person.fill",
+                                color: .orange
+                            )
 
-                        TextField(LanguageManager.shared.localized("Username"), text: $username)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.asciiCapable)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .textContentType(.username)
-                            .submitLabel(.next)
-                            .focused($focusedField, equals: .username)
-                            .onSubmit {
-                                focusedField = .password
-                            }
+                            TextField(LanguageManager.shared.localized("Username"), text: $username)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.asciiCapable)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .textContentType(.username)
+                                .submitLabel(.next)
+                                .focused($focusedField, equals: .username)
+                                .onSubmit {
+                                    focusedField = .password
+                                }
+                        }
                     }
 
                     HStack(spacing: 12) {
                         settingsRowLabel(
-                            title: LanguageManager.shared.localized("Password"),
+                            title: LanguageManager.shared.localized(credentialTitle),
                             iconName: "key.fill",
                             color: .orange
                         )
 
                         Group {
                             if isPasswordVisible {
-                                TextField(LanguageManager.shared.localized("Password"), text: $password)
+                                TextField(LanguageManager.shared.localized(credentialTitle), text: credentialBinding)
                             } else {
-                                SecureField(LanguageManager.shared.localized("Password"), text: $password)
+                                SecureField(LanguageManager.shared.localized(credentialTitle), text: credentialBinding)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -206,7 +221,7 @@ struct EditServerView: View {
                         .keyboardType(.asciiCapable)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .textContentType(.password)
+                        .textContentType(usesAPIKey ? nil : .password)
                         .submitLabel(.done)
                         .focused($focusedField, equals: .password)
 
@@ -306,7 +321,12 @@ struct EditServerView: View {
                     address = sanitizeAddressInput(server.address)
                     port = String(server.port)
                     username = server.username
-                    password = server.resolvedPassword
+                    qbUsesAPIKey = server.qbUsesAPIKey
+                    if server.type == .qBittorrent && server.qbUsesAPIKey {
+                        apiKey = server.resolvedPassword
+                    } else {
+                        password = server.resolvedPassword
+                    }
                     allowInsecureSSL = server.allowInsecureSSL
                     rpcPath = defaultPathForEditing(server)
                 } else {
@@ -375,7 +395,8 @@ struct EditServerView: View {
         let normalizedPath = effectivePathForCurrentType()
 
         if let server = serverToEdit {
-            try server.setResolvedPassword(password)
+            try server.setResolvedPassword(credential)
+            server.qbUsesAPIKey = usesAPIKey
             // Update
             server.name = name.trimmingCharacters(in: .whitespaces)
             server.type = type
@@ -398,7 +419,8 @@ struct EditServerView: View {
                 allowInsecureSSL: allowInsecureSSL,
                 rpcPath: normalizedPath
             )
-            try config.setResolvedPassword(password)
+            config.qbUsesAPIKey = usesAPIKey
+            try config.setResolvedPassword(credential)
             modelContext.insert(config)
         }
         syncServerConfigsToCloud()
@@ -428,11 +450,13 @@ struct EditServerView: View {
                 address: formattedAddress,
                 port: Int(port) ?? 8080,
                 username: username.trimmingCharacters(in: .whitespaces),
-                password: password,
+                password: credential,
                 useHTTPS: isHttps,
                 allowInsecureSSL: allowInsecureSSL,
                 rpcPath: effectivePathForCurrentType()
             )
+
+            tempConfig.qbUsesAPIKey = usesAPIKey
 
             let client: TorrentClient = (type == .qBittorrent) ?
                 QBittorrentClient(config: tempConfig) :
@@ -445,7 +469,14 @@ struct EditServerView: View {
                     String(format: LanguageManager.shared.localized("Connection succeeded: %@ (v%@)"), type.rawValue, version)
                 )
             } catch {
-                if let clientError = error as? TorrentClientError,
+                if let apiError = error as? QBittorrentAPI.Failure {
+                    let message = LanguageManager.shared.localized(apiError.messageKey)
+                    if case .http(let status) = apiError {
+                        testResult = .failure(String(format: message, status))
+                    } else {
+                        testResult = .failure(message)
+                    }
+                } else if let clientError = error as? TorrentClientError,
                    case .authenticationFailed = clientError {
                     testResult = .failure(
                         LanguageManager.shared.localized("Authentication failed. Check the username and password for this server's Web UI.")

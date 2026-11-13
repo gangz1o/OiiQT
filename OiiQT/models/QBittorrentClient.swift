@@ -23,8 +23,6 @@ class QBittorrentClient: NSObject, TorrentClient {
         return URLSession(configuration: sessionConfig, delegate: delegate, delegateQueue: nil)
     }()
 
-    // Cookie 存储
-    private var cookies: [HTTPCookie] = []
     private var authenticatedSessionFingerprint: String?
 
     init(config: ServerConfig) {
@@ -33,7 +31,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     }
 
     private var apiPathPrefix: String {
-        let trimmed = config.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = config.rpcPath.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard !trimmed.isEmpty else { return "/api/v2" }
 
         let normalized = trimmed.hasPrefix("/") ? trimmed : "/\(trimmed)"
@@ -46,105 +44,38 @@ class QBittorrentClient: NSObject, TorrentClient {
         return URL(string: "\(getBaseURL())\(apiPathPrefix)\(normalizedPath)")
     }
 
-    private func formURLEncode(_ value: String) -> String {
-        // application/x-www-form-urlencoded: reserved chars escaped, spaces encoded as "+"
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: ":#[]@!$&'()*+,;=%/?")
-        return (value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")
-            .replacingOccurrences(of: "%20", with: "+")
-    }
-
     private var currentAuthenticationFingerprint: String {
-        "\(getBaseURL())|\(apiPathPrefix)|\(config.username)|\(config.resolvedPassword)"
+        "\(getBaseURL())|\(apiPathPrefix)|\(config.username)|\(config.qbUsesAPIKey)|\(config.resolvedPassword)"
     }
 
     private func invalidateAuthenticatedSessionIfNeeded() {
         let currentFingerprint = currentAuthenticationFingerprint
         guard authenticatedSessionFingerprint != currentFingerprint else { return }
-        clearSIDCookies()
+        clearSessionCookies()
         authenticatedSessionFingerprint = nil
     }
 
-    private func clearSIDCookies() {
+    private func clearSessionCookies() {
         guard let cookieStorage = session.configuration.httpCookieStorage,
               let storedCookies = cookieStorage.cookies else {
             return
         }
 
-        for cookie in storedCookies where cookie.name == "SID" {
+        for cookie in storedCookies {
             cookieStorage.deleteCookie(cookie)
         }
-    }
-
-    private func sidCookieFingerprint(for url: URL) -> String? {
-        guard let sidCookie = session.configuration.httpCookieStorage?
-            .cookies(for: url)?
-            .first(where: { $0.name == "SID" }) else {
-            return nil
-        }
-
-        return "\(sidCookie.name)|\(sidCookie.value)|\(sidCookie.domain)|\(sidCookie.path)"
-    }
-
-    private func responseSIDCookieFingerprint(from response: HTTPURLResponse, url: URL) -> String? {
-        let headerFields = response.allHeaderFields.reduce(into: [String: String]()) { partialResult, entry in
-            guard let key = entry.key as? String else { return }
-            partialResult[key] = entry.value as? String ?? String(describing: entry.value)
-        }
-
-        guard let sidCookie = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
-            .first(where: { $0.name == "SID" }) else {
-            return nil
-        }
-
-        return "\(sidCookie.name)|\(sidCookie.value)|\(sidCookie.domain)|\(sidCookie.path)"
     }
 
     // MARK: - Auth
 
     func login() async throws {
-        let address = config.baseURL
         invalidateAuthenticatedSessionIfNeeded()
-
-        guard let url = apiURL("auth/login") else {
-            throw TorrentClientError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        // qBittorrent 登录是 application/x-www-form-urlencoded
-        let bodyString = "username=\(formURLEncode(config.username))&password=\(formURLEncode(config.resolvedPassword))"
-        request.httpBody = bodyString.data(using: .utf8)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        // 设置 Referer 以防某些版本检查
-        request.setValue(address, forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-
-        let previousSIDFingerprint = sidCookieFingerprint(for: url)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TorrentClientError.networkError(NSError(domain: "Invalid Response", code: 0, userInfo: nil))
-        }
-
-        // qBittorrent 成功返回 "Ok."，失败一般是 "Fails."
-        if let responseString = String(data: data, encoding: .utf8), responseString.trimmingCharacters(in: .whitespacesAndNewlines) == "Ok." {
-            authenticatedSessionFingerprint = currentAuthenticationFingerprint
-            return
-        } else {
-             // Accept cookie-only success only when login actually issued a fresh SID.
-            if httpResponse.statusCode == 200 {
-                 let currentSIDFingerprint =
-                    responseSIDCookieFingerprint(from: httpResponse, url: url) ??
-                    sidCookieFingerprint(for: url)
-                 if let currentSIDFingerprint, currentSIDFingerprint != previousSIDFingerprint {
-                     authenticatedSessionFingerprint = currentAuthenticationFingerprint
-                     return
-                 }
-            }
-            throw TorrentClientError.authenticationFailed
-        }
+        guard let url = apiURL("auth/login") else { throw TorrentClientError.invalidURL }
+        try await QBittorrentAPI.login(
+            session: session, url: url, username: config.username,
+            secret: config.resolvedPassword, usesAPIKey: config.qbUsesAPIKey
+        )
+        authenticatedSessionFingerprint = currentAuthenticationFingerprint
     }
 
     // MARK: - Fetch List
@@ -159,6 +90,7 @@ class QBittorrentClient: NSObject, TorrentClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = Self.heavyPayloadTimeout
+        configureRequest(&request)
 
         let (data, response) = try await session.data(for: request)
 
@@ -276,10 +208,7 @@ class QBittorrentClient: NSObject, TorrentClient {
 
     private func configureRequest(_ request: inout URLRequest) {
         invalidateAuthenticatedSessionIfNeeded()
-        let baseURL = getBaseURL()
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-        request.setValue(baseURL, forHTTPHeaderField: "Referer")
-        request.setValue(baseURL, forHTTPHeaderField: "Origin")
+        QBittorrentAPI.configure(&request, apiKey: config.qbUsesAPIKey ? config.resolvedPassword : nil)
     }
 
     func addTorrents(_ urls: [String], options: AddTorrentOptions) async throws {
@@ -331,9 +260,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             throw TorrentClientError.authenticationFailed
         }
         
-        guard httpResponse.statusCode == 200 else {
-            throw TorrentClientError.apiError("Add Torrents failed: HTTP \(httpResponse.statusCode) \(responseBody)")
-        }
+        try QBittorrentAPI.validate(httpResponse)
         
         // qBittorrent returns "Fails." in body when add actually failed
         if responseBody.trimmingCharacters(in: .whitespacesAndNewlines) == "Fails." {
@@ -381,9 +308,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             throw TorrentClientError.authenticationFailed
         }
         
-        guard httpResponse.statusCode == 200 else {
-            throw TorrentClientError.apiError("Add Torrent File failed: HTTP \(httpResponse.statusCode) \(responseBody)")
-        }
+        try QBittorrentAPI.validate(httpResponse)
         
         if responseBody.trimmingCharacters(in: .whitespacesAndNewlines) == "Fails." {
             throw TorrentClientError.apiError("qBittorrent rejected the torrent file.")
@@ -415,7 +340,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     func pauseTask(hash: String) async throws {
         do {
             try await performAction(endpoint: "pause", hashes: hash)
-        } catch {
+        } catch QBittorrentAPI.Failure.notFound {
             // Compatibility fallback for some qB API variants/proxies.
             try await performAction(endpoint: "stop", hashes: hash)
         }
@@ -424,7 +349,7 @@ class QBittorrentClient: NSObject, TorrentClient {
     func resumeTask(hash: String) async throws {
         do {
             try await performAction(endpoint: "resume", hashes: hash)
-        } catch {
+        } catch QBittorrentAPI.Failure.notFound {
             // Compatibility fallback for some qB API variants/proxies.
             try await performAction(endpoint: "start", hashes: hash)
         }
@@ -466,11 +391,11 @@ class QBittorrentClient: NSObject, TorrentClient {
     func forceStartTask(hash: String) async throws {
         do {
             try await performAction(endpoint: "setForceStart", hashes: hash, extraParams: ["value": "true"])
-        } catch {
+        } catch QBittorrentAPI.Failure.notFound {
             // Compatibility fallback for older qB variants/proxies.
             do {
                 try await performAction(endpoint: "resume", hashes: hash)
-            } catch {
+            } catch QBittorrentAPI.Failure.notFound {
                 try await performAction(endpoint: "start", hashes: hash)
             }
         }
@@ -843,11 +768,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             try await login()
             request = try makeRequest()
             let (retryData, retryResponse) = try await session.data(for: request)
-            guard let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
-                let status = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
-                let body = String(data: retryData, encoding: .utf8) ?? ""
-                throw TorrentClientError.apiError("\(endpoint) failed: HTTP \(status) \(body)")
-            }
+            try QBittorrentAPI.validate(retryResponse)
             let retryBody = String(data: retryData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if retryBody == "Fails." {
@@ -856,10 +777,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             return
         }
 
-        guard firstHTTP.statusCode == 200 else {
-            let body = String(data: firstData, encoding: .utf8) ?? ""
-            throw TorrentClientError.apiError("\(endpoint) failed: HTTP \(firstHTTP.statusCode) \(body)")
-        }
+        try QBittorrentAPI.validate(firstHTTP)
 
         let firstBody = String(data: firstData, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -887,24 +805,9 @@ class QBittorrentClient: NSObject, TorrentClient {
             throw TorrentClientError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 5 // Short timeout for heartbeat
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            // Need to login?
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 403 {
-                throw TorrentClientError.authenticationFailed
-            }
-            throw TorrentClientError.apiError("Heartbeat failed")
-        }
-
-        if let version = String(data: data, encoding: .utf8) {
-            return version
-        }
-        return "Unknown"
+        return try await QBittorrentAPI.version(
+            session: session, url: url, apiKey: config.qbUsesAPIKey ? config.resolvedPassword : nil
+        )
     }
 
     // MARK: - File Management
@@ -977,7 +880,7 @@ class QBittorrentClient: NSObject, TorrentClient {
             return .queued
         case "uploading", "stalledup", "forcedup", "up":
             return .seeding
-        case "pauseddl", "pausedup", "paused":
+        case "pauseddl", "pausedup", "paused", "stoppeddl", "stoppedup":
             return .paused
         case "checkingdl", "checkingup", "checkingresumedata", "moving":
             return .checking
@@ -1024,7 +927,7 @@ extension QBittorrentClient {
         let joined = joinedHashes(hashes)
         do {
             try await performAction(endpoint: "pause", hashes: joined)
-        } catch {
+        } catch QBittorrentAPI.Failure.notFound {
             try await performAction(endpoint: "stop", hashes: joined)
         }
     }
@@ -1033,7 +936,7 @@ extension QBittorrentClient {
         let joined = joinedHashes(hashes)
         do {
             try await performAction(endpoint: "resume", hashes: joined)
-        } catch {
+        } catch QBittorrentAPI.Failure.notFound {
             try await performAction(endpoint: "start", hashes: joined)
         }
     }
@@ -1054,10 +957,10 @@ extension QBittorrentClient {
         let joined = joinedHashes(hashes)
         do {
             try await performAction(endpoint: "setForceStart", hashes: joined, extraParams: ["value": "true"])
-        } catch {
+        } catch QBittorrentAPI.Failure.notFound {
             do {
                 try await performAction(endpoint: "resume", hashes: joined)
-            } catch {
+            } catch QBittorrentAPI.Failure.notFound {
                 try await performAction(endpoint: "start", hashes: joined)
             }
         }
@@ -1403,18 +1306,11 @@ extension QBittorrentClient {
             try await login()
             request = try makeRequest()
             let (retryData, retryResponse) = try await session.data(for: request)
-            guard let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
-                let status = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
-                let body = String(data: retryData, encoding: .utf8) ?? ""
-                throw TorrentClientError.apiError("\(path) failed: HTTP \(status) \(body)")
-            }
+            try QBittorrentAPI.validate(retryResponse)
             return retryData
         }
 
-        guard firstHTTP.statusCode == 200 else {
-            let body = String(data: firstData, encoding: .utf8) ?? ""
-            throw TorrentClientError.apiError("\(path) failed: HTTP \(firstHTTP.statusCode) \(body)")
-        }
+        try QBittorrentAPI.validate(firstHTTP)
 
         return firstData
     }
@@ -1452,18 +1348,11 @@ extension QBittorrentClient {
             try await login()
             request = try makeRequest()
             let (retryData, retryResponse) = try await session.data(for: request)
-            guard let retryHTTP = retryResponse as? HTTPURLResponse, retryHTTP.statusCode == 200 else {
-                let status = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
-                let body = String(data: retryData, encoding: .utf8) ?? ""
-                throw TorrentClientError.apiError("\(path) failed: HTTP \(status) \(body)")
-            }
+            try QBittorrentAPI.validate(retryResponse)
             return retryData
         }
 
-        guard firstHTTP.statusCode == 200 else {
-            let body = String(data: firstData, encoding: .utf8) ?? ""
-            throw TorrentClientError.apiError("\(path) failed: HTTP \(firstHTTP.statusCode) \(body)")
-        }
+        try QBittorrentAPI.validate(firstHTTP)
 
         return firstData
     }

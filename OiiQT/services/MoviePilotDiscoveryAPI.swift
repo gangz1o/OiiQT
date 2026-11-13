@@ -222,9 +222,7 @@ actor MoviePilotDiscoveryAPIClient {
                     return try decodeResponse(MPMediaListDTO.self, from: data)
                 } catch {
                     lastError = error
-                    if shouldContinueTryingRoutes(after: error) {
-                        continue
-                    }
+                    guard MoviePilotResponseDecoder.shouldRetryAuthentication(error) else { throw error }
                 }
             }
         }
@@ -274,6 +272,7 @@ actor MoviePilotDiscoveryAPIClient {
                 )
                 return try decodeResponse(MPMediaListDTO.self, from: data)
             } catch {
+                guard MoviePilotResponseDecoder.shouldRetryAuthentication(error) else { throw error }
                 lastError = error
             }
         }
@@ -309,6 +308,7 @@ actor MoviePilotDiscoveryAPIClient {
                     authenticationMode: authenticationMode
                 )
             } catch {
+                guard MoviePilotResponseDecoder.shouldRetryAuthentication(error) else { throw error }
                 lastError = error
             }
         }
@@ -392,91 +392,13 @@ actor MoviePilotDiscoveryAPIClient {
             throw URLError(.badServerResponse)
         }
 
-        guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            if let apiError = try? JSONDecoder().decode(MoviePilotAPIErrorPayload.self, from: data),
-               let detail = apiError.detail,
-               !detail.isEmpty {
-                throw NSError(
-                    domain: "MoviePilotDiscoveryAPIClient",
-                    code: httpResponse.statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: detail]
-                )
-            }
-
-            throw NSError(
-                domain: "MoviePilotDiscoveryAPIClient",
-                code: httpResponse.statusCode,
-                userInfo: [NSLocalizedDescriptionKey: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)]
-            )
-        }
-
-        return data
+        return try MoviePilotResponseDecoder.responseData(data, response: httpResponse)
     }
 
     private func decodeResponse<Response: Decodable & Sendable>(
         _ responseType: Response.Type,
         from data: Data
     ) throws -> Response {
-        let decoder = JSONDecoder()
-
-        if let response = try? decoder.decode(responseType, from: data) {
-            return response
-        }
-
-        if let envelope = try? decoder.decode(MoviePilotResponseEnvelope<Response>.self, from: data) {
-            if envelope.success == false {
-                throw NSError(
-                    domain: "MoviePilotDiscoveryAPIClient",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: envelope.message ?? "MoviePilot 接口返回失败"]
-                )
-            }
-            if let response = envelope.data {
-                return response
-            }
-        }
-
-        if let extractedData = extractWrappedPayloadData(from: data),
-           let response = try? decoder.decode(responseType, from: extractedData) {
-            return response
-        }
-
-        return try decoder.decode(responseType, from: data)
-    }
-
-    private func extractWrappedPayloadData(from data: Data) -> Data? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        if let dataValue = object["data"] {
-            if JSONSerialization.isValidJSONObject(dataValue) {
-                return try? JSONSerialization.data(withJSONObject: dataValue)
-            }
-        }
-
-        for key in ["list", "items", "results"] {
-            if let value = object[key], JSONSerialization.isValidJSONObject(value) {
-                return try? JSONSerialization.data(withJSONObject: value)
-            }
-        }
-
-        if let dataObject = object["data"] as? [String: Any] {
-            for key in ["list", "items", "results"] {
-                if let value = dataObject[key], JSONSerialization.isValidJSONObject(value) {
-                    return try? JSONSerialization.data(withJSONObject: value)
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private func shouldContinueTryingRoutes(after error: Error) -> Bool {
-        let nsError = error as NSError
-        if nsError.domain == "MoviePilotDiscoveryAPIClient" && nsError.code == 404 {
-            return true
-        }
-        return false
+        try MoviePilotResponseDecoder.decode(responseType, from: data)
     }
 }
