@@ -10,6 +10,19 @@ Built with SwiftUI, OiiQT brings server management, torrent tasks, traffic dashb
 
 [📦 Download](https://github.com/gangz1o/OiiQT/releases/latest) · [🤖 Builds](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml) · [🐛 Issues](https://github.com/gangz1o/OiiQT/issues) · [📄 GPLv3](LICENSE)
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <th>Dashboard</th>
+    <th>Torrent tasks</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.png" alt="Dashboard" width="360" /></td>
+    <td><img src="docs/screenshots/tasks.png" alt="Torrent tasks" width="360" /></td>
+  </tr>
+</table>
+
 ## ✨ Features
 
 | Area | What you can do |

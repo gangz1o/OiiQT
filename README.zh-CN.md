@@ -10,6 +10,19 @@ OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RS
 
 [下载最新版本](https://github.com/gangz1o/OiiQT/releases/latest) · [构建记录](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml) · [反馈问题](https://github.com/gangz1o/OiiQT/issues)
 
+## 📸 界面预览
+
+<table>
+  <tr>
+    <th>仪表盘</th>
+    <th>下载任务</th>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.png" alt="仪表盘" width="360" /></td>
+    <td><img src="docs/screenshots/tasks.png" alt="下载任务" width="360" /></td>
+  </tr>
+</table>
+
 ## ✨ 功能
 
 | 模块 | 能力 |
