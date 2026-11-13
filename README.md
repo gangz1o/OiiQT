@@ -1,74 +1,74 @@
-# OiiQT
+# OiiQT 🌊
 
-用 iPhone 和 iPad 管理你的 qBittorrent、Transmission 和 MoviePilot。
+**English** | [简体中文](README.zh-CN.md)
 
-OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RSS 自动化和影视海报展示集中在一个客户端中。下载任务由你自己的服务器执行，手机用于查看和管理。
+Manage your **qBittorrent, Transmission, and MoviePilot** services from your iPhone or iPad.
 
-**无会员、无内购，不限制添加服务器的数量。** 扩展功能可在设置中自行开启。
+Built with SwiftUI, OiiQT brings server management, torrent tasks, traffic dashboards, RSS automation, and media posters into one app. Your servers handle downloads; OiiQT lets you monitor and manage them.
 
-[下载最新版本](https://github.com/gangz1o/OiiQT/releases/latest) · [构建记录](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml) · [反馈问题](https://github.com/gangz1o/OiiQT/issues)
+**No memberships, no in-app purchases, and no server-count limit.** Optional features are available in Settings.
 
-## 功能
+[📦 Download](https://github.com/gangz1o/OiiQT/releases/latest) · [🤖 Builds](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml) · [🐛 Issues](https://github.com/gangz1o/OiiQT/issues) · [📄 GPLv3](LICENSE)
 
-| 模块 | 能力 |
+## ✨ Features
+
+| Area | What you can do |
 | --- | --- |
-| 多服务器管理 | 连接 qBittorrent、Transmission，切换服务器或聚合查看任务 |
-| 下载任务 | 添加任务、搜索筛选、批量操作、查看文件、设置下载路径和限速 |
-| 仪表盘 | 查看实时流量、上传下载统计、服务器状态、存储情况和近期完成任务 |
-| RSS 自动化 | 管理订阅源、设置下载规则、匹配筛选条件并提交任务 |
-| 影视信息 | 豆瓣与 TMDB 海报匹配、影视元数据、自定义 TMDB API Key |
-| MoviePilot | 配置服务实例、浏览和搜索媒体、查看详情并提交下载 |
-| 个性化 | 仪表盘模块配置、海报背景、Tracker 别名、隐藏节点名称、深浅色外观 |
-| 配置同步 | 可选的 iCloud 配置同步 |
-| 语言 | 简体中文、英文 |
+| Multiple servers | Connect qBittorrent and Transmission; switch servers or view tasks together |
+| Torrent management | Add torrents, search and filter, perform batch actions, inspect files, configure download paths and speed limits |
+| Dashboard | Monitor traffic, transfer totals, server status, storage, and recently completed tasks |
+| RSS automation | Manage feeds and download rules, match items, and send downloads to your servers |
+| Media information | Match Douban and TMDB posters and metadata; use your own TMDB API key |
+| MoviePilot | Connect instances, browse and search media, view details, and submit downloads |
+| Personalization | Configure dashboard modules and poster backgrounds, tracker aliases, hidden node names, and light/dark appearance |
+| Configuration sync | Optional iCloud configuration sync |
+| Languages | English and Simplified Chinese |
 
-不同下载器支持的操作有所差异，界面会根据服务器类型提供对应功能。
+Available actions vary by downloader type.
 
-## 下载与安装
+## 📦 Download & Install
 
-需要 **iOS / iPadOS 18.0 或更高版本**。
+Requires **iOS / iPadOS 18.0 or later**.
 
-1. 打开 [Releases](https://github.com/gangz1o/OiiQT/releases)。
-2. 在版本的 **Assets** 中下载 `OiiQT-unsigned.ipa`。
-3. 使用自己的签名工具和账号签名后安装。
+1. Open [Releases](https://github.com/gangz1o/OiiQT/releases).
+2. Download `OiiQT-unsigned.ipa` from the release's **Assets**.
+3. Sign it with your own signing tool and account, then install it.
 
-发布附件是未签名 IPA，不包含分发证书或描述文件，不能直接安装。iCloud 等系统能力取决于重新签名时使用的账号、描述文件与权限配置。
+The release IPA is unsigned and contains no distribution certificate or provisioning profile. It must be signed before installation. Capabilities such as iCloud depend on the account, profile, and entitlements used when signing.
 
-也可以通过 Xcode 从源码构建并安装到自己的设备。
+You can also build and install the app from source using Xcode.
 
-## 开始使用
+## 🚀 Getting Started
 
-### 连接下载器
+### Connect a downloader
 
-在「设置 → 服务器设置」添加服务器，选择 qBittorrent 或 Transmission，填写地址、端口和认证信息。
+Go to **Settings → Server Settings**, add a server, select qBittorrent or Transmission, and enter its address, port, and credentials.
 
-- 先开启下载器的 Web UI / RPC，并确保设备能够访问该地址。
-- 使用反向代理时，按实际部署填写 HTTPS 和访问路径。
-- 应用不会提供或托管下载服务器。
+- Enable the downloader's Web UI / RPC and ensure your device can reach it.
+- Match HTTPS and the API path to your deployment, including any reverse proxy.
+- OiiQT does not provide or host a download server.
 
-### 开启扩展功能
+### Enable optional features
 
-在「设置 → 扩展功能」中开启 TMDB 海报数据、全局任务聚合、仪表盘背景、隐藏节点名称或 iCloud 同步，也可以配置 Tracker 别名。
+Open **Settings → Extensions** to enable TMDB posters, global task aggregation, dashboard backgrounds, hidden node names, or iCloud sync. You can also configure tracker aliases and a custom TMDB API key. The current version retains a built-in service configuration; your own key takes priority when provided.
 
-TMDB API Key 可在同一页面配置。当前版本保留内置服务配置，填写自己的 Key 后会优先使用自定义配置。
+### Connect MoviePilot
 
-### 连接 MoviePilot
+Add an instance and its access token in **Settings → Extensions → MoviePilot Settings**. The MoviePilot tab appears once an instance is configured.
 
-在「设置 → 扩展功能 → MoviePilot 设置」中添加实例并配置访问令牌。配置完成后，底部会显示 MoviePilot 页面。
+### Set up RSS
 
-### 使用 RSS
+Add RSS feeds and download rules in the **Automation** tab. Configure the refresh interval in Settings. Automatic refresh runs while the app is in the foreground and stops in the background; it is not a continuous server-side scheduler.
 
-在「自动化」页面添加 RSS 源并配置下载规则；刷新间隔可在设置中调整。当前自动刷新在应用前台运行，切到后台后停止，不应将手机端作为全天候后台调度服务。
+## 🛠️ Local Development
 
-## 本地开发
+### Requirements
 
-### 环境
+- macOS and Xcode; the current release workflow uses **Xcode 26.6**.
+- An existing simulator or device running iOS 18.0 or later.
+- Dependencies resolve through Swift Package Manager; Nuke is locked to 13.0.1.
 
-- macOS 与 Xcode；当前 CI 使用 **Xcode 26.6**。
-- iOS 18.0 以上的模拟器或真机。
-- Swift Package Manager 自动解析依赖，已锁定 Nuke 13.0.1。
-
-### 打开项目
+### Open the project
 
 ```bash
 git clone https://github.com/gangz1o/OiiQT.git
@@ -76,17 +76,17 @@ cd OiiQT
 open OiiQT.xcodeproj
 ```
 
-等待依赖解析完成，选择 `OiiQT` Scheme 和设备后运行。真机安装需在 **Signing & Capabilities** 中选择自己的 Team、设置自己的 Bundle Identifier，并按账号支持情况配置项目中的 iCloud Key-value Storage 和 Push Notifications 权限。
+Wait for package resolution, select the `OiiQT` scheme and your device, then run. For physical devices, select your own Team and Bundle Identifier in **Signing & Capabilities**, and configure iCloud Key-value Storage and Push Notifications according to your account's capabilities.
 
-### 命令行构建模拟器版本
+### Build for an existing simulator
 
-先查看已有模拟器：
+List the available devices:
 
 ```bash
 xcrun simctl list devices available
 ```
 
-将下面的 `<UDID>` 替换为一个已有、兼容的模拟器 UDID：
+Replace `<UDID>` below with an existing compatible simulator's identifier:
 
 ```bash
 xcodebuild \
@@ -95,45 +95,63 @@ xcodebuild \
   -configuration Debug \
   -destination 'platform=iOS Simulator,id=<UDID>' \
   -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO \
   build
 ```
 
-## 自动发布 IPA
+Keep default code signing enabled for simulator builds. Disabling it can remove Keychain access and prevent passwords from being saved even when a connection test succeeds. The unsigned release IPA must be signed by the installer before use.
 
-工作流位于 [`.github/workflows/release-ipa.yml`](.github/workflows/release-ipa.yml)。
+## 🤖 Automated IPA Releases
 
-1. 将版本代码与工作流推送到 GitHub。
-2. 基于包含工作流的提交创建标签，例如 `v1.0.1`。
-3. 在 GitHub 发布正式 Release 或预发布 Release。
-4. Actions 构建真机 Release 归档、打包未签名 IPA，并将 `OiiQT-unsigned.ipa` 上传到该 Release。
+The workflow lives in [`.github/workflows/release-ipa.yml`](.github/workflows/release-ipa.yml).
 
-构建无需配置 Apple 证书或额外 Secrets，上传使用工作流自带的 `GITHUB_TOKEN`。应用版本号和构建号取自 Xcode 项目设置；发布前按需更新，标签不会自动修改这两个值。
+1. Push your code and the workflow to GitHub.
+2. Create a tag pointing to a commit containing the workflow, such as `v1.0.1`.
+3. Publish a GitHub Release or prerelease for that tag.
+4. Actions archives the iOS app, packages an unsigned IPA, and attaches `OiiQT-unsigned.ipa` to the release.
 
-也可以在 **Actions → Build unsigned IPA → Run workflow** 中手动构建。手动运行只生成 Actions Artifact，不创建 Release，也不向已有 Release 上传附件。
+No Apple certificates or additional secrets are needed for the build. Uploads use the workflow's `GITHUB_TOKEN`. The app version and build number come from the Xcode project settings; the tag does not update them automatically.
 
-当前流程在 Release 发布后追加附件，因此需要允许修改已发布的 Release；若启用不可变 Release，应调整为先构建并上传到草稿，再发布。
+You can also run **Actions → Build unsigned IPA → Run workflow**. Manual runs produce an Actions artifact only; they do not create a release or attach files to an existing one.
 
-## 项目结构
+This workflow adds assets after publication, so published releases must allow updates. If you enable immutable releases, adapt it to upload assets to a draft before publishing.
+
+## 🗂️ Project Structure
 
 ```text
 OiiQT/
-├── models/       数据模型、应用状态与下载器客户端
-├── services/     影视数据、MoviePilot、凭据与同步服务
-├── viewmodels/   页面状态与展示逻辑
-├── views/        SwiftUI 页面和组件
-├── utils/        解析与网络等辅助代码
+├── models/       Data models, app state, and downloader clients
+├── services/     Media, MoviePilot, credentials, and sync services
+├── viewmodels/   View state and presentation logic
+├── views/        SwiftUI screens and components
+├── utils/        Parsing, networking, and other helpers
 └── Assets.xcassets/
 OiiQT.xcodeproj/
 .github/workflows/release-ipa.yml
 ```
 
-## 反馈与贡献
+## 🤝 Contributing
 
-欢迎通过 [Issues](https://github.com/gangz1o/OiiQT/issues) 提交问题或功能建议，也欢迎提交 Pull Request。
+Bug reports, feature suggestions, and pull requests are welcome. Use [Issues](https://github.com/gangz1o/OiiQT/issues) and include your app version, OS version, downloader type/version, and steps to reproduce.
 
-报告问题时请附上应用版本、系统版本、下载器类型与版本、复现步骤和相关截图。分享日志前请移除密码、访问令牌、RSS Passkey 等个人凭据。
+Remove passwords, access tokens, RSS passkeys, and private server details from logs and screenshots before sharing them.
 
-## 许可证
+## 💬 Community
 
-当前仓库尚未添加 `LICENSE`，项目许可证待确定。
+Have questions, ideas, or just want to chat with a community of developers?
+
+- **Forum**: [linux.do](https://linux.do/) — Join the discussion, share your setup, report issues, and stick around.
+- **Issues**: [GitHub Issues](https://github.com/gangz1o/OiiQT/issues) — Report reproducible bugs and suggest features.
+
+## ⭐ Star History
+
+<a href="https://www.star-history.com/?repos=gangz1o%2FOiiQT&amp;type=date&amp;legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=gangz1o/OiiQT&amp;type=date&amp;theme=dark&amp;legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=gangz1o/OiiQT&amp;type=date&amp;legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=gangz1o/OiiQT&amp;type=date&amp;legend=top-left" />
+  </picture>
+</a>
+
+## 📄 License
+
+OiiQT is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE) for the full terms. Third-party dependencies retain their respective licenses.
