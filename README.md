@@ -68,17 +68,28 @@ Requires **iOS / iPadOS 18.0 or later**.
 
 ### Option 1: Sign and install an IPA
 
-1. Open [Releases](https://github.com/gangz1o/OiiQT/releases) and download `OiiQT-unsigned.ipa` from **Assets**. For a manual build, open a successful [workflow run](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml), download the **OiiQT-unsigned** artifact while signed in to GitHub, and extract the ZIP to get the IPA.
-2. Install [Sideloadly](https://sideloadly.io/) on your Mac or Windows PC, following its setup instructions.
-3. Connect and unlock your iPhone/iPad, trust the computer, then select the device and drag the IPA into Sideloadly.
-4. Use your own Apple Account in Apple ID sideload mode, click **Start**, and complete the authentication prompts.
-5. If prompted, trust the developer under **Settings → General → VPN & Device Management**. Enable **Settings → Privacy & Security → Developer Mode**, follow the restart prompts, and open OiiQT.
+Download `OiiQT-unsigned.ipa` from **Assets** on the [latest release](https://github.com/gangz1o/OiiQT/releases/latest). For a manual build, open a successful [workflow run](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml), download the **OiiQT-unsigned** artifact while signed in to GitHub, and extract the ZIP to get the IPA. Choose one of the signing methods below.
+
+#### Sideloadly (Mac or Windows)
+
+1. Install [Sideloadly](https://sideloadly.io/) on your computer, following its setup instructions.
+2. Connect and unlock your iPhone/iPad, trust the computer, then select the device and drag the IPA into Sideloadly.
+3. Use your own Apple Account in Apple ID sideload mode, click **Start**, and complete the authentication prompts.
+4. If prompted, trust the developer under **Settings → General → VPN & Device Management**. Enable **Settings → Privacy & Security → Developer Mode**, follow the restart prompts, and open OiiQT.
+
+#### SideStore or AltStore Classic
+
+1. Follow the [SideStore setup guide](https://docs.sidestore.io/docs/installation/install.html) or the AltStore Classic guide for [macOS](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) or [Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows). Sign in with your Apple Account during setup.
+2. Save `OiiQT-unsigned.ipa` to **Files** on your iPhone or iPad. In SideStore or AltStore Classic, open **My Apps**, tap **+**, and select the IPA to sign and install it.
+3. For SideStore, connect to Wi-Fi and turn on LocalDevVPN when installing or refreshing. For AltStore Classic, keep [AltServer](https://faq.altstore.io/altstore-classic/altserver) running on a computer on the same Wi-Fi network, or connect the device to that computer by USB.
 
 Free-account signing normally expires after **7 days**; refresh the app before expiry or sign it again. See the [Sideloadly FAQ](https://sideloadly.io/faq) for current limits and troubleshooting. For updates, use the same account and Bundle Identifier and install over the existing app to retain its data; changing the signing team may require entering saved credentials again.
 
 The release IPA is unsigned and contains no distribution certificate or provisioning profile. It must be signed before installation. Capabilities such as iCloud depend on the account, profile, and entitlements used when signing.
 
 The repository does not preset a developer Team ID. Your signing tool supplies your own signing identity; the author's developer account is not required.
+
+Reference: [GestaltX](https://github.com/huamidev/GestaltX) also documents IPA distribution and re-signing. It is a separate iOS project and is not required to install OiiQT.
 
 ### Option 2: Build and install with Xcode
 

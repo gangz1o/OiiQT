@@ -68,17 +68,28 @@ OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RS
 
 ### 方式一：自签 IPA 安装
 
-1. 打开 [Releases](https://github.com/gangz1o/OiiQT/releases)，在 **Assets** 中下载 `OiiQT-unsigned.ipa`。如果需要手动构建的版本，请登录 GitHub，打开成功的 [工作流运行记录](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml)，下载 **OiiQT-unsigned** Artifact，解压 ZIP 后得到 IPA。
-2. 在 Mac 或 Windows 电脑上安装 [Sideloadly](https://sideloadly.io/)，按官网说明完成环境配置。
-3. 连接并解锁 iPhone / iPad，信任电脑，在 Sideloadly 中选择设备并拖入 IPA。
-4. 使用 Apple ID 自签模式，填写自己的 Apple 账号，点击 **Start**，按提示完成账号验证。
-5. 如有提示，在「设置 → 通用 → VPN 与设备管理」中信任开发者；开启「设置 → 隐私与安全性 → 开发者模式」，按提示重启并确认后打开 OiiQT。
+打开 [最新发布](https://github.com/gangz1o/OiiQT/releases/latest)，在 **Assets** 中下载 `OiiQT-unsigned.ipa`。如果需要手动构建的版本，请登录 GitHub，打开成功的 [工作流运行记录](https://github.com/gangz1o/OiiQT/actions/workflows/release-ipa.yml)，下载 **OiiQT-unsigned** Artifact，解压 ZIP 后得到 IPA。然后任选下面一种方式安装。
+
+#### Sideloadly（Mac 或 Windows）
+
+1. 在电脑上安装 [Sideloadly](https://sideloadly.io/)，按官网说明完成环境配置。
+2. 连接并解锁 iPhone / iPad，信任电脑，在 Sideloadly 中选择设备并拖入 IPA。
+3. 使用 Apple ID 自签模式，填写自己的 Apple 账号，点击 **Start**，按提示完成账号验证。
+4. 如有提示，在「设置 → 通用 → VPN 与设备管理」中信任开发者；开启「设置 → 隐私与安全性 → 开发者模式」，按提示重启并确认后打开 OiiQT。
+
+#### SideStore 或 AltStore Classic
+
+1. 按 [SideStore 安装指南](https://docs.sidestore.io/docs/installation/install.html) 或 AltStore Classic 的 [macOS](https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos) / [Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) 指南完成配置，并登录自己的 Apple 账号。
+2. 将 `OiiQT-unsigned.ipa` 保存到 iPhone 或 iPad 的「文件」App。在 SideStore 或 AltStore Classic 中打开 **My Apps**，点击 **+**，选择 IPA 进行签名和安装。
+3. 使用 SideStore 安装或续签时，连接 Wi-Fi 并开启 LocalDevVPN。使用 AltStore Classic 时，让设备与运行 [AltServer](https://faq.altstore.io/altstore-classic/altserver) 的电脑连接同一个 Wi-Fi，或用 USB 连接电脑。
 
 免费账号签名通常 **7 天**到期，请在到期前刷新签名，或重新签名安装。最新限制及故障处理见 [Sideloadly FAQ](https://sideloadly.io/faq)。更新时使用相同账号和 Bundle Identifier，覆盖安装以保留应用数据；更换签名团队后可能需要重新输入已保存的凭据。
 
 发布附件是未签名 IPA，不包含分发证书或描述文件，不能直接安装。iCloud 等系统能力取决于重新签名时使用的账号、描述文件与权限配置。
 
 仓库没有预设开发者 Team ID，签名工具会使用你自己的签名身份，无需作者的开发者账号。
+
+本节参考了 [GestaltX](https://github.com/huamidev/GestaltX) 的 IPA 分发与签名说明。GestaltX 是独立的 iOS 项目，安装 OiiQT 无需安装 GestaltX。
 
 ### 方式二：通过 Xcode 从源码安装
 
