@@ -16,6 +16,7 @@ struct ContentView: View {
     @AppStorage("refreshRate") private var refreshRate: Int = 5
     @AppStorage("rssRefreshInterval") private var rssRefreshInterval: Int = 30
     @ObservedObject private var dashboardViewModel: DashboardViewModel
+    @State private var appUpdates = AppUpdateChecker()
 
     init(dashboardViewModel: DashboardViewModel) {
         self.dashboardViewModel = dashboardViewModel
@@ -54,13 +55,17 @@ struct ContentView: View {
             }
 
             // 管理 (设置)
-            SettingsView()
+            SettingsView(appUpdates: appUpdates)
                 .tabItem {
                     Label(LanguageManager.shared.localized("Settings"), systemImage: "gearshape")
                 }
                 .tag(AppTab.settings)
+                .badge(appUpdates.release == nil ? 0 : 1)
         }
         .animation(.easeInOut, value: appStateManager.shouldMountMoviePilotTab)
+        .task {
+            await appUpdates.check()
+        }
         // iOS 17 默认 TabView 已具有磨砂玻璃效果，
         // 使用 .toolbarBackground 显式指定可以确保在所有视图下的一致性
         .onAppear {

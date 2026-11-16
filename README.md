@@ -83,6 +83,8 @@ Download `OiiQT-unsigned.ipa` from **Assets** on the [latest release](https://gi
 2. Save `OiiQT-unsigned.ipa` to **Files** on your iPhone or iPad. In SideStore or AltStore Classic, open **My Apps**, tap **+**, and select the IPA to sign and install it.
 3. For SideStore, connect to Wi-Fi and turn on LocalDevVPN when installing or refreshing. For AltStore Classic, keep [AltServer](https://faq.altstore.io/altstore-classic/altserver) running on a computer on the same Wi-Fi network, or connect the device to that computer by USB.
 
+OiiQT checks GitHub Releases at launch and shows a badge on **Settings** when an update is available. Open **Settings → Check for Updates** to check again or choose an installer.
+
 Free-account signing normally expires after **7 days**; refresh the app before expiry or sign it again. See the [Sideloadly FAQ](https://sideloadly.io/faq) for current limits and troubleshooting. For updates, use the same account and Bundle Identifier and install over the existing app to retain its data; changing the signing team may require entering saved credentials again.
 
 The release IPA is unsigned and contains no distribution certificate or provisioning profile. It must be signed before installation. Capabilities such as iCloud depend on the account, profile, and entitlements used when signing.
@@ -197,7 +199,7 @@ The workflow lives in [`.github/workflows/release-ipa.yml`](.github/workflows/re
 3. Publish a GitHub Release or prerelease for that tag.
 4. Actions archives the iOS app, packages an unsigned IPA, and attaches `OiiQT-unsigned.ipa` to the release.
 
-No Apple certificates or additional secrets are needed for the build. Uploads use the workflow's `GITHUB_TOKEN`. The app version and build number come from the Xcode project settings; the tag does not update them automatically.
+No Apple certificates or additional secrets are needed for the build. Uploads use the workflow's `GITHUB_TOKEN`. The app version and build number come from the Xcode project settings. For in-app update checks, use a release tag that matches the app version, such as `v1.0.3` for version `1.0.3`.
 
 You can also run **Actions → Build unsigned IPA → Run workflow**. Manual runs produce an Actions artifact only; they do not create a release or attach files to an existing one.
 

@@ -83,6 +83,8 @@ OiiQT 使用 SwiftUI 构建，将多服务器任务管理、流量仪表盘、RS
 2. 将 `OiiQT-unsigned.ipa` 保存到 iPhone 或 iPad 的「文件」App。在 SideStore 或 AltStore Classic 中打开 **My Apps**，点击 **+**，选择 IPA 进行签名和安装。
 3. 使用 SideStore 安装或续签时，连接 Wi-Fi 并开启 LocalDevVPN。使用 AltStore Classic 时，让设备与运行 [AltServer](https://faq.altstore.io/altstore-classic/altserver) 的电脑连接同一个 Wi-Fi，或用 USB 连接电脑。
 
+OiiQT 启动时会检查 GitHub Releases，发现新版本后会在 **设置** 标签显示提示。打开 **设置 → 检查更新** 可以重新检查或选择安装工具。
+
 免费账号签名通常 **7 天**到期，请在到期前刷新签名，或重新签名安装。最新限制及故障处理见 [Sideloadly FAQ](https://sideloadly.io/faq)。更新时使用相同账号和 Bundle Identifier，覆盖安装以保留应用数据；更换签名团队后可能需要重新输入已保存的凭据。
 
 发布附件是未签名 IPA，不包含分发证书或描述文件，不能直接安装。iCloud 等系统能力取决于重新签名时使用的账号、描述文件与权限配置。
@@ -199,7 +201,7 @@ xcodebuild \
 3. 在 GitHub 发布正式 Release 或预发布 Release。
 4. Actions 构建真机 Release 归档、打包未签名 IPA，并将 `OiiQT-unsigned.ipa` 上传到该 Release。
 
-构建无需配置 Apple 证书或额外 Secrets，上传使用工作流自带的 `GITHUB_TOKEN`。应用版本号和构建号取自 Xcode 项目设置；发布前按需更新，标签不会自动修改这两个值。
+构建无需配置 Apple 证书或额外 Secrets，上传使用工作流自带的 `GITHUB_TOKEN`。应用版本号和构建号取自 Xcode 项目设置。App 内检查更新依赖发布标签和应用版本号一致，例如版本 `1.0.3` 对应标签 `v1.0.3`。
 
 也可以在 **Actions → Build unsigned IPA → Run workflow** 中手动构建。手动运行只生成 Actions Artifact，不创建 Release，也不向已有 Release 上传附件。
 

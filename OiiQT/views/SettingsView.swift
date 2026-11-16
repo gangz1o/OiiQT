@@ -14,7 +14,9 @@ import Combine
 struct SettingsView: View {
     @Environment(AppStateManager.self) private var appStateManager
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
     @ObservedObject private var languageManager = LanguageManager.shared
+    let appUpdates: AppUpdateChecker
     private let dashboardConfig = DashboardConfig.shared
 
     // 资源管理
@@ -184,7 +186,41 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text(LanguageManager.shared.localized("Storage & Maintenance"))
+                }
+
+                Section {
+                    Button {
+                        Task { await appUpdates.check() }
+                    } label: {
+                        HStack {
+                            SettingsRowLabel(title: languageManager.localized("Check for Updates"), systemName: "arrow.down.circle", tint: .blue)
+                            Spacer()
+                            if appUpdates.isChecking {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(appUpdates.isChecking)
+
+                    if let release = appUpdates.release {
+                        Button(languageManager.localized("Install with SideStore")) {
+                            openInstaller(scheme: "sidestore", release: release)
+                        }
+                        Button(languageManager.localized("Install with AltStore Classic")) {
+                            openInstaller(scheme: "altstore-classic", release: release)
+                        }
+                        Link(languageManager.localized("Download IPA"), destination: release.downloadURL)
+                    }
+                } header: {
+                    if let release = appUpdates.release {
+                        Text(String(format: languageManager.localized("Update available: %@"), release.version))
+                    }
                 } footer: {
+                    if appUpdates.checkFailed {
+                        Text(languageManager.localized("Could not check for updates."))
+                    } else if appUpdates.hasChecked && appUpdates.release == nil && !appUpdates.isChecking {
+                        Text(languageManager.localized("OiiQT is up to date."))
+                    }
                     legalFooterView
                 }
             }
@@ -421,6 +457,12 @@ struct SettingsView: View {
         guard let route = appStateManager.settingsRoute else { return }
         settingsPath = [route]
         appStateManager.settingsRoute = nil
+    }
+
+    private func openInstaller(scheme: String, release: AppRelease) {
+        openURL(release.installURL(scheme: scheme)) { accepted in
+            if !accepted { openURL(release.downloadURL) }
+        }
     }
 
     private var legalFooterView: some View {
@@ -1063,5 +1105,5 @@ private struct TMDBAPIKeySettingsView: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(appUpdates: AppUpdateChecker())
 }
